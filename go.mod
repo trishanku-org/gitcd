@@ -2,7 +2,10 @@ module github.com/trishanku/gitcd
 
 go 1.17
 
-require github.com/k3s-io/kine v0.8.0
+require (
+	github.com/k3s-io/kine v0.8.0
+	github.com/libgit2/git2go/v31 v31.6.1
+)
 
 require (
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -10,6 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.7.0 // indirect
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.0 // indirect
+	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2 // indirect
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4 // indirect
 	golang.org/x/sys v0.0.0-20210603081109-ebe580a85c40 // indirect
 	golang.org/x/text v0.3.5 // indirect
