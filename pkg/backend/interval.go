@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"strings"
 
@@ -57,6 +58,8 @@ type interval interface {
 	// Check returns 0 if the string is part of the interval, -1 if it is out of the interval on the left (start) side
 	// and 1 if it is out of the interval on the right (end) side.
 	Check(key) checkResult
+	// String returns the string representation of the interval.
+	String() string
 }
 
 type closedOpenInterval struct {
@@ -89,7 +92,56 @@ func (i *closedOpenInterval) Check(s key) checkResult {
 	return checkResultInRange
 }
 
+func (i *closedOpenInterval) String() string {
+	return fmt.Sprintf("[%s, %s)", i.start.String(), i.end.String())
+}
+
+const (
+	pathSeparator = "/"
+)
+
+func splitPath(p string) (ps []string) {
+	p = toCanonicalRelativePath(p)
+
+	if len(p) > 0 {
+		ps = strings.Split(p, pathSeparator)
+	}
+
+	return
+}
+
+type pathSlice []string
+
+func (ps pathSlice) boundedIndex(i int) int {
+	switch {
+	case i < 0:
+		return 0
+	case i <= len(ps):
+		return i
+	default:
+		return len(ps)
+	}
+}
+
+func (ps pathSlice) getRelevantPathForDepthOf(p string) string {
+	return path.Join(ps[:ps.boundedIndex(len(splitPath(p)))]...)
+}
+
+func joinSafe(parent, child string) string {
+	if len(parent) == 0 {
+		return child
+	}
+
+	return path.Join(parent, child)
+}
+
 type intervalExplorerFilterFunc func(context.Context, git.TreeEntry) bool
+
+func newObjectTypeFilter(typ git.ObjectType) intervalExplorerFilterFunc {
+	return func(_ context.Context, te git.TreeEntry) bool {
+		return te.EntryType() == typ
+	}
+}
 
 type intervalExplorerReceiverFunc func(ctx context.Context, key string, te git.TreeEntry) (done, skip bool, err error)
 
@@ -100,9 +152,17 @@ type intervalExplorer struct {
 	keyPrefix string
 }
 
+func toCanonicalPath(p string) string {
+	if p = path.Clean(p); p == "." {
+		p = p[1:]
+	}
+
+	return p
+}
+
 func toCanonicalRelativePath(p string) string {
-	if p = path.Clean(p); path.IsAbs(p) || p == "." {
-		return p[1:]
+	if p = toCanonicalPath(p); path.IsAbs(p) {
+		p = p[1:]
 	}
 
 	return p
@@ -112,17 +172,14 @@ func (ie *intervalExplorer) getPathForKey(key string) string {
 	var prefix = ie.keyPrefix
 
 	if len(prefix) == 0 {
-		return toCanonicalRelativePath(key)
+		return toCanonicalPath(key)
 	}
 
-	// Ignore the trailing '/' if any.
-	if prefix[len(prefix)-1] == '/' {
-		prefix = prefix[:len(prefix)-1]
-	}
+	prefix = strings.TrimSuffix(prefix, pathSeparator)
 
 	if strings.HasPrefix(key, prefix) {
 		// Only consider if the prefix is followed by a '/' in the key.
-		if key = key[len(prefix):]; len(key) > 0 && key[0] == '/' {
+		if key = key[len(prefix):]; len(key) > 0 && key[:1] == pathSeparator {
 			return toCanonicalRelativePath(key)
 		}
 	}
@@ -131,8 +188,7 @@ func (ie *intervalExplorer) getPathForKey(key string) string {
 }
 
 func (ie *intervalExplorer) getKeyForPath(p string) string {
-
-	return path.Clean(path.Join(ie.keyPrefix, p))
+	return path.Clean(joinSafe(ie.keyPrefix, p))
 }
 
 func (ie *intervalExplorer) doFilterAndReceive(ctx context.Context, key string, te git.TreeEntry, receiverFn intervalExplorerReceiverFunc, filterFns ...intervalExplorerFilterFunc) (done, skip bool, err error) {
@@ -145,7 +201,7 @@ func (ie *intervalExplorer) doFilterAndReceive(ctx context.Context, key string, 
 	return receiverFn(ctx, key, te)
 }
 
-func (ie *intervalExplorer) ForEachMatchingKey(ctx context.Context, receiverFn intervalExplorerReceiverFunc, filterFns ...intervalExplorerFilterFunc) (err error) {
+func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn intervalExplorerReceiverFunc, filterFns ...intervalExplorerFilterFunc) (err error) {
 	var startPathSlice pathSlice
 
 	if ie.interval.IsSingleton() {
@@ -169,7 +225,7 @@ func (ie *intervalExplorer) ForEachMatchingKey(ctx context.Context, receiverFn i
 		ie.tree,
 		func(ctx context.Context, parentPath string, te git.TreeEntry) (done, skip bool, err error) {
 			var (
-				p               = path.Join(parentPath, te.EntryName())
+				p               = joinSafe(parentPath, te.EntryName())
 				k               = key(ie.getKeyForPath(p))
 				startKeyForPath = key(ie.getKeyForPath(startPathSlice.getRelevantPathForDepthOf(p)))
 			)
@@ -190,33 +246,4 @@ func (ie *intervalExplorer) ForEachMatchingKey(ctx context.Context, receiverFn i
 			return ie.doFilterAndReceive(ctx, k.String(), te, receiverFn, filterFns...)
 		},
 	)
-}
-
-func splitPath(p string) (ps []string) {
-	ps = strings.Split(p, "/")
-
-	if ps[0] == "" {
-		ps = ps[1:]
-	}
-
-	if ps[len(ps)-1] == "" {
-		ps = ps[:len(ps)-1]
-	}
-
-	return
-}
-
-type pathSlice []string
-
-func (ps pathSlice) boundedIndex(i int) int {
-	switch {
-	case i <= len(ps):
-		return i
-	default:
-		return len(ps)
-	}
-}
-
-func (ps pathSlice) getRelevantPathForDepthOf(p string) string {
-	return path.Join(ps[:ps.boundedIndex(len(splitPath(p)))]...)
 }
