@@ -232,3 +232,51 @@ func (repo *repository) forEachCommit(ctx context.Context, c git.Commit, fn git.
 
 	return
 }
+
+func (repo *repository) BlobBuilder(ctx context.Context) (b git.BlobBuilder, err error) {
+	if err = ctx.Err(); err == nil {
+		b = &blobBuilder{repo: repo}
+	}
+
+	return
+}
+
+func (repo *repository) TreeBuilder(ctx context.Context) (b git.TreeBuilder, err error) {
+	var implB *impl.TreeBuilder
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	if implB, err = repo.impl.TreeBuilder(); err == nil {
+		b = (*treeBuilder)(implB)
+	}
+
+	return
+}
+
+func (repo *repository) TreeBuilderFromTree(ctx context.Context, t git.Tree) (b git.TreeBuilder, err error) {
+	var implB *impl.TreeBuilder
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	if it, ok := t.(*tree); ok {
+		if implB, err = repo.impl.TreeBuilderFromTree((*impl.Tree)(it)); err == nil {
+			b = (*treeBuilder)(implB)
+		}
+		return
+	}
+
+	err = NewUnsupportedImplementationError(t)
+	return
+}
+
+func (repo *repository) CommitBuilder(ctx context.Context) (b git.CommitBuilder, err error) {
+	if err = ctx.Err(); err == nil {
+		b = &commitBuilder{repo: repo}
+	}
+
+	return
+}

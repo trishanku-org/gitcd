@@ -36,10 +36,28 @@ func (rc *referenceCollection) impl() *impl.ReferenceCollection {
 	return (*impl.ReferenceCollection)(rc)
 }
 
-func (rc *referenceCollection) Get(_ context.Context, refName git.ReferenceName) (git.Reference, error) {
+func (rc *referenceCollection) Get(ctx context.Context, refName git.ReferenceName) (git.Reference, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	if implR, err := rc.impl().Lookup(string(refName)); err != nil {
 		return nil, err
 	} else {
 		return (*reference)(implR), nil
 	}
+}
+
+func (rc *referenceCollection) Create(ctx context.Context, refName git.ReferenceName, id git.ObjectID, force bool, msg string) (err error) {
+	var implRef *impl.Reference
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	if implRef, err = rc.impl().Create(string(refName), (*impl.Oid)(&id), force, msg); err == nil {
+		defer implRef.Free()
+	}
+
+	return
 }

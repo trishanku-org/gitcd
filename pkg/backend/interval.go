@@ -146,10 +146,10 @@ func newObjectTypeFilter(typ git.ObjectType) intervalExplorerFilterFunc {
 type intervalExplorerReceiverFunc func(ctx context.Context, key string, te git.TreeEntry) (done, skip bool, err error)
 
 type intervalExplorer struct {
-	repo      git.Repository
-	interval  interval
-	tree      git.Tree
 	keyPrefix string
+	repo      git.Repository
+	tree      git.Tree
+	interval  interval
 }
 
 func toCanonicalPath(p string) string {

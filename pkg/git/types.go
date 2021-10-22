@@ -130,6 +130,9 @@ type Tree interface {
 	ForEachEntry(context.Context, TreeEntryReceiverFunc) error
 }
 
+// CommitIDReceiverFunc defines the signature for a function receiving a Commit ID.
+type CommitIDReceiverFunc func(context.Context, ObjectID) (done bool, err error)
+
 // CommitReceiverFunc defines the signature for a function receiving a Commit.
 type CommitReceiverFunc func(context.Context, Commit) (done bool, err error)
 
@@ -139,6 +142,9 @@ type Commit interface {
 
 	Message() string
 	TreeID() ObjectID
+
+	// ForEachParentID iterates through each immediate parent commit ID.
+	ForEachParentID(context.Context, CommitIDReceiverFunc) error
 
 	// ForEachParent iterates through each immediate parent commit.
 	// It closes each parent commit object after the receiver function has been called during the iteration.
@@ -170,6 +176,7 @@ type Reference interface {
 // ReferenceCollection defines access to the references of a Git repository.
 type ReferenceCollection interface {
 	Get(context.Context, ReferenceName) (Reference, error)
+	Create(ctx context.Context, refName ReferenceName, id ObjectID, force bool, msg string) error
 }
 
 type ObjectGetter interface {
@@ -202,6 +209,38 @@ type CommitWalker interface {
 	ForEachCommit(context.Context, Commit, CommitWalkerReceiverFunc) error
 }
 
+// ObjectBuilder defines the interface to build an object in a Git repository.
+type ObjectBuilder interface {
+	io.Closer
+
+	Build(context.Context) (ObjectID, error)
+}
+
+// BlobBuilder defines the interface to build blob in a Git repository.
+type BlobBuilder interface {
+	ObjectBuilder
+
+	SetContent([]byte) error
+}
+
+// TreeBuilder defines the interface to build a tree in a Git repository.
+type TreeBuilder interface {
+	ObjectBuilder
+
+	AddEntry(entryName string, entryID ObjectID, entryMode Filemode) error
+	RemoveEntry(entryName string) error
+}
+
+type CommitBuilder interface {
+	ObjectBuilder
+
+	SetMessage(string) error
+	SetTree(Tree) error
+	SetTreeID(ObjectID) error
+	AddParents(...Commit) error
+	AddParentIDs(...ObjectID) error
+}
+
 // Repository defines access to a Git repository.
 type Repository interface {
 	io.Closer
@@ -213,6 +252,10 @@ type Repository interface {
 	Peeler() Peeler
 	TreeWalker() TreeWalker
 	CommitWalker() CommitWalker
+	BlobBuilder(context.Context) (BlobBuilder, error)
+	TreeBuilder(context.Context) (TreeBuilder, error)
+	TreeBuilderFromTree(context.Context, Tree) (TreeBuilder, error)
+	CommitBuilder(context.Context) (CommitBuilder, error)
 }
 
 // Interface defines access to a Git implementation.

@@ -141,6 +141,26 @@ func (c *commit) Peel(ctx context.Context, r git.ObjectReceiver) error {
 func (c *commit) Message() string      { return c.impl().Message() }
 func (c *commit) TreeID() git.ObjectID { return git.ObjectID(*c.impl().TreeId()) }
 
+func (c *commit) ForEachParentID(ctx context.Context, fn git.CommitIDReceiverFunc) (err error) {
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	for i, nparents := uint(0), c.impl().ParentCount(); i < nparents; i++ {
+		var done bool
+
+		if err = ctx.Err(); err != nil {
+			return
+		}
+
+		if done, err = fn(ctx, git.ObjectID(*c.impl().ParentId(i))); err != nil || done {
+			return
+		}
+	}
+
+	return
+}
+
 func (c *commit) ForEachParent(ctx context.Context, fn git.CommitReceiverFunc) (err error) {
 	if err = ctx.Err(); err != nil {
 		return
@@ -165,4 +185,119 @@ func callCommitReceiverAndClose(ctx context.Context, c git.Commit, fn git.Commit
 	defer c.Close()
 
 	return fn(ctx, c)
+}
+
+type blobBuilder struct {
+	repo    *repository
+	content []byte
+}
+
+func (b *blobBuilder) Close() error { return nil }
+
+func (b *blobBuilder) Build(ctx context.Context) (id git.ObjectID, err error) {
+	var oid *impl.Oid
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	if oid, err = b.repo.impl.CreateBlobFromBuffer(b.content); err == nil {
+		id = git.ObjectID(*oid)
+	}
+
+	return
+}
+
+func (b *blobBuilder) SetContent(content []byte) error {
+	b.content = content
+	return nil
+}
+
+type treeBuilder impl.TreeBuilder
+
+func (b *treeBuilder) impl() *impl.TreeBuilder { return (*impl.TreeBuilder)(b) }
+func (b *treeBuilder) Close() error            { b.impl().Free(); return nil }
+
+func (b *treeBuilder) Build(ctx context.Context) (id git.ObjectID, err error) {
+	var oid *impl.Oid
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	if oid, err = b.impl().Write(); err == nil {
+		id = git.ObjectID(*oid)
+	}
+
+	return
+}
+
+func (b *treeBuilder) AddEntry(entryName string, entryID git.ObjectID, entryMode git.Filemode) error {
+	return b.impl().Insert(entryName, (*impl.Oid)(&entryID), impl.Filemode(entryMode))
+}
+
+func (b *treeBuilder) RemoveEntry(entryName string) error {
+	return b.impl().Remove(entryName)
+}
+
+type commitBuilder struct {
+	repo      *repository
+	message   string
+	treeID    git.ObjectID
+	parentIDs []git.ObjectID
+}
+
+func (b *commitBuilder) Close() error { return nil }
+
+func (b *commitBuilder) Build(ctx context.Context) (id git.ObjectID, err error) {
+	var (
+		parentOids = make([]*impl.Oid, len(b.parentIDs))
+		newOid     *impl.Oid
+	)
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	for i := range b.parentIDs {
+		var oid = impl.Oid(b.parentIDs[i])
+		parentOids[i] = &oid
+	}
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	if newOid, err = b.repo.impl.CreateCommitFromIds("", nil, nil, b.message, (*impl.Oid)(&b.treeID), parentOids...); err == nil {
+		id = git.ObjectID(*newOid)
+	}
+
+	return
+}
+
+func (b *commitBuilder) SetMessage(message string) error {
+	b.message = message
+	return nil
+}
+
+func (b *commitBuilder) SetTree(t git.Tree) error {
+	b.treeID = t.ID()
+	return nil
+}
+
+func (b *commitBuilder) SetTreeID(id git.ObjectID) error {
+	b.treeID = id
+	return nil
+}
+
+func (b *commitBuilder) AddParents(parents ...git.Commit) error {
+	for _, p := range parents {
+		b.parentIDs = append(b.parentIDs, p.ID())
+	}
+	return nil
+}
+
+func (b *commitBuilder) AddParentIDs(parentIDs ...git.ObjectID) error {
+	b.parentIDs = append(b.parentIDs, parentIDs...)
+	return nil
 }
