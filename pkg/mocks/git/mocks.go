@@ -439,6 +439,18 @@ func (m *MockCommitWalker) EXPECT() *MockCommitWalkerMockRecorder {
 	return m.recorder
 }
 
+// Close mocks base method
+func (m *MockCommitWalker) Close() error {
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockCommitWalkerMockRecorder) Close() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockCommitWalker)(nil).Close))
+}
+
 // ForEachCommit mocks base method
 func (m *MockCommitWalker) ForEachCommit(arg0 context.Context, arg1 git.Commit, arg2 git.CommitWalkerReceiverFunc) error {
 	ret := m.ctrl.Call(m, "ForEachCommit", arg0, arg1, arg2)
@@ -1462,6 +1474,18 @@ func NewMockTreeWalker(ctrl *gomock.Controller) *MockTreeWalker {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockTreeWalker) EXPECT() *MockTreeWalkerMockRecorder {
 	return m.recorder
+}
+
+// Close mocks base method
+func (m *MockTreeWalker) Close() error {
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockTreeWalkerMockRecorder) Close() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockTreeWalker)(nil).Close))
 }
 
 // ForEachTreeEntry mocks base method

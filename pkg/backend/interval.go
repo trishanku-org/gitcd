@@ -202,7 +202,10 @@ func (ie *intervalExplorer) doFilterAndReceive(ctx context.Context, key string, 
 }
 
 func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn intervalExplorerReceiverFunc, filterFns ...intervalExplorerFilterFunc) (err error) {
-	var startPathSlice pathSlice
+	var (
+		startPathSlice pathSlice
+		tw             git.TreeWalker
+	)
 
 	if ie.interval.IsSingleton() {
 		var (
@@ -220,7 +223,11 @@ func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn i
 
 	startPathSlice = pathSlice(splitPath(ie.getPathForKey(ie.interval.GetStartInclusive().String())))
 
-	return ie.repo.TreeWalker().ForEachTreeEntry(
+	tw = ie.repo.TreeWalker()
+
+	defer tw.Close()
+
+	err = tw.ForEachTreeEntry(
 		ctx,
 		ie.tree,
 		func(ctx context.Context, parentPath string, te git.TreeEntry) (done, skip bool, err error) {
@@ -246,4 +253,6 @@ func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn i
 			return ie.doFilterAndReceive(ctx, k.String(), te, receiverFn, filterFns...)
 		},
 	)
+
+	return
 }

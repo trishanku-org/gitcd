@@ -197,6 +197,8 @@ type Peeler interface {
 type TreeWalkerReceiverFunc func(ctx context.Context, parentPath string, te TreeEntry) (done, skip bool, err error)
 
 type TreeWalker interface {
+	io.Closer
+
 	ForEachTreeEntry(context.Context, Tree, TreeWalkerReceiverFunc) error
 }
 
@@ -206,6 +208,8 @@ type CommitWalkerReceiverFunc func(context.Context, Commit) (done, skip bool, er
 // CommitWalker defines the interface to walk a commit history in pre-order.
 // It closes each parent commit object after the receiver function has been called during the iteration.
 type CommitWalker interface {
+	io.Closer
+
 	ForEachCommit(context.Context, Commit, CommitWalkerReceiverFunc) error
 }
 

@@ -219,7 +219,11 @@ func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k strin
 // getPeelablesForRevision returns the metadata Peelable that corresponds to the given revision.
 // The metadata commits are searched in pre-order starting from the given metaHead.
 func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead git.Commit, revision int64) (metaP git.Peelable, _ error) {
-	if err := b.repo.CommitWalker().ForEachCommit(ctx, metaHead, func(ctx context.Context, c git.Commit) (done, skip bool, err error) {
+	var cw = b.repo.CommitWalker()
+
+	defer cw.Close()
+
+	if err := cw.ForEachCommit(ctx, metaHead, func(ctx context.Context, c git.Commit) (done, skip bool, err error) {
 		var (
 			t   git.Tree
 			rev int64

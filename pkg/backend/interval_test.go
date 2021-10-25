@@ -984,6 +984,7 @@ var _ = Describe("intervalExplorer", func() {
 						)
 
 						repo.EXPECT().TreeWalker().Return(tw)
+						tw.EXPECT().Close().Return(nil)
 						tw.EXPECT().ForEachTreeEntry(gomock.Any(), tree, gomock.Any()).DoAndReturn(
 							func(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) error {
 								var callForEntries func(parentPath string, entries []entry) error

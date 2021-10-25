@@ -166,7 +166,13 @@ func (repo *repository) PeelToCommit(ctx context.Context, p git.Peelable) (git.C
 	}
 }
 
-func (repo *repository) TreeWalker() git.TreeWalker { return repo }
+func (repo *repository) TreeWalker() git.TreeWalker { return &treeWalker{repo: repo} }
+
+type treeWalker struct {
+	repo *repository
+}
+
+func (tw *treeWalker) Close() error { return nil }
 
 const (
 	implTreeWalkDone = iota - 1
@@ -174,7 +180,7 @@ const (
 	implTreeWalkSkip
 )
 
-func (repo *repository) ForEachTreeEntry(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) (err error) {
+func (tw *treeWalker) ForEachTreeEntry(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) (err error) {
 	if err = ctx.Err(); err != nil {
 		return
 	}
@@ -203,14 +209,20 @@ func (repo *repository) ForEachTreeEntry(ctx context.Context, t git.Tree, fn git
 	}
 }
 
-func (repo *repository) CommitWalker() git.CommitWalker { return repo }
+func (repo *repository) CommitWalker() git.CommitWalker { return &commitWalker{repo: repo} }
 
-func (repo *repository) ForEachCommit(ctx context.Context, c git.Commit, fn git.CommitWalkerReceiverFunc) (err error) {
-	_, err = repo.forEachCommit(ctx, c, fn)
+type commitWalker struct {
+	repo *repository
+}
+
+func (cw *commitWalker) Close() error { return nil }
+
+func (cw *commitWalker) ForEachCommit(ctx context.Context, c git.Commit, fn git.CommitWalkerReceiverFunc) (err error) {
+	_, err = cw.forEachCommit(ctx, c, fn)
 	return
 }
 
-func (repo *repository) forEachCommit(ctx context.Context, c git.Commit, fn git.CommitWalkerReceiverFunc) (done bool, err error) {
+func (cw *commitWalker) forEachCommit(ctx context.Context, c git.Commit, fn git.CommitWalkerReceiverFunc) (done bool, err error) {
 	var skip bool
 	// TODO Improve this naive recursive implementation to avoid stack overflow.
 
@@ -227,7 +239,7 @@ func (repo *repository) forEachCommit(ctx context.Context, c git.Commit, fn git.
 			return
 		}
 
-		return repo.forEachCommit(ctx, c, fn)
+		return cw.forEachCommit(ctx, c, fn)
 	})
 
 	return
