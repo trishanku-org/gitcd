@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"time"
 )
 
 // ObjectType defines the type for the type of Object in a Git repository.
@@ -175,6 +176,8 @@ type Reference interface {
 
 // ReferenceCollection defines access to the references of a Git repository.
 type ReferenceCollection interface {
+	io.Closer
+
 	Get(context.Context, ReferenceName) (Reference, error)
 	Create(ctx context.Context, refName ReferenceName, id ObjectID, force bool, msg string) error
 }
@@ -238,6 +241,12 @@ type TreeBuilder interface {
 type CommitBuilder interface {
 	ObjectBuilder
 
+	SetAuthorName(string) error
+	SetAuthorEmail(string) error
+	SetAuthorTime(time.Time) error
+	SetCommitterName(string) error
+	SetCommitterEmail(string) error
+	SetCommitterTime(time.Time) error
 	SetMessage(string) error
 	SetTree(Tree) error
 	SetTreeID(ObjectID) error

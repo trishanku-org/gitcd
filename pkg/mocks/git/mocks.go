@@ -1029,6 +1029,18 @@ func (m *MockReferenceCollection) EXPECT() *MockReferenceCollectionMockRecorder 
 	return m.recorder
 }
 
+// Close mocks base method
+func (m *MockReferenceCollection) Close() error {
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (mr *MockReferenceCollectionMockRecorder) Close() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReferenceCollection)(nil).Close))
+}
+
 // Create mocks base method
 func (m *MockReferenceCollection) Create(arg0 context.Context, arg1 git.ReferenceName, arg2 git.ObjectID, arg3 bool, arg4 string) error {
 	ret := m.ctrl.Call(m, "Create", arg0, arg1, arg2, arg3, arg4)

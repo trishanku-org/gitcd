@@ -3,9 +3,11 @@ package git2go
 import (
 	"context"
 	"fmt"
+	"path"
 
 	impl "github.com/libgit2/git2go/v31"
 	"github.com/trishanku/gitcd/pkg/git"
+	"github.com/trishanku/gitcd/pkg/util"
 )
 
 // repository implements the Repository interface defined in the parent git package.
@@ -180,7 +182,7 @@ const (
 	implTreeWalkSkip
 )
 
-func (tw *treeWalker) ForEachTreeEntry(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) (err error) {
+func (tw *treeWalker) ForEachTreeEntryBasedOnGit2GoTreeWalk(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) (err error) {
 	if err = ctx.Err(); err != nil {
 		return
 	}
@@ -209,6 +211,42 @@ func (tw *treeWalker) ForEachTreeEntry(ctx context.Context, t git.Tree, fn git.T
 	}
 }
 
+func (tw *treeWalker) ForEachTreeEntry(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) (err error) {
+	_, err = tw.forEachTreeEntryInPreOrder(ctx, "", t, fn)
+	return
+}
+
+func (tw *treeWalker) forEachTreeEntryInPreOrder(ctx context.Context, parentPath string, t git.Tree, fn git.TreeWalkerReceiverFunc) (done bool, err error) {
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	err = t.ForEachEntry(ctx, func(ctx context.Context, te git.TreeEntry) (tedone bool, err error) {
+		var (
+			skip bool
+			st   git.Tree
+		)
+
+		defer func() { done = tedone }()
+
+		if tedone, skip, err = fn(ctx, parentPath, te); err != nil || tedone || skip || te.EntryType() != git.ObjectTypeTree {
+			return
+		}
+
+		// Must be a subtree entry. Load it and recursively walk it in pre-order.
+		if st, err = tw.repo.ObjectGetter().GetTree(ctx, te.EntryID()); err != nil {
+			return
+		}
+
+		defer st.Close()
+
+		tedone, err = tw.forEachTreeEntryInPreOrder(ctx, util.ToCanonicalRelativePath(path.Join(parentPath, te.EntryName())), st, fn)
+		return
+	})
+
+	return
+}
+
 func (repo *repository) CommitWalker() git.CommitWalker { return &commitWalker{repo: repo} }
 
 type commitWalker struct {
@@ -234,12 +272,15 @@ func (cw *commitWalker) forEachCommit(ctx context.Context, c git.Commit, fn git.
 		return
 	}
 
-	err = c.ForEachParent(ctx, func(ctx context.Context, c git.Commit) (done bool, err error) {
+	err = c.ForEachParent(ctx, func(ctx context.Context, c git.Commit) (cdone bool, err error) {
 		if err = ctx.Err(); err != nil {
 			return
 		}
 
-		return cw.forEachCommit(ctx, c, fn)
+		defer func() { done = cdone }()
+
+		cdone, err = cw.forEachCommit(ctx, c, fn)
+		return
 	})
 
 	return

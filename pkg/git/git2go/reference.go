@@ -32,6 +32,8 @@ type referenceCollection impl.ReferenceCollection
 
 var _ git.ReferenceCollection = &referenceCollection{}
 
+func (rc *referenceCollection) Close() error { return nil }
+
 func (rc *referenceCollection) impl() *impl.ReferenceCollection {
 	return (*impl.ReferenceCollection)(rc)
 }

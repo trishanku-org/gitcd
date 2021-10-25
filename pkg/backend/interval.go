@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/trishanku/gitcd/pkg/git"
+	"github.com/trishanku/gitcd/pkg/util"
 )
 
 type cmpResult int
@@ -101,7 +102,7 @@ const (
 )
 
 func splitPath(p string) (ps []string) {
-	p = toCanonicalRelativePath(p)
+	p = util.ToCanonicalRelativePath(p)
 
 	if len(p) > 0 {
 		ps = strings.Split(p, pathSeparator)
@@ -152,27 +153,11 @@ type intervalExplorer struct {
 	interval  interval
 }
 
-func toCanonicalPath(p string) string {
-	if p = path.Clean(p); p == "." {
-		p = p[1:]
-	}
-
-	return p
-}
-
-func toCanonicalRelativePath(p string) string {
-	if p = toCanonicalPath(p); path.IsAbs(p) {
-		p = p[1:]
-	}
-
-	return p
-}
-
 func (ie *intervalExplorer) getPathForKey(key string) string {
 	var prefix = ie.keyPrefix
 
 	if len(prefix) == 0 {
-		return toCanonicalPath(key)
+		return util.ToCanonicalPath(key)
 	}
 
 	prefix = strings.TrimSuffix(prefix, pathSeparator)
@@ -180,7 +165,7 @@ func (ie *intervalExplorer) getPathForKey(key string) string {
 	if strings.HasPrefix(key, prefix) {
 		// Only consider if the prefix is followed by a '/' in the key.
 		if key = key[len(prefix):]; len(key) > 0 && key[:1] == pathSeparator {
-			return toCanonicalRelativePath(key)
+			return util.ToCanonicalRelativePath(key)
 		}
 	}
 

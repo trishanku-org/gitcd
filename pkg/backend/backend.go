@@ -58,12 +58,17 @@ func (b *backend) getMetadataRefName() (refName git.ReferenceName, err error) {
 	return
 }
 
-func (b *backend) getReference(ctx context.Context, refName git.ReferenceName) (git.Reference, error) {
-	if refs, err := b.repo.References(); err != nil {
+func (b *backend) getReference(ctx context.Context, refName git.ReferenceName) (ref git.Reference, err error) {
+	var rc git.ReferenceCollection
+
+	if rc, err = b.repo.References(); err != nil {
 		return nil, err
-	} else {
-		return refs.Get(ctx, refName)
 	}
+
+	defer rc.Close()
+
+	ref, err = rc.Get(ctx, refName)
+	return
 }
 
 func (b *backend) getMetadataReference(ctx context.Context) (ref git.Reference, err error) {
@@ -702,6 +707,8 @@ func (b *backend) advanceReferences(
 		if rc, err = b.repo.References(); err != nil {
 			return
 		}
+
+		defer rc.Close()
 
 		if err = rc.Create(ctx, e.refName, e.headID, true, revisionToString(revision)); err != nil {
 			return

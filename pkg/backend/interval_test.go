@@ -162,27 +162,6 @@ var _ = Describe("closedOpenInterval", func() {
 	}
 })
 
-var _ = Describe("toCanonicalRelativePath", func() {
-	for p, cp := range map[string]string{
-		"":         "",
-		"a":        "a",
-		"/":        "",
-		"//":       "",
-		"///":      "",
-		"a/":       "a",
-		"a/a":      "a/a",
-		"a//a":     "a/a",
-		"a///a/":   "a/a",
-		"///a//a/": "a/a",
-	} {
-		func(p, cp string) {
-			It(fmt.Sprintf("of %q, should be %q", p, cp), func() {
-				Expect(toCanonicalRelativePath(p)).To(Equal(cp))
-			})
-		}(p, cp)
-	}
-})
-
 var _ = Describe("pathSlice", func() {
 	var ps pathSlice
 	Describe("boundedIndex", func() {

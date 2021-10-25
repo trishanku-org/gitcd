@@ -3,8 +3,11 @@ package git2go
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"io/ioutil"
+	"reflect"
+	"time"
 
 	impl "github.com/libgit2/git2go/v31"
 	"github.com/trishanku/gitcd/pkg/git"
@@ -241,18 +244,53 @@ func (b *treeBuilder) RemoveEntry(entryName string) error {
 }
 
 type commitBuilder struct {
-	repo      *repository
-	message   string
-	treeID    git.ObjectID
-	parentIDs []git.ObjectID
+	repo                        *repository
+	authorName, committerName   string
+	authorEmail, committerEmail string
+	authorTime, committerTime   time.Time
+	message                     string
+	treeID                      git.ObjectID
+	parentIDs                   []git.ObjectID
 }
 
 func (b *commitBuilder) Close() error { return nil }
 
+func defaultCommitSignatureFrom(t, s *impl.Signature) error {
+	var emptyTime = time.Time{}
+
+	if len(t.Name) == 0 {
+		if len(s.Name) == 0 {
+			return errors.New("invalid empty commit name")
+		}
+
+		t.Name = s.Name
+	}
+
+	if len(t.Email) == 0 {
+		if len(s.Email) == 0 {
+			return errors.New("invalid empty commit email")
+		}
+
+		t.Email = s.Email
+	}
+
+	if reflect.DeepEqual(t.When, emptyTime) {
+		if reflect.DeepEqual(s.When, emptyTime) {
+			t.When = time.Now()
+			return nil
+		}
+
+		t.When = s.When
+	}
+
+	return nil
+}
+
 func (b *commitBuilder) Build(ctx context.Context) (id git.ObjectID, err error) {
 	var (
-		parentOids = make([]*impl.Oid, len(b.parentIDs))
-		newOid     *impl.Oid
+		parentOids        = make([]*impl.Oid, len(b.parentIDs))
+		author, committer *impl.Signature
+		newOid            *impl.Oid
 	)
 
 	if err = ctx.Err(); err != nil {
@@ -260,35 +298,40 @@ func (b *commitBuilder) Build(ctx context.Context) (id git.ObjectID, err error) 
 	}
 
 	for i := range b.parentIDs {
-		var oid = impl.Oid(b.parentIDs[i])
-		parentOids[i] = &oid
+		parentOids[i] = (*impl.Oid)(&b.parentIDs[i])
+	}
+
+	author = &impl.Signature{Name: b.authorName, Email: b.authorEmail, When: b.authorTime}
+	committer = &impl.Signature{Name: b.committerName, Email: b.committerEmail, When: b.committerTime}
+
+	if err = defaultCommitSignatureFrom(author, committer); err != nil {
+		return
+	}
+
+	if err = defaultCommitSignatureFrom(committer, author); err != nil {
+		return
 	}
 
 	if err = ctx.Err(); err != nil {
 		return
 	}
 
-	if newOid, err = b.repo.impl.CreateCommitFromIds("", nil, nil, b.message, (*impl.Oid)(&b.treeID), parentOids...); err == nil {
+	if newOid, err = b.repo.impl.CreateCommitFromIds("", author, committer, b.message, (*impl.Oid)(&b.treeID), parentOids...); err == nil {
 		id = git.ObjectID(*newOid)
 	}
 
 	return
 }
 
-func (b *commitBuilder) SetMessage(message string) error {
-	b.message = message
-	return nil
-}
-
-func (b *commitBuilder) SetTree(t git.Tree) error {
-	b.treeID = t.ID()
-	return nil
-}
-
-func (b *commitBuilder) SetTreeID(id git.ObjectID) error {
-	b.treeID = id
-	return nil
-}
+func (b *commitBuilder) SetAuthorName(name string) error      { b.authorName = name; return nil }
+func (b *commitBuilder) SetAuthorEmail(email string) error    { b.authorEmail = email; return nil }
+func (b *commitBuilder) SetAuthorTime(t time.Time) error      { b.authorTime = t; return nil }
+func (b *commitBuilder) SetCommitterName(name string) error   { b.committerName = name; return nil }
+func (b *commitBuilder) SetCommitterEmail(email string) error { b.committerEmail = email; return nil }
+func (b *commitBuilder) SetCommitterTime(t time.Time) error   { b.committerTime = t; return nil }
+func (b *commitBuilder) SetMessage(message string) error      { b.message = message; return nil }
+func (b *commitBuilder) SetTree(t git.Tree) error             { b.treeID = t.ID(); return nil }
+func (b *commitBuilder) SetTreeID(id git.ObjectID) error      { b.treeID = id; return nil }
 
 func (b *commitBuilder) AddParents(parents ...git.Commit) error {
 	for _, p := range parents {
