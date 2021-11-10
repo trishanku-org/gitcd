@@ -8,6 +8,14 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 )
 
+func checkMinConstraint(constraint, value int64) bool {
+	return constraint <= 0 || constraint <= value
+}
+
+func checkMaxConstraint(constraint, value int64) bool {
+	return constraint <= 0 || value <= constraint
+}
+
 func (b *backend) doRange(ctx context.Context, metaHead git.Commit, req *etcdserverpb.RangeRequest) (res *etcdserverpb.RangeResponse, err error) {
 	var (
 		dataP, metaP       git.Peelable

@@ -13,12 +13,18 @@ import (
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 )
 
+// committerConfig defines the committer configuration to be used when creating Git commits.
+type commitConfig struct {
+	committerName, committerEmail string
+}
+
 // backend implements an ETCD server backed by a Git repository.
 type backend struct {
 	keyPrefix
 	repo                           git.Repository
 	refName, metadataRefNamePrefix git.ReferenceName
 	clusterID, memberID            uint64
+	commitConfig                   commitConfig
 }
 
 var _ etcdserverpb.KVServer = &backend{}
@@ -154,22 +160,15 @@ func (b *backend) readOjectID(ctx context.Context, t git.Tree, path string) (git
 	return git.NewObjectID(string(v))
 }
 
-func checkMinConstraint(constraint, value int64) bool {
-	return constraint <= 0 || constraint <= value
-}
-
-func checkMaxConstraint(constraint, value int64) bool {
-	return constraint <= 0 || value <= constraint
-}
-
 func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k string) (kv *mvccpb.KeyValue, err error) {
 	var (
-		t   git.Tree
-		te  git.TreeEntry
-		typ git.ObjectType
+		t                                           git.Tree
+		te                                          git.TreeEntry
+		typ                                         git.ObjectType
+		createRevision, lease, modRevision, version int64
 	)
 
-	if te, err = t.GetEntryByPath(ctx, b.getPathForKey(k)); err != nil {
+	if te, err = metaRoot.GetEntryByPath(ctx, b.getPathForKey(k)); err != nil {
 		return
 	}
 
@@ -184,22 +183,28 @@ func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k strin
 
 	defer t.Close()
 
-	kv = &mvccpb.KeyValue{Key: []byte(k)}
-
-	if kv.CreateRevision, err = b.readRevision(ctx, t, etcdserverpb.Compare_VERSION.String()); err != nil {
+	if createRevision, err = b.readRevision(ctx, t, etcdserverpb.Compare_CREATE.String()); err != nil {
 		return
 	}
 
-	if kv.Lease, err = b.readRevision(ctx, t, etcdserverpb.Compare_LEASE.String()); err != nil {
+	if lease, err = b.readRevision(ctx, t, etcdserverpb.Compare_LEASE.String()); err != nil {
 		return
 	}
 
-	if kv.ModRevision, err = b.readRevision(ctx, t, etcdserverpb.Compare_MOD.String()); err != nil {
+	if modRevision, err = b.readRevision(ctx, t, etcdserverpb.Compare_MOD.String()); err != nil {
 		return
 	}
 
-	if kv.Version, err = b.readRevision(ctx, t, etcdserverpb.Compare_VERSION.String()); err != nil {
+	if version, err = b.readRevision(ctx, t, etcdserverpb.Compare_VERSION.String()); err != nil {
 		return
+	}
+
+	kv = &mvccpb.KeyValue{
+		Key:            []byte(k),
+		CreateRevision: createRevision,
+		Lease:          lease,
+		ModRevision:    modRevision,
+		Version:        version,
 	}
 
 	return
@@ -207,12 +212,15 @@ func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k strin
 
 // getPeelablesForRevision returns the metadata Peelable that corresponds to the given revision.
 // The metadata commits are searched in pre-order starting from the given metaHead.
-func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead git.Commit, revision int64) (metaP git.Peelable, _ error) {
-	var cw = b.repo.CommitWalker()
+func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead git.Commit, revision int64) (metaP git.Peelable, err error) {
+	var (
+		cw      = b.repo.CommitWalker()
+		headRev int64
+	)
 
 	defer cw.Close()
 
-	if err := cw.ForEachCommit(ctx, metaHead, func(ctx context.Context, c git.Commit) (done, skip bool, err error) {
+	if err = cw.ForEachCommit(ctx, metaHead, func(ctx context.Context, c git.Commit) (done, skip bool, err error) {
 		var (
 			t   git.Tree
 			rev int64
@@ -228,8 +236,12 @@ func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead g
 			return
 		}
 
+		if headRev == 0 {
+			headRev = rev
+		}
+
 		if rev < revision {
-			skip, err = true, rpctypes.ErrGRPCFutureRev
+			skip = true
 			return
 		}
 
@@ -246,11 +258,16 @@ func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead g
 
 		return
 	}); err != nil {
-		return metaP, err
+		return
 	}
 
 	if metaP == nil {
-		return metaP, rpctypes.ErrGRPCCompacted
+		switch {
+		case headRev < revision:
+			err = rpctypes.ErrGRPCFutureRev
+		default:
+			err = rpctypes.ErrGRPCCompacted
+		}
 	}
 
 	return
@@ -289,9 +306,7 @@ func (b *backend) newResponseHeaderFromMetaPeelable(ctx context.Context, metaP g
 	var metaRoot git.Tree
 
 	if metaP != nil {
-		var err error
-
-		if metaRoot, err = b.repo.Peeler().PeelToTree(ctx, metaP); err == nil {
+		if metaRoot, _ = b.repo.Peeler().PeelToTree(ctx, metaP); metaRoot != nil {
 			defer metaRoot.Close()
 		}
 	}
@@ -300,12 +315,9 @@ func (b *backend) newResponseHeaderFromMetaPeelable(ctx context.Context, metaP g
 }
 
 func (b *backend) newResponseHeader(ctx context.Context) *etcdserverpb.ResponseHeader {
-	var (
-		metaP git.Peelable
-		err   error
-	)
+	var metaP git.Peelable
 
-	if metaP, err = b.getMetadataReference(ctx); err == nil {
+	if metaP, _ = b.getMetadataReference(ctx); metaP != nil {
 		defer metaP.Close()
 	}
 
@@ -326,10 +338,30 @@ func newClosedOpenInterval(start, end []byte) interval {
 // The currentCommit might be nil if this is the first commit.
 type commitTreeFunc func(ctx context.Context, message string, newTreeID git.ObjectID, currentCommit git.Commit) (newCommitID git.ObjectID, err error)
 
+func (b *backend) newCommitBuilder(ctx context.Context) (cb git.CommitBuilder, err error) {
+	if cb, err = b.repo.CommitBuilder(ctx); err != nil {
+		return
+	}
+
+	defer func() {
+		if err != nil { // close the builder and return nil builder on error
+			cb.Close()
+			cb = nil
+		}
+	}()
+
+	if err = cb.SetCommitterName(b.commitConfig.committerName); err != nil {
+		return
+	}
+
+	err = cb.SetCommitterEmail(b.commitConfig.committerEmail)
+	return
+}
+
 func (b *backend) replaceCurrentCommit(ctx context.Context, message string, newTreeID git.ObjectID, currentCommit git.Commit) (newCommitID git.ObjectID, err error) {
 	var cb git.CommitBuilder
 
-	if cb, err = b.repo.CommitBuilder(ctx); err != nil {
+	if cb, err = b.newCommitBuilder(ctx); err != nil {
 		return
 	}
 
@@ -360,7 +392,7 @@ func (b *backend) replaceCurrentCommit(ctx context.Context, message string, newT
 func (b *backend) inheritCurrentCommit(ctx context.Context, message string, newTreeID git.ObjectID, currentCommit git.Commit) (newCommitID git.ObjectID, err error) {
 	var cb git.CommitBuilder
 
-	if cb, err = b.repo.CommitBuilder(ctx); err != nil {
+	if cb, err = b.newCommitBuilder(ctx); err != nil {
 		return
 	}
 
@@ -392,12 +424,15 @@ type mutateTreeEntryFunc func(ctx context.Context, tb git.TreeBuilder, entryName
 
 // treeMutation defines the contract to combile multiple changes to a tree.
 type treeMutation struct {
-	entries  map[string]mutateTreeEntryFunc
-	subtrees map[string]*treeMutation
+	Entries  map[string]mutateTreeEntryFunc
+	Subtrees map[string]*treeMutation
 }
 
 func (b *backend) isTreeEmpty(ctx context.Context, treeID git.ObjectID) (empty bool, err error) {
-	var t git.Tree
+	var (
+		t          git.Tree
+		hasEntries = false
+	)
 
 	if t, err = b.repo.ObjectGetter().GetTree(ctx, treeID); err != nil {
 		return
@@ -405,19 +440,22 @@ func (b *backend) isTreeEmpty(ctx context.Context, treeID git.ObjectID) (empty b
 
 	defer t.Close()
 
-	err = t.ForEachEntry(ctx, func(_ context.Context, te git.TreeEntry) (done bool, err error) {
-		empty = false
+	if err = t.ForEachEntry(ctx, func(_ context.Context, te git.TreeEntry) (done bool, err error) {
+		hasEntries = true
 		done = true
 		return
-	})
+	}); err != nil {
+		return
+	}
 
+	empty = !hasEntries
 	return
 }
 
 func (b *backend) mutateTreeBuilder(ctx context.Context, t git.Tree, tb git.TreeBuilder, tm *treeMutation, cleanupEmptySubtrees bool) (mutated bool, err error) {
 	// Process subtrees first to ensure depth first mutation.
 
-	for entryName, stm := range tm.subtrees {
+	for entryName, stm := range tm.Subtrees {
 		var (
 			te             git.TreeEntry
 			st             git.Tree
@@ -441,8 +479,8 @@ func (b *backend) mutateTreeBuilder(ctx context.Context, t git.Tree, tb git.Tree
 				} else {
 					te = nil // Just to be sure
 				}
-			} else {
-				err = nil // Just to be sure
+			} else if err == ctx.Err() {
+				return // Return if context error
 			}
 		}
 
@@ -497,14 +535,16 @@ func (b *backend) mutateTreeBuilder(ctx context.Context, t git.Tree, tb git.Tree
 		}
 	}
 
-	for entryName, entryMutateFn := range tm.entries {
+	for entryName, entryMutateFn := range tm.Entries {
 		var (
 			te           git.TreeEntry
 			entryMutated bool
 		)
 
 		if t != nil {
-			te, _ = t.GetEntryByPath(ctx, entryName)
+			if te, err = t.GetEntryByPath(ctx, entryName); err != nil && err == ctx.Err() {
+				return // Return if context error
+			}
 		}
 
 		if entryMutated, err = entryMutateFn(ctx, tb, entryName, te); err != nil {
@@ -587,7 +627,7 @@ func (b *backend) addOrReplaceTreeEntry(ctx context.Context, tb git.TreeBuilder,
 	return
 }
 
-func appendMutationPathSlice(tm *treeMutation, ps pathSlice, entryName string, entryMutateFn mutateTreeEntryFunc) (newTM *treeMutation, err error) {
+func addMutationPathSlice(tm *treeMutation, ps pathSlice, entryName string, entryMutateFn mutateTreeEntryFunc) (newTM *treeMutation, err error) {
 	var (
 		stName string
 		stm    *treeMutation
@@ -599,42 +639,42 @@ func appendMutationPathSlice(tm *treeMutation, ps pathSlice, entryName string, e
 	}
 
 	if len(ps) == 0 {
-		if tm.entries == nil {
-			tm.entries = make(map[string]mutateTreeEntryFunc)
+		if tm.Entries == nil {
+			tm.Entries = make(map[string]mutateTreeEntryFunc)
 		}
 
-		tm.entries[entryName] = entryMutateFn // TODO error if already exists
+		tm.Entries[entryName] = entryMutateFn // TODO error if already exists
 
 		newTM = tm
 		return
 	}
 
-	if tm.subtrees == nil {
-		tm.subtrees = make(map[string]*treeMutation)
+	if tm.Subtrees == nil {
+		tm.Subtrees = make(map[string]*treeMutation)
 	}
 
 	stName = ps[0]
 
-	if stm, stOK = tm.subtrees[stName]; !stOK {
+	if stm, stOK = tm.Subtrees[stName]; !stOK {
 		stm = &treeMutation{}
 	}
 
-	tm.subtrees[stName], err = appendMutationPathSlice(stm, ps[1:], entryName, entryMutateFn)
+	tm.Subtrees[stName], err = addMutationPathSlice(stm, ps[1:], entryName, entryMutateFn)
 
 	newTM = tm
 	return
 }
 
-func appendMutation(tm *treeMutation, p string, mutateFn mutateTreeEntryFunc) (newTM *treeMutation, err error) {
+func addMutation(tm *treeMutation, p string, mutateFn mutateTreeEntryFunc) (newTM *treeMutation, err error) {
 	var ps = splitPath(p)
 
 	if len(ps) == 0 {
 		newTM = tm
-		err = rpctypes.ErrEmptyKey
+		err = rpctypes.ErrGRPCEmptyKey
 		return
 	}
 
-	newTM, err = appendMutationPathSlice(tm, ps[:len(ps)-1], ps[len(ps)-1], mutateFn)
+	newTM, err = addMutationPathSlice(tm, ps[:len(ps)-1], ps[len(ps)-1], mutateFn)
 	return
 }
 
@@ -643,11 +683,11 @@ func isMutationNOP(tm *treeMutation) bool {
 		return true
 	}
 
-	if len(tm.entries) > 0 {
+	if len(tm.Entries) > 0 {
 		return false
 	}
 
-	for _, stm := range tm.subtrees {
+	for _, stm := range tm.Subtrees {
 		if !isMutationNOP(stm) {
 			return false
 		}

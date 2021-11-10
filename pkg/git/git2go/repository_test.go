@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 
 	. "github.com/onsi/ginkgo"
@@ -12,17 +13,17 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
 	"github.com/trishanku/gitcd/pkg/git"
+	. "github.com/trishanku/gitcd/pkg/tests_util"
 )
 
 var _ = Describe("repository", func() {
 	var (
 		ctx  context.Context
 		repo git.Repository
+		dir  string
 	)
 
 	BeforeEach(func() {
-		var dir string
-
 		ctx = context.Background()
 
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
@@ -35,6 +36,10 @@ var _ = Describe("repository", func() {
 	AfterEach(func() {
 		if repo != nil {
 			Expect(repo.Close()).To(Succeed())
+		}
+
+		if len(dir) > 0 {
+			Expect(os.RemoveAll(dir))
 		}
 	})
 
@@ -82,7 +87,7 @@ var _ = Describe("repository", func() {
 					matchObject = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("invalid ID", func() {
@@ -93,7 +98,7 @@ var _ = Describe("repository", func() {
 					matchObject = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			for _, s := range []struct {
@@ -118,7 +123,7 @@ var _ = Describe("repository", func() {
 							matchType = Equal(typ)
 						})
 
-						itShouldSucceed()
+						ItShouldSucceed()
 					})
 				}(s.spec, s.id, s.typ)
 			}
@@ -152,7 +157,7 @@ var _ = Describe("repository", func() {
 					matchObject = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("invalid ID", func() {
@@ -173,7 +178,7 @@ var _ = Describe("repository", func() {
 								matchObject = BeNil()
 							})
 
-							itShouldFail()
+							ItShouldFail()
 						})
 					}(s.spec, s.id)
 				}
@@ -189,7 +194,7 @@ var _ = Describe("repository", func() {
 						matchID = Equal(bID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 
 				Describe("non-empty content", func() {
@@ -197,7 +202,7 @@ var _ = Describe("repository", func() {
 						var content = []byte("content")
 
 						Expect(func() (err error) {
-							bID, err = createBlob(ctx, repo, content)
+							bID, err = CreateBlob(ctx, repo, content)
 							return
 						}()).To((Succeed()))
 
@@ -208,7 +213,7 @@ var _ = Describe("repository", func() {
 						matchID = Equal(bID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 			})
 		})
@@ -240,7 +245,7 @@ var _ = Describe("repository", func() {
 					matchObject = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("invalid ID", func() {
@@ -261,7 +266,7 @@ var _ = Describe("repository", func() {
 								matchObject = BeNil()
 							})
 
-							itShouldFail()
+							ItShouldFail()
 						})
 					}(s.spec, s.id)
 				}
@@ -277,13 +282,13 @@ var _ = Describe("repository", func() {
 						matchID = Equal(tID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 
 				Describe("some entries", func() {
 					BeforeEach(func() {
 						Expect(func() (err error) {
-							tID, err = createTreeFromDef(ctx, repo, &treeDef{Blobs: map[string][]byte{"entry": []byte("entry")}})
+							tID, err = CreateTreeFromDef(ctx, repo, &TreeDef{Blobs: map[string][]byte{"entry": []byte("entry")}})
 							return
 						}()).To((Succeed()))
 
@@ -294,7 +299,7 @@ var _ = Describe("repository", func() {
 						matchID = Equal(tID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 			})
 		})
@@ -327,7 +332,7 @@ var _ = Describe("repository", func() {
 					matchObject = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("invalid ID", func() {
@@ -348,7 +353,7 @@ var _ = Describe("repository", func() {
 								matchObject = BeNil()
 							})
 
-							itShouldFail()
+							ItShouldFail()
 						})
 					}(s.spec, s.id)
 				}
@@ -363,7 +368,7 @@ var _ = Describe("repository", func() {
 					matchID = Equal(cID)
 				})
 
-				itShouldSucceed()
+				ItShouldSucceed()
 			})
 		})
 	})
@@ -431,7 +436,7 @@ var _ = Describe("repository", func() {
 					matchBlob = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("invalid object", func() {
@@ -451,7 +456,7 @@ var _ = Describe("repository", func() {
 								matchBlob = BeNil()
 							})
 
-							itShouldFail()
+							ItShouldFail()
 						})
 					}(s.spec, s.id)
 				}
@@ -467,7 +472,7 @@ var _ = Describe("repository", func() {
 						matchID = Equal(bID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 
 				Describe("non-empty content", func() {
@@ -475,7 +480,7 @@ var _ = Describe("repository", func() {
 						var content = []byte("content")
 
 						Expect(func() (err error) {
-							bID, err = createBlob(ctx, repo, content)
+							bID, err = CreateBlob(ctx, repo, content)
 							return
 						}()).To((Succeed()))
 
@@ -486,7 +491,7 @@ var _ = Describe("repository", func() {
 						matchID = Equal(bID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 			})
 		})
@@ -538,7 +543,7 @@ var _ = Describe("repository", func() {
 					matchTree = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("invalid object", func() {
@@ -558,7 +563,7 @@ var _ = Describe("repository", func() {
 								matchTree = BeNil()
 							})
 
-							itShouldFail()
+							ItShouldFail()
 						})
 					}(s.spec, s.id)
 				}
@@ -574,13 +579,13 @@ var _ = Describe("repository", func() {
 						matchID = Equal(tID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 
 				Describe("some entries", func() {
 					BeforeEach(func() {
 						Expect(func() (err error) {
-							tID, err = createTreeFromDef(ctx, repo, &treeDef{Blobs: map[string][]byte{"entry": []byte("entry")}})
+							tID, err = CreateTreeFromDef(ctx, repo, &TreeDef{Blobs: map[string][]byte{"entry": []byte("entry")}})
 							return
 						}()).To((Succeed()))
 
@@ -591,7 +596,7 @@ var _ = Describe("repository", func() {
 						matchID = Equal(tID)
 					})
 
-					itShouldSucceed()
+					ItShouldSucceed()
 				})
 			})
 		})
@@ -643,7 +648,7 @@ var _ = Describe("repository", func() {
 					matchCommit = BeNil()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("invalid object", func() {
@@ -663,7 +668,7 @@ var _ = Describe("repository", func() {
 								matchCommit = BeNil()
 							})
 
-							itShouldFail()
+							ItShouldFail()
 						})
 					}(s.spec, s.id)
 				}
@@ -678,7 +683,7 @@ var _ = Describe("repository", func() {
 					matchID = Equal(cID)
 				})
 
-				itShouldSucceed()
+				ItShouldSucceed()
 			})
 		})
 	})
@@ -865,16 +870,16 @@ var _ = Describe("repository", func() {
 			tw git.TreeWalker
 			t  git.Tree
 
-			td = &treeDef{
+			td = &TreeDef{
 				Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "5": []byte("5")},
-				Subtrees: map[string]treeDef{
+				Subtrees: map[string]TreeDef{
 					"3": {
 						Blobs:    map[string][]byte{"2": []byte("2"), "3": []byte("3")},
-						Subtrees: map[string]treeDef{"1": {Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}},
+						Subtrees: map[string]TreeDef{"1": {Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}},
 					},
 					"4": {
 						Blobs:    map[string][]byte{"1": []byte("1"), "2": []byte("2")},
-						Subtrees: map[string]treeDef{"3": {Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}},
+						Subtrees: map[string]TreeDef{"3": {Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}},
 					},
 				},
 			}
@@ -884,7 +889,7 @@ var _ = Describe("repository", func() {
 			Expect(func() (err error) {
 				var id git.ObjectID
 
-				if id, err = createTreeFromDef(ctx, repo, td); err != nil {
+				if id, err = CreateTreeFromDef(ctx, repo, td); err != nil {
 					return
 				}
 
@@ -893,7 +898,7 @@ var _ = Describe("repository", func() {
 			}())
 
 			Expect(t).ToNot(BeNil())
-			Expect(getTreeDef(ctx, repo, t.ID())).To(PointTo(getTreeDefMatcher(td)))
+			Expect(GetTreeDef(ctx, repo, t.ID())).To(PointTo(GetTreeDefMatcher(td)))
 
 			tw = repo.TreeWalker()
 			Expect(tw).ToNot(BeNil())
@@ -1050,39 +1055,39 @@ var _ = Describe("repository", func() {
 			cw git.CommitWalker
 			c  git.Commit
 
-			cd0 = &commitDef{Message: "0"}
+			cd0 = &CommitDef{Message: "0"}
 
-			cd01 = &commitDef{
+			cd01 = &CommitDef{
 				Message: "01",
-				Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1")}},
-				Parents: []commitDef{*cd0},
+				Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+				Parents: []CommitDef{*cd0},
 			}
-			cd012 = &commitDef{
+			cd012 = &CommitDef{
 				Message: "012",
-				Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}},
-				Parents: []commitDef{*cd01},
+				Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}},
+				Parents: []CommitDef{*cd01},
 			}
 
-			cd013 = &commitDef{
+			cd013 = &CommitDef{
 				Message: "013",
-				Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "3": []byte("3")}},
-				Parents: []commitDef{*cd01},
+				Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "3": []byte("3")}},
+				Parents: []CommitDef{*cd01},
 			}
-			cd0123 = &commitDef{
+			cd0123 = &CommitDef{
 				Message: "0123",
-				Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3")}},
-				Parents: []commitDef{*cd012, *cd013},
+				Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3")}},
+				Parents: []CommitDef{*cd012, *cd013},
 			}
-			cd014 = &commitDef{
+			cd014 = &CommitDef{
 				Message: "014",
-				Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "4": []byte("4")}},
-				Parents: []commitDef{*cd01},
+				Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "4": []byte("4")}},
+				Parents: []CommitDef{*cd01},
 			}
 
-			cd01234 = &commitDef{
+			cd01234 = &CommitDef{
 				Message: "01234",
-				Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3"), "4": []byte("4")}},
-				Parents: []commitDef{*cd0123, *cd014},
+				Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3"), "4": []byte("4")}},
+				Parents: []CommitDef{*cd0123, *cd014},
 			}
 		)
 
@@ -1090,7 +1095,7 @@ var _ = Describe("repository", func() {
 			Expect(func() (err error) {
 				var id git.ObjectID
 
-				if id, err = createCommitFromDef(ctx, repo, cd01234); err != nil {
+				if id, err = CreateCommitFromDef(ctx, repo, cd01234); err != nil {
 					return
 				}
 
@@ -1099,7 +1104,7 @@ var _ = Describe("repository", func() {
 			}()).To(Succeed())
 
 			Expect(c).ToNot(BeNil())
-			Expect(getCommitDefByCommit(ctx, repo, c)).To(PointTo(getCommitDefMatcher(cd01234)))
+			Expect(GetCommitDefByCommit(ctx, repo, c)).To(PointTo(GetCommitDefMatcher(cd01234)))
 
 			cw = repo.CommitWalker()
 			Expect(cw).ToNot(BeNil())
@@ -1138,10 +1143,27 @@ var _ = Describe("repository", func() {
 				matchErr: MatchError("first error"),
 			},
 			{
+				spec: "should skip all commits after error",
+				receiverFn: func(_ context.Context, c git.Commit) (done, skip bool, err error) {
+					if c.Message() == "013" {
+						err = errors.New("013")
+					}
+					return
+				},
+				matchErr: MatchError("013"),
+				matchCommitDefs: []types.GomegaMatcher{
+					GetCommitDefMatcher(cd01234),
+					GetCommitDefMatcher(cd0123),
+					GetCommitDefMatcher(cd012),
+					GetCommitDefMatcher(cd01),
+					GetCommitDefMatcher(cd0),
+				},
+			},
+			{
 				spec:            "should visit only latest commit if done on first commit",
 				receiverFn:      func(_ context.Context, _ git.Commit) (done, skip bool, err error) { done = true; return },
 				matchErr:        Succeed(),
-				matchCommitDefs: []types.GomegaMatcher{getCommitDefMatcher(cd01234)},
+				matchCommitDefs: []types.GomegaMatcher{GetCommitDefMatcher(cd01234)},
 			},
 			{
 				spec: "should visit commits until done",
@@ -1151,15 +1173,15 @@ var _ = Describe("repository", func() {
 				},
 				matchErr: Succeed(),
 				matchCommitDefs: []types.GomegaMatcher{
-					getCommitDefMatcher(cd01234),
-					getCommitDefMatcher(cd0123),
-					getCommitDefMatcher(cd012),
-					getCommitDefMatcher(cd01),
-					getCommitDefMatcher(cd0),
-					getCommitDefMatcher(cd013),
-					getCommitDefMatcher(cd01),
-					getCommitDefMatcher(cd0),
-					getCommitDefMatcher(cd014),
+					GetCommitDefMatcher(cd01234),
+					GetCommitDefMatcher(cd0123),
+					GetCommitDefMatcher(cd012),
+					GetCommitDefMatcher(cd01),
+					GetCommitDefMatcher(cd0),
+					GetCommitDefMatcher(cd013),
+					GetCommitDefMatcher(cd01),
+					GetCommitDefMatcher(cd0),
+					GetCommitDefMatcher(cd014),
 				},
 			},
 			{
@@ -1170,10 +1192,10 @@ var _ = Describe("repository", func() {
 				},
 				matchErr: Succeed(),
 				matchCommitDefs: []types.GomegaMatcher{
-					getCommitDefMatcher(cd01234),
-					getCommitDefMatcher(cd014),
-					getCommitDefMatcher(cd01),
-					getCommitDefMatcher(cd0),
+					GetCommitDefMatcher(cd01234),
+					GetCommitDefMatcher(cd014),
+					GetCommitDefMatcher(cd01),
+					GetCommitDefMatcher(cd0),
 				},
 			},
 			{
@@ -1181,30 +1203,30 @@ var _ = Describe("repository", func() {
 				receiverFn: func(_ context.Context, _ git.Commit) (done, skip bool, err error) { return },
 				matchErr:   Succeed(),
 				matchCommitDefs: []types.GomegaMatcher{
-					getCommitDefMatcher(cd01234),
-					getCommitDefMatcher(cd0123),
-					getCommitDefMatcher(cd012),
-					getCommitDefMatcher(cd01),
-					getCommitDefMatcher(cd0),
-					getCommitDefMatcher(cd013),
-					getCommitDefMatcher(cd01),
-					getCommitDefMatcher(cd0),
-					getCommitDefMatcher(cd014),
-					getCommitDefMatcher(cd01),
-					getCommitDefMatcher(cd0),
+					GetCommitDefMatcher(cd01234),
+					GetCommitDefMatcher(cd0123),
+					GetCommitDefMatcher(cd012),
+					GetCommitDefMatcher(cd01),
+					GetCommitDefMatcher(cd0),
+					GetCommitDefMatcher(cd013),
+					GetCommitDefMatcher(cd01),
+					GetCommitDefMatcher(cd0),
+					GetCommitDefMatcher(cd014),
+					GetCommitDefMatcher(cd01),
+					GetCommitDefMatcher(cd0),
 				},
 			},
 		} {
 			func(spec string, receiverFn git.CommitWalkerReceiverFunc, matchErr types.GomegaMatcher, matchCommitDefs []types.GomegaMatcher) {
 				It(spec, func() {
-					var actuals []commitDef
+					var actuals []CommitDef
 
 					Expect(cw.ForEachCommit(
 						ctx,
 						c,
 						func(ctx context.Context, c git.Commit) (done, skip bool, err error) {
 							if done, skip, err = receiverFn(ctx, c); err == nil && !skip {
-								actuals = append(actuals, *getCommitDefByCommit(ctx, repo, c))
+								actuals = append(actuals, *GetCommitDefByCommit(ctx, repo, c))
 							}
 
 							return
@@ -1226,9 +1248,9 @@ var _ = Describe("repository", func() {
 			tb git.TreeBuilder
 			t  git.Tree
 
-			td = &treeDef{
+			td = &TreeDef{
 				Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "5": []byte("5")},
-				Subtrees: map[string]treeDef{
+				Subtrees: map[string]TreeDef{
 					"3": {Blobs: map[string][]byte{"1": []byte("1")}},
 					"4": {Blobs: map[string][]byte{"1": []byte("1")}},
 				},
@@ -1239,7 +1261,7 @@ var _ = Describe("repository", func() {
 			Expect(func() (err error) {
 				var id git.ObjectID
 
-				if id, err = createTreeFromDef(ctx, repo, td); err != nil {
+				if id, err = CreateTreeFromDef(ctx, repo, td); err != nil {
 					return
 				}
 
@@ -1248,7 +1270,7 @@ var _ = Describe("repository", func() {
 			}()).To(Succeed())
 
 			Expect(t).ToNot(BeNil())
-			Expect(getTreeDef(ctx, repo, t.ID())).To(PointTo(getTreeDefMatcher(td)))
+			Expect(GetTreeDef(ctx, repo, t.ID())).To(PointTo(GetTreeDefMatcher(td)))
 		})
 
 		AfterEach(func() {
@@ -1290,17 +1312,17 @@ var _ = Describe("repository", func() {
 				}{
 					{
 						matchErr:     Succeed(),
-						matchTreeDef: getTreeDefMatcher(td),
+						matchTreeDef: GetTreeDefMatcher(td),
 					},
 					{
 						entryNames:   []string{"0"},
 						matchErr:     HaveOccurred(),
-						matchTreeDef: getTreeDefMatcher(td),
+						matchTreeDef: GetTreeDefMatcher(td),
 					},
 					{
 						entryNames: []string{"1"},
 						matchErr:   Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"2": []byte("2"), "5": []byte("5")},
 							Subtrees: td.Subtrees,
 						}),
@@ -1308,17 +1330,17 @@ var _ = Describe("repository", func() {
 					{
 						entryNames: []string{"3"},
 						matchErr:   Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    td.Blobs,
-							Subtrees: map[string]treeDef{"4": td.Subtrees["4"]},
+							Subtrees: map[string]TreeDef{"4": td.Subtrees["4"]},
 						}),
 					},
 					{
 						entryNames: []string{"2", "4"},
 						matchErr:   Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"1": []byte("1"), "5": []byte("5")},
-							Subtrees: map[string]treeDef{"3": td.Subtrees["3"]},
+							Subtrees: map[string]TreeDef{"3": td.Subtrees["3"]},
 						}),
 					},
 				} {
@@ -1328,14 +1350,14 @@ var _ = Describe("repository", func() {
 								Expect(tb.RemoveEntry(entryName)).To(matchErr)
 							}
 
-							Expect(func() (td treeDef, err error) {
+							Expect(func() (td TreeDef, err error) {
 								var id git.ObjectID
 
 								if id, err = tb.Build(ctx); err != nil {
 									return
 								}
 
-								td = *getTreeDef(ctx, repo, id)
+								td = *GetTreeDef(ctx, repo, id)
 								return
 							}()).To(matchTreeDef)
 						})
@@ -1346,66 +1368,66 @@ var _ = Describe("repository", func() {
 			Describe("AddEntry", func() {
 				for _, s := range []struct {
 					spec                   string
-					td                     treeDef
+					td                     TreeDef
 					matchErr, matchTreeDef types.GomegaMatcher
 				}{
 					{
 						spec:         "nothing",
 						matchErr:     Succeed(),
-						matchTreeDef: getTreeDefMatcher(td),
+						matchTreeDef: GetTreeDefMatcher(td),
 					},
 					{
 						spec:     "new blob entry",
-						td:       treeDef{Blobs: map[string][]byte{"6": []byte("6")}},
+						td:       TreeDef{Blobs: map[string][]byte{"6": []byte("6")}},
 						matchErr: Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"1": []byte("1"), "2": []byte("2"), "5": []byte("5"), "6": []byte("6")},
 							Subtrees: td.Subtrees,
 						}),
 					},
 					{
 						spec:     "replace existing blob entry",
-						td:       treeDef{Blobs: map[string][]byte{"1": []byte("11")}},
+						td:       TreeDef{Blobs: map[string][]byte{"1": []byte("11")}},
 						matchErr: Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"1": []byte("11"), "2": []byte("2"), "5": []byte("5")},
 							Subtrees: td.Subtrees,
 						}),
 					},
 					{
 						spec:     "replace existing tree entry with a blob entry",
-						td:       treeDef{Blobs: map[string][]byte{"3": []byte("3")}},
+						td:       TreeDef{Blobs: map[string][]byte{"3": []byte("3")}},
 						matchErr: Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3"), "5": []byte("5")},
-							Subtrees: map[string]treeDef{"4": td.Subtrees["4"]},
+							Subtrees: map[string]TreeDef{"4": td.Subtrees["4"]},
 						}),
 					},
 					{
 						spec:     "new tree entry",
-						td:       treeDef{Subtrees: map[string]treeDef{"6": td.Subtrees["3"]}},
+						td:       TreeDef{Subtrees: map[string]TreeDef{"6": td.Subtrees["3"]}},
 						matchErr: Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    td.Blobs,
-							Subtrees: map[string]treeDef{"3": td.Subtrees["3"], "4": td.Subtrees["4"], "6": td.Subtrees["3"]},
+							Subtrees: map[string]TreeDef{"3": td.Subtrees["3"], "4": td.Subtrees["4"], "6": td.Subtrees["3"]},
 						}),
 					},
 					{
 						spec:     "replace existing tree entry",
-						td:       treeDef{Subtrees: map[string]treeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}}},
+						td:       TreeDef{Subtrees: map[string]TreeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}}},
 						matchErr: Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    td.Blobs,
-							Subtrees: map[string]treeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}, "4": td.Subtrees["4"]},
+							Subtrees: map[string]TreeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}, "4": td.Subtrees["4"]},
 						}),
 					},
 					{
 						spec:     "replace existing blob entry with a tree entry",
-						td:       treeDef{Subtrees: map[string]treeDef{"2": {Blobs: map[string][]byte{"2": []byte("2")}}}},
+						td:       TreeDef{Subtrees: map[string]TreeDef{"2": {Blobs: map[string][]byte{"2": []byte("2")}}}},
 						matchErr: Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs: map[string][]byte{"1": []byte("1"), "5": []byte("5")},
-							Subtrees: map[string]treeDef{
+							Subtrees: map[string]TreeDef{
 								"2": {Blobs: map[string][]byte{"2": []byte("2")}},
 								"3": td.Subtrees["3"],
 								"4": td.Subtrees["4"],
@@ -1414,18 +1436,18 @@ var _ = Describe("repository", func() {
 					},
 					{
 						spec: "new and replace multiple entries",
-						td: treeDef{
+						td: TreeDef{
 							Blobs: map[string][]byte{"1": []byte("11"), "3": []byte("3"), "6": []byte("6")},
-							Subtrees: map[string]treeDef{
+							Subtrees: map[string]TreeDef{
 								"2": td.Subtrees["3"],
 								"4": {Blobs: map[string][]byte{"4": []byte("4")}},
 								"7": td.Subtrees["3"],
 							},
 						},
 						matchErr: Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs: map[string][]byte{"1": []byte("11"), "3": []byte("3"), "5": []byte("5"), "6": []byte("6")},
-							Subtrees: map[string]treeDef{
+							Subtrees: map[string]TreeDef{
 								"2": td.Subtrees["3"],
 								"4": {Blobs: map[string][]byte{"4": []byte("4")}},
 								"7": td.Subtrees["3"],
@@ -1433,12 +1455,12 @@ var _ = Describe("repository", func() {
 						}),
 					},
 				} {
-					func(spec string, td treeDef, matchErr, matchTreeDef types.GomegaMatcher) {
+					func(spec string, td TreeDef, matchErr, matchTreeDef types.GomegaMatcher) {
 						It(spec, func() {
 							for name, content := range td.Blobs {
 								var id git.ObjectID
 
-								Expect(func() (err error) { id, err = createBlob(ctx, repo, content); return }()).To(Succeed())
+								Expect(func() (err error) { id, err = CreateBlob(ctx, repo, content); return }()).To(Succeed())
 
 								Expect(tb.AddEntry(name, id, git.FilemodeBlob)).To(matchErr)
 							}
@@ -1446,19 +1468,19 @@ var _ = Describe("repository", func() {
 							for name, td := range td.Subtrees {
 								var id git.ObjectID
 
-								Expect(func() (err error) { id, err = createTreeFromDef(ctx, repo, &td); return }()).To(Succeed())
+								Expect(func() (err error) { id, err = CreateTreeFromDef(ctx, repo, &td); return }()).To(Succeed())
 
 								Expect(tb.AddEntry(name, id, git.FilemodeTree)).To(matchErr)
 							}
 
-							Expect(func() (td treeDef, err error) {
+							Expect(func() (td TreeDef, err error) {
 								var id git.ObjectID
 
 								if id, err = tb.Build(ctx); err != nil {
 									return
 								}
 
-								td = *getTreeDef(ctx, repo, id)
+								td = *GetTreeDef(ctx, repo, id)
 								return
 							}()).To(matchTreeDef)
 						})
@@ -1470,15 +1492,15 @@ var _ = Describe("repository", func() {
 				for _, s := range []struct {
 					spec                   string
 					removeEntryNames       []string
-					td                     treeDef
+					td                     TreeDef
 					matchErr, matchTreeDef types.GomegaMatcher
 				}{
 					{
 						spec:             "new blob entry",
 						removeEntryNames: []string{"5"},
-						td:               treeDef{Blobs: map[string][]byte{"6": []byte("6")}},
+						td:               TreeDef{Blobs: map[string][]byte{"6": []byte("6")}},
 						matchErr:         Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"1": []byte("1"), "2": []byte("2"), "6": []byte("6")},
 							Subtrees: td.Subtrees,
 						}),
@@ -1486,9 +1508,9 @@ var _ = Describe("repository", func() {
 					{
 						spec:             "replace existing blob entry",
 						removeEntryNames: []string{"1"},
-						td:               treeDef{Blobs: map[string][]byte{"1": []byte("11")}},
+						td:               TreeDef{Blobs: map[string][]byte{"1": []byte("11")}},
 						matchErr:         Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"1": []byte("11"), "2": []byte("2"), "5": []byte("5")},
 							Subtrees: td.Subtrees,
 						}),
@@ -1496,41 +1518,41 @@ var _ = Describe("repository", func() {
 					{
 						spec:             "replace existing tree entry with a blob entry",
 						removeEntryNames: []string{"3"},
-						td:               treeDef{Blobs: map[string][]byte{"3": []byte("3")}},
+						td:               TreeDef{Blobs: map[string][]byte{"3": []byte("3")}},
 						matchErr:         Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3"), "5": []byte("5")},
-							Subtrees: map[string]treeDef{"4": td.Subtrees["4"]},
+							Subtrees: map[string]TreeDef{"4": td.Subtrees["4"]},
 						}),
 					},
 					{
 						spec:             "new tree entry",
 						removeEntryNames: []string{"4"},
-						td:               treeDef{Subtrees: map[string]treeDef{"6": td.Subtrees["3"]}},
+						td:               TreeDef{Subtrees: map[string]TreeDef{"6": td.Subtrees["3"]}},
 						matchErr:         Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    td.Blobs,
-							Subtrees: map[string]treeDef{"3": td.Subtrees["3"], "6": td.Subtrees["3"]},
+							Subtrees: map[string]TreeDef{"3": td.Subtrees["3"], "6": td.Subtrees["3"]},
 						}),
 					},
 					{
 						spec:             "replace existing tree entry",
 						removeEntryNames: []string{"3"},
-						td:               treeDef{Subtrees: map[string]treeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}}},
+						td:               TreeDef{Subtrees: map[string]TreeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}}},
 						matchErr:         Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs:    td.Blobs,
-							Subtrees: map[string]treeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}, "4": td.Subtrees["4"]},
+							Subtrees: map[string]TreeDef{"3": {Blobs: map[string][]byte{"3": []byte("3")}}, "4": td.Subtrees["4"]},
 						}),
 					},
 					{
 						spec:             "replace existing blob entry with a tree entry",
 						removeEntryNames: []string{"2"},
-						td:               treeDef{Subtrees: map[string]treeDef{"2": {Blobs: map[string][]byte{"2": []byte("2")}}}},
+						td:               TreeDef{Subtrees: map[string]TreeDef{"2": {Blobs: map[string][]byte{"2": []byte("2")}}}},
 						matchErr:         Succeed(),
-						matchTreeDef: getTreeDefMatcher(&treeDef{
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{
 							Blobs: map[string][]byte{"1": []byte("1"), "5": []byte("5")},
-							Subtrees: map[string]treeDef{
+							Subtrees: map[string]TreeDef{
 								"2": {Blobs: map[string][]byte{"2": []byte("2")}},
 								"3": td.Subtrees["3"],
 								"4": td.Subtrees["4"],
@@ -1538,7 +1560,7 @@ var _ = Describe("repository", func() {
 						}),
 					},
 				} {
-					func(spec string, removeEntryNames []string, td treeDef, matchErr, matchTreeDef types.GomegaMatcher) {
+					func(spec string, removeEntryNames []string, td TreeDef, matchErr, matchTreeDef types.GomegaMatcher) {
 						It(spec, func() {
 							for _, entryName := range removeEntryNames {
 								Expect(tb.RemoveEntry(entryName)).To(matchErr)
@@ -1547,7 +1569,7 @@ var _ = Describe("repository", func() {
 							for name, content := range td.Blobs {
 								var id git.ObjectID
 
-								Expect(func() (err error) { id, err = createBlob(ctx, repo, content); return }()).To(Succeed())
+								Expect(func() (err error) { id, err = CreateBlob(ctx, repo, content); return }()).To(Succeed())
 
 								Expect(tb.AddEntry(name, id, git.FilemodeBlob)).To(matchErr)
 							}
@@ -1555,19 +1577,19 @@ var _ = Describe("repository", func() {
 							for name, td := range td.Subtrees {
 								var id git.ObjectID
 
-								Expect(func() (err error) { id, err = createTreeFromDef(ctx, repo, &td); return }()).To(Succeed())
+								Expect(func() (err error) { id, err = CreateTreeFromDef(ctx, repo, &td); return }()).To(Succeed())
 
 								Expect(tb.AddEntry(name, id, git.FilemodeTree)).To(matchErr)
 							}
 
-							Expect(func() (td treeDef, err error) {
+							Expect(func() (td TreeDef, err error) {
 								var id git.ObjectID
 
 								if id, err = tb.Build(ctx); err != nil {
 									return
 								}
 
-								td = *getTreeDef(ctx, repo, id)
+								td = *GetTreeDef(ctx, repo, id)
 								return
 							}()).To(matchTreeDef)
 						})

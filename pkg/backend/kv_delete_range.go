@@ -30,8 +30,10 @@ func (b *backend) doDeleteRange(
 		newMetaRootID, newDataRootID git.ObjectID
 
 		deleteEntryFn = func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-			err = tb.RemoveEntry(entryName)
-			mutated = err == nil
+			if te != nil {
+				err = tb.RemoveEntry(entryName)
+				mutated = err == nil
+			}
 			return
 		}
 	)
@@ -88,11 +90,11 @@ func (b *backend) doDeleteRange(
 				res.PrevKvs = append(res.PrevKvs, kv)
 			}
 
-			if dataTM, err = appendMutation(dataTM, p, deleteEntryFn); err != nil {
+			if dataTM, err = addMutation(dataTM, p, deleteEntryFn); err != nil {
 				return
 			}
 
-			if metaTM, err = appendMutation(metaTM, p, deleteEntryFn); err != nil {
+			if metaTM, err = addMutation(metaTM, p, deleteEntryFn); err != nil {
 				return
 			}
 
@@ -117,7 +119,7 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
-	if metaTM, err = appendMutation(
+	if metaTM, err = addMutation(
 		metaTM,
 		metadataPathData,
 		func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -132,7 +134,7 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
-	if metaTM, err = appendMutation(
+	if metaTM, err = addMutation(
 		metaTM,
 		metadataPathRevision,
 		func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {

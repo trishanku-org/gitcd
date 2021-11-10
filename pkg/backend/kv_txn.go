@@ -98,6 +98,7 @@ func (b *backend) doTxnRequestOps(
 	requestOps []*etcdserverpb.RequestOp,
 	res *etcdserverpb.TxnResponse,
 	newRevision int64,
+	commitTreeFn commitTreeFunc,
 ) (
 	metaMutated bool,
 	newMetaHeadID git.ObjectID,
@@ -142,7 +143,7 @@ func (b *backend) doTxnRequestOps(
 			sop.RequestPut,
 			putRes,
 			newRevision,
-			b.replaceCurrentCommit,
+			commitTreeFn,
 		); err != nil {
 			return
 		}
@@ -162,7 +163,7 @@ func (b *backend) doTxnRequestOps(
 			sop.RequestDeleteRange,
 			deleteRangeRes,
 			newRevision,
-			b.replaceCurrentCommit,
+			commitTreeFn,
 		); err != nil {
 			return
 		}
@@ -182,7 +183,7 @@ func (b *backend) doTxnRequestOps(
 			sop.RequestTxn,
 			txnRes,
 			newRevision,
-			b.replaceCurrentCommit,
+			commitTreeFn,
 		); err != nil {
 			return
 		}
@@ -211,6 +212,7 @@ func (b *backend) doTxnRequestOps(
 		requestOps[1:],
 		res,
 		newRevision,
+		b.replaceCurrentCommit,
 	); err != nil {
 		return
 	}
@@ -373,7 +375,7 @@ func (b *backend) doTxn(
 		requestOps = req.Failure
 	}
 
-	metaMutated, newMetaHeadID, dataMutated, newDataHeadID, err = b.doTxnRequestOps(ctx, metaHead, requestOps, res, newRevision)
+	metaMutated, newMetaHeadID, dataMutated, newDataHeadID, err = b.doTxnRequestOps(ctx, metaHead, requestOps, res, newRevision, commitTreeFn)
 	return
 }
 

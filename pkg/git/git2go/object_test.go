@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	impl "github.com/libgit2/git2go/v31"
 	. "github.com/onsi/ginkgo"
@@ -12,6 +13,7 @@ import (
 	. "github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
 	"github.com/trishanku/gitcd/pkg/git"
+	. "github.com/trishanku/gitcd/pkg/tests_util"
 )
 
 var _ = Describe("toImplObjectType", func() {
@@ -112,12 +114,11 @@ var _ = Describe("Object", func() {
 	var (
 		ctx           context.Context
 		repo          git.Repository
+		dir           string
 		bID, tID, cID git.ObjectID
 	)
 
 	BeforeEach(func() {
-		var dir string
-
 		ctx = context.Background()
 
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
@@ -132,6 +133,10 @@ var _ = Describe("Object", func() {
 	AfterEach(func() {
 		if repo != nil {
 			Expect(repo.Close()).To(Succeed())
+		}
+
+		if len(dir) > 0 {
+			Expect(os.RemoveAll(dir))
 		}
 	})
 
@@ -214,6 +219,7 @@ var _ = Describe("Blob", func() {
 	var (
 		ctx  context.Context
 		repo git.Repository
+		dir  string
 
 		createBytes = func(b byte, n int) (buf []byte) {
 			buf = make([]byte, n)
@@ -225,8 +231,6 @@ var _ = Describe("Blob", func() {
 	)
 
 	BeforeEach(func() {
-		var dir string
-
 		ctx = context.Background()
 
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
@@ -240,6 +244,10 @@ var _ = Describe("Blob", func() {
 		if repo != nil {
 			Expect(repo.Close()).To(Succeed())
 		}
+
+		if len(dir) > 0 {
+			Expect(os.RemoveAll(dir))
+		}
 	})
 
 	for _, content := range [][]byte{
@@ -247,7 +255,7 @@ var _ = Describe("Blob", func() {
 		[]byte("0123456789"),
 		createBytes('a', 256),
 		createBytes('b', 1024),
-		createBytes('b', 1024*1024),
+		createBytes('c', 1024*1024),
 	} {
 		func(content []byte) {
 			Describe(fmt.Sprintf("of length %d", len(content)), func() {
@@ -257,7 +265,7 @@ var _ = Describe("Blob", func() {
 					Expect(func() (err error) {
 						var id git.ObjectID
 
-						if id, err = createBlob(ctx, repo, content); err != nil {
+						if id, err = CreateBlob(ctx, repo, content); err != nil {
 							return
 						}
 
@@ -299,27 +307,26 @@ var _ = Describe("Tree", func() {
 	var (
 		ctx  context.Context
 		repo git.Repository
+		dir  string
 		t    git.Tree
 
-		td31 = &treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}
-		td3  = &treeDef{
+		td31 = &TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}
+		td3  = &TreeDef{
 			Blobs:    map[string][]byte{"2": []byte("2"), "3": []byte("3")},
-			Subtrees: map[string]treeDef{"1": *td31},
+			Subtrees: map[string]TreeDef{"1": *td31},
 		}
-		td43 = &treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}
-		td4  = &treeDef{
+		td43 = &TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}}
+		td4  = &TreeDef{
 			Blobs:    map[string][]byte{"1": []byte("1"), "2": []byte("2")},
-			Subtrees: map[string]treeDef{"3": *td43},
+			Subtrees: map[string]TreeDef{"3": *td43},
 		}
-		td = &treeDef{
+		td = &TreeDef{
 			Blobs:    map[string][]byte{"1": []byte("1"), "2": []byte("2"), "5": []byte("5")},
-			Subtrees: map[string]treeDef{"3": *td3, "4": *td4},
+			Subtrees: map[string]TreeDef{"3": *td3, "4": *td4},
 		}
 	)
 
 	BeforeEach(func() {
-		var dir string
-
 		ctx = context.Background()
 
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
@@ -331,7 +338,7 @@ var _ = Describe("Tree", func() {
 		Expect(func() (err error) {
 			var id git.ObjectID
 
-			if id, err = createTreeFromDef(ctx, repo, td); err != nil {
+			if id, err = CreateTreeFromDef(ctx, repo, td); err != nil {
 				return
 			}
 
@@ -347,6 +354,10 @@ var _ = Describe("Tree", func() {
 
 		if t != nil {
 			defer t.Close()
+		}
+
+		if len(dir) > 0 {
+			Expect(os.RemoveAll(dir))
 		}
 	})
 
@@ -370,25 +381,25 @@ var _ = Describe("Tree", func() {
 			typ      git.ObjectType
 			mode     git.Filemode
 			matchErr types.GomegaMatcher
-			treeDef  *treeDef
+			TreeDef  *TreeDef
 		}{
 			{path: "0", typ: git.ObjectTypeInvalid, matchErr: HaveOccurred()},
 			{path: "1", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "1/1", typ: git.ObjectTypeInvalid, matchErr: HaveOccurred()},
 			{path: "2", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "2/2", typ: git.ObjectTypeInvalid, matchErr: HaveOccurred()},
-			{path: "3", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), treeDef: td3},
-			{path: "3/1", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), treeDef: td31},
+			{path: "3", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), TreeDef: td3},
+			{path: "3/1", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), TreeDef: td31},
 			{path: "3/1/1", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "3/1/2", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "3/1/3", typ: git.ObjectTypeInvalid, matchErr: HaveOccurred()},
 			{path: "3/2", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "3/3", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "3/4", typ: git.ObjectTypeInvalid, matchErr: HaveOccurred()},
-			{path: "4", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), treeDef: td4},
+			{path: "4", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), TreeDef: td4},
 			{path: "4/1", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "4/2", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
-			{path: "4/3", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), treeDef: td43},
+			{path: "4/3", typ: git.ObjectTypeTree, mode: git.FilemodeTree, matchErr: Succeed(), TreeDef: td43},
 			{path: "4/3/1", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "4/3/2", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "4/3/4", typ: git.ObjectTypeInvalid, matchErr: HaveOccurred()},
@@ -396,7 +407,7 @@ var _ = Describe("Tree", func() {
 			{path: "5", typ: git.ObjectTypeBlob, mode: git.FilemodeBlob, matchErr: Succeed()},
 			{path: "6", typ: git.ObjectTypeInvalid, matchErr: HaveOccurred()},
 		} {
-			func(path string, typ git.ObjectType, mode git.Filemode, matchErr types.GomegaMatcher, td *treeDef) {
+			func(path string, typ git.ObjectType, mode git.Filemode, matchErr types.GomegaMatcher, td *TreeDef) {
 				Describe(path, func() {
 					var te git.TreeEntry
 
@@ -416,7 +427,7 @@ var _ = Describe("Tree", func() {
 
 					if td != nil {
 						It("should match the subtree", func() {
-							Expect(getTreeDef(ctx, repo, te.EntryID())).To(PointTo(getTreeDefMatcher(td)))
+							Expect(GetTreeDef(ctx, repo, te.EntryID())).To(PointTo(GetTreeDefMatcher(td)))
 						})
 					}
 
@@ -433,7 +444,7 @@ var _ = Describe("Tree", func() {
 						It("should fail", func() { Expect(te).To(BeNil()) })
 					})
 				})
-			}(s.path, s.typ, s.mode, s.matchErr, s.treeDef)
+			}(s.path, s.typ, s.mode, s.matchErr, s.TreeDef)
 		}
 	})
 
@@ -448,7 +459,7 @@ var _ = Describe("Tree", func() {
 		})
 
 		It("should match the subtree", func() {
-			Expect(getTreeDef(ctx, repo, t.ID())).To(PointTo(getTreeDefMatcher(td)))
+			Expect(GetTreeDef(ctx, repo, t.ID())).To(PointTo(GetTreeDefMatcher(td)))
 		})
 
 		It("should terminate early successfully if done", func() {
@@ -490,47 +501,46 @@ var _ = Describe("Commit", func() {
 	var (
 		ctx  context.Context
 		repo git.Repository
+		dir  string
 
-		cd0 = &commitDef{
+		cd0 = &CommitDef{
 			Message: "0",
 		}
-		cd01 = &commitDef{
+		cd01 = &CommitDef{
 			Message: "01",
-			Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1")}},
-			Parents: []commitDef{*cd0},
+			Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+			Parents: []CommitDef{*cd0},
 		}
-		cd012 = &commitDef{
+		cd012 = &CommitDef{
 			Message: "012",
-			Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}},
-			Parents: []commitDef{*cd01},
+			Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2")}},
+			Parents: []CommitDef{*cd01},
 		}
-		cd013 = &commitDef{
+		cd013 = &CommitDef{
 			Message: "013",
-			Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "3": []byte("3")}},
-			Parents: []commitDef{*cd01},
+			Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "3": []byte("3")}},
+			Parents: []CommitDef{*cd01},
 		}
-		cd0123 = &commitDef{
+		cd0123 = &CommitDef{
 			Message: "0123",
-			Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3")}},
-			Parents: []commitDef{*cd012, *cd013},
+			Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3")}},
+			Parents: []CommitDef{*cd012, *cd013},
 		}
-		cd014 = &commitDef{
+		cd014 = &CommitDef{
 			Message: "014",
-			Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "4": []byte("4")}},
-			Parents: []commitDef{*cd01},
+			Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "4": []byte("4")}},
+			Parents: []CommitDef{*cd01},
 		}
-		cd01234 = &commitDef{
+		cd01234 = &CommitDef{
 			Message: "01234",
-			Tree:    treeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3"), "4": []byte("4")}},
-			Parents: []commitDef{*cd0123, *cd014},
+			Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1"), "2": []byte("2"), "3": []byte("3"), "4": []byte("4")}},
+			Parents: []CommitDef{*cd0123, *cd014},
 		}
 
 		c git.Commit
 	)
 
 	BeforeEach(func() {
-		var dir string
-
 		ctx = context.Background()
 
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
@@ -542,7 +552,7 @@ var _ = Describe("Commit", func() {
 		Expect(func() (err error) {
 			var id git.ObjectID
 
-			if id, err = createCommitFromDef(ctx, repo, cd01234); err != nil {
+			if id, err = CreateCommitFromDef(ctx, repo, cd01234); err != nil {
 				return
 			}
 
@@ -558,6 +568,10 @@ var _ = Describe("Commit", func() {
 
 		if c != nil {
 			defer c.Close()
+		}
+
+		if len(dir) > 0 {
+			Expect(os.RemoveAll(dir))
 		}
 	})
 
@@ -586,48 +600,48 @@ var _ = Describe("Commit", func() {
 		})
 
 		It("should match the commit definition", func() {
-			var cd = getCommitDefByID(ctx, repo, c.ID())
+			var cd = GetCommitDefByID(ctx, repo, c.ID())
 
-			Expect(cd).To(PointTo(getCommitDefMatcher(cd01234)))
+			Expect(cd).To(PointTo(GetCommitDefMatcher(cd01234)))
 			Expect(cd).ToNot(PointTo(Or(
-				getCommitDefMatcher(cd0),
-				getCommitDefMatcher(cd01),
-				getCommitDefMatcher(cd012),
-				getCommitDefMatcher(cd013),
-				getCommitDefMatcher(cd0123),
-				getCommitDefMatcher(cd014),
+				GetCommitDefMatcher(cd0),
+				GetCommitDefMatcher(cd01),
+				GetCommitDefMatcher(cd012),
+				GetCommitDefMatcher(cd013),
+				GetCommitDefMatcher(cd0123),
+				GetCommitDefMatcher(cd014),
 			)))
 		})
 
 		It("should terminate early successfully if done", func() {
 			var (
-				cd  = commitDef{Message: cd01234.Message, Tree: cd01234.Tree}
-				ecd = commitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
+				cd  = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree}
+				ecd = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
 			)
 
 			Expect(c.ForEachParentID(ctx, func(_ context.Context, id git.ObjectID) (done bool, err error) {
-				cd.Parents = append(cd.Parents, *getCommitDefByID(ctx, repo, id))
+				cd.Parents = append(cd.Parents, *GetCommitDefByID(ctx, repo, id))
 				done = true
 				return
 			})).To(Succeed())
 
-			Expect(cd).To(getCommitDefMatcher(&ecd))
+			Expect(cd).To(GetCommitDefMatcher(&ecd))
 		})
 
 		It("should terminate early with error if error", func() {
 			var (
-				cd          = commitDef{Message: cd01234.Message, Tree: cd01234.Tree}
-				ecd         = commitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
+				cd          = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree}
+				ecd         = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
 				expectedErr = errors.New("ForEachParentID")
 			)
 
 			Expect(c.ForEachParentID(ctx, func(_ context.Context, id git.ObjectID) (done bool, err error) {
-				cd.Parents = append(cd.Parents, *getCommitDefByID(ctx, repo, id))
+				cd.Parents = append(cd.Parents, *GetCommitDefByID(ctx, repo, id))
 				err = expectedErr
 				return
 			})).To(MatchError(expectedErr))
 
-			Expect(cd).To(getCommitDefMatcher(&ecd))
+			Expect(cd).To(GetCommitDefMatcher(&ecd))
 		})
 	})
 
@@ -642,48 +656,48 @@ var _ = Describe("Commit", func() {
 		})
 
 		It("should match the commit definition", func() {
-			var cd = getCommitDefByCommit(ctx, repo, c)
+			var cd = GetCommitDefByCommit(ctx, repo, c)
 
-			Expect(cd).To(PointTo(getCommitDefMatcher(cd01234)))
+			Expect(cd).To(PointTo(GetCommitDefMatcher(cd01234)))
 			Expect(cd).ToNot(PointTo(Or(
-				getCommitDefMatcher(cd0),
-				getCommitDefMatcher(cd01),
-				getCommitDefMatcher(cd012),
-				getCommitDefMatcher(cd013),
-				getCommitDefMatcher(cd0123),
-				getCommitDefMatcher(cd014),
+				GetCommitDefMatcher(cd0),
+				GetCommitDefMatcher(cd01),
+				GetCommitDefMatcher(cd012),
+				GetCommitDefMatcher(cd013),
+				GetCommitDefMatcher(cd0123),
+				GetCommitDefMatcher(cd014),
 			)))
 		})
 
 		It("should terminate early successfully if done", func() {
 			var (
-				cd  = commitDef{Message: cd01234.Message, Tree: cd01234.Tree}
-				ecd = commitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
+				cd  = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree}
+				ecd = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
 			)
 
 			Expect(c.ForEachParent(ctx, func(_ context.Context, c git.Commit) (done bool, err error) {
-				cd.Parents = append(cd.Parents, *getCommitDefByCommit(ctx, repo, c))
+				cd.Parents = append(cd.Parents, *GetCommitDefByCommit(ctx, repo, c))
 				done = true
 				return
 			})).To(Succeed())
 
-			Expect(cd).To(getCommitDefMatcher(&ecd))
+			Expect(cd).To(GetCommitDefMatcher(&ecd))
 		})
 
 		It("should terminate early with error if error", func() {
 			var (
-				cd          = commitDef{Message: cd01234.Message, Tree: cd01234.Tree}
-				ecd         = commitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
+				cd          = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree}
+				ecd         = CommitDef{Message: cd01234.Message, Tree: cd01234.Tree, Parents: cd01234.Parents[0:1]}
 				expectedErr = errors.New("ForEachParent")
 			)
 
 			Expect(c.ForEachParent(ctx, func(_ context.Context, c git.Commit) (done bool, err error) {
-				cd.Parents = append(cd.Parents, *getCommitDefByCommit(ctx, repo, c))
+				cd.Parents = append(cd.Parents, *GetCommitDefByCommit(ctx, repo, c))
 				err = expectedErr
 				return
 			})).To(MatchError(expectedErr))
 
-			Expect(cd).To(getCommitDefMatcher(&ecd))
+			Expect(cd).To(GetCommitDefMatcher(&ecd))
 		})
 	})
 })

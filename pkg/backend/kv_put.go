@@ -64,7 +64,7 @@ func (b *backend) doPut(
 	}
 
 	if p = ie.getPathForKey(k); len(p) == 0 {
-		err = rpctypes.ErrEmptyKey
+		err = rpctypes.ErrGRPCEmptyKey
 		return
 
 	}
@@ -75,7 +75,7 @@ func (b *backend) doPut(
 			newDataRootID git.ObjectID
 		)
 
-		if dataTM, err = appendMutation(
+		if dataTM, err = addMutation(
 			nil,
 			p,
 			func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -113,7 +113,7 @@ func (b *backend) doPut(
 		if dataMutated {
 			bumpRevision = true
 
-			if metaTM, err = appendMutation(
+			if metaTM, err = addMutation(
 				metaTM,
 				metadataPathData,
 				func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -128,7 +128,7 @@ func (b *backend) doPut(
 				return
 			}
 
-			if metaTM, err = appendMutation(
+			if metaTM, err = addMutation(
 				metaTM,
 				path.Join(p, etcdserverpb.Compare_VERSION.String()),
 				func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -150,7 +150,7 @@ func (b *backend) doPut(
 	}
 
 	if !req.GetIgnoreLease() {
-		if metaTM, err = appendMutation(
+		if metaTM, err = addMutation(
 			metaTM,
 			path.Join(p, etcdserverpb.Compare_LEASE.String()),
 			func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -198,11 +198,11 @@ func (b *backend) doPut(
 		return
 	}
 
-	if metaTM, err = appendMutation(metaTM, metadataPathRevision, revisionMutateFn); err != nil {
+	if metaTM, err = addMutation(metaTM, metadataPathRevision, revisionMutateFn); err != nil {
 		return
 	}
 
-	if metaTM, err = appendMutation(
+	if metaTM, err = addMutation(
 		metaTM,
 		path.Join(p, etcdserverpb.Compare_CREATE.String()),
 		func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -217,7 +217,7 @@ func (b *backend) doPut(
 		return
 	}
 
-	if metaTM, err = appendMutation(metaTM, path.Join(p, etcdserverpb.Compare_MOD.String()), revisionMutateFn); err != nil {
+	if metaTM, err = addMutation(metaTM, path.Join(p, etcdserverpb.Compare_MOD.String()), revisionMutateFn); err != nil {
 		return
 	}
 

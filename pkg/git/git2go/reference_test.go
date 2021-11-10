@@ -3,24 +3,25 @@ package git2go
 import (
 	"context"
 	"io/ioutil"
+	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"github.com/trishanku/gitcd/pkg/git"
+	. "github.com/trishanku/gitcd/pkg/tests_util"
 )
 
 var _ = Describe("References", func() {
 	var (
 		ctx     context.Context
 		repo    git.Repository
+		dir     string
 		rc      git.ReferenceCollection
 		refName = git.ReferenceName("refs/heads/main")
 	)
 
 	BeforeEach(func() {
-		var dir string
-
 		ctx = context.Background()
 
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
@@ -40,6 +41,10 @@ var _ = Describe("References", func() {
 
 		if repo != nil {
 			Expect(repo.Close()).To(Succeed())
+		}
+
+		if len(dir) > 0 {
+			Expect(os.RemoveAll(dir))
 		}
 	})
 
@@ -64,7 +69,7 @@ var _ = Describe("References", func() {
 				matchRef = BeNil()
 			})
 
-			itShouldFail()
+			ItShouldFail()
 		})
 
 		Describe("non-existing reference", func() {
@@ -73,7 +78,7 @@ var _ = Describe("References", func() {
 				matchRef = BeNil()
 			})
 
-			itShouldFail()
+			ItShouldFail()
 		})
 
 		Describe("existing reference", func() {
@@ -103,7 +108,7 @@ var _ = Describe("References", func() {
 				matchRef = Not(BeNil())
 			})
 
-			itShouldSucceed()
+			ItShouldSucceed()
 		})
 	})
 
@@ -115,7 +120,7 @@ var _ = Describe("References", func() {
 		)
 
 		BeforeEach(func() {
-			Expect(func() (err error) { bID, err = createBlob(ctx, repo, []byte{}); return }()).To(Succeed())
+			Expect(func() (err error) { bID, err = CreateBlob(ctx, repo, []byte{}); return }()).To(Succeed())
 		})
 
 		JustBeforeEach(func() {
@@ -132,7 +137,7 @@ var _ = Describe("References", func() {
 				matchErr = MatchError(ctx.Err())
 			})
 
-			itShouldFail()
+			ItShouldFail()
 		})
 
 		Describe("non-existing reference", func() {
@@ -145,7 +150,7 @@ var _ = Describe("References", func() {
 					force = false
 				})
 
-				itShouldSucceed()
+				ItShouldSucceed()
 			})
 
 			Describe("force == true", func() {
@@ -153,7 +158,7 @@ var _ = Describe("References", func() {
 					force = true
 				})
 
-				itShouldSucceed()
+				ItShouldSucceed()
 			})
 		})
 
@@ -188,7 +193,7 @@ var _ = Describe("References", func() {
 					matchErr = HaveOccurred()
 				})
 
-				itShouldFail()
+				ItShouldFail()
 			})
 
 			Describe("force == true", func() {
@@ -198,7 +203,7 @@ var _ = Describe("References", func() {
 					matchErr = Succeed()
 				})
 
-				itShouldSucceed()
+				ItShouldSucceed()
 			})
 		})
 	})
