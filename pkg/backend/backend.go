@@ -6,7 +6,6 @@ import (
 	"path"
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/trishanku/gitcd/pkg/git"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
@@ -16,9 +15,9 @@ import (
 
 // backend implements an ETCD server backed by a Git repository.
 type backend struct {
+	keyPrefix
 	repo                           git.Repository
 	refName, metadataRefNamePrefix git.ReferenceName
-	keyPrefix                      string
 	clusterID, memberID            uint64
 }
 
@@ -83,21 +82,6 @@ func (b *backend) getMetadataReference(ctx context.Context) (ref git.Reference, 
 }
 
 func (b *backend) Start(ctx context.Context) error { return nil }
-
-func (b *backend) getPathForKey(key string) string {
-	const defaultPrefix = "/"
-	var prefix = b.keyPrefix
-
-	if len(prefix) == 0 {
-		prefix = defaultPrefix
-	}
-
-	if strings.HasPrefix(key, prefix) {
-		return key[len(prefix):]
-	} else {
-		return ""
-	}
-}
 
 func NewUnsupportedObjectType(typ git.ObjectType) error {
 	return fmt.Errorf("unsupported ObjectType %v", typ)

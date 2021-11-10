@@ -144,17 +144,12 @@ func newObjectTypeFilter(typ git.ObjectType) intervalExplorerFilterFunc {
 	}
 }
 
-type intervalExplorerReceiverFunc func(ctx context.Context, key string, te git.TreeEntry) (done, skip bool, err error)
-
-type intervalExplorer struct {
-	keyPrefix string
-	repo      git.Repository
-	tree      git.Tree
-	interval  interval
+type keyPrefix struct {
+	prefix string
 }
 
-func (ie *intervalExplorer) getPathForKey(key string) string {
-	var prefix = ie.keyPrefix
+func (kp *keyPrefix) getPathForKey(key string) string {
+	var prefix = kp.prefix
 
 	if len(prefix) == 0 {
 		return util.ToCanonicalPath(key)
@@ -172,8 +167,17 @@ func (ie *intervalExplorer) getPathForKey(key string) string {
 	return ""
 }
 
-func (ie *intervalExplorer) getKeyForPath(p string) string {
-	return path.Clean(joinSafe(ie.keyPrefix, p))
+func (kp *keyPrefix) getKeyForPath(p string) string {
+	return path.Clean(joinSafe(kp.prefix, p))
+}
+
+type intervalExplorerReceiverFunc func(ctx context.Context, key string, te git.TreeEntry) (done, skip bool, err error)
+
+type intervalExplorer struct {
+	keyPrefix
+	repo     git.Repository
+	tree     git.Tree
+	interval interval
 }
 
 func (ie *intervalExplorer) doFilterAndReceive(ctx context.Context, key string, te git.TreeEntry, receiverFn intervalExplorerReceiverFunc, filterFns ...intervalExplorerFilterFunc) (done, skip bool, err error) {

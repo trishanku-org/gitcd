@@ -327,11 +327,11 @@ var _ = Describe("pathSlice", func() {
 	})
 })
 
-var _ = Describe("intervalExplorer", func() {
-	var ie *intervalExplorer
+var _ = Describe("keyPrefix", func() {
+	var kp *keyPrefix
 
 	BeforeEach(func() {
-		ie = &intervalExplorer{}
+		kp = &keyPrefix{}
 	})
 
 	Describe("getPathForKey", func() {
@@ -415,13 +415,13 @@ var _ = Describe("intervalExplorer", func() {
 			func(prefix string, checks map[string]string) {
 				Describe(fmt.Sprintf("with key prefix %q", prefix), func() {
 					BeforeEach(func() {
-						ie.keyPrefix = prefix
+						kp.prefix = prefix
 					})
 
 					for k, p := range checks {
 						func(k, p string) {
 							It(fmt.Sprintf("%q should return %q", k, p), func() {
-								Expect(ie.getPathForKey(k)).To(Equal(p))
+								Expect(kp.getPathForKey(k)).To(Equal(p))
 							})
 						}(k, p)
 					}
@@ -500,19 +500,27 @@ var _ = Describe("intervalExplorer", func() {
 			func(prefix string, checks map[string]string) {
 				Describe(fmt.Sprintf("with key prefix %q", prefix), func() {
 					BeforeEach(func() {
-						ie.keyPrefix = prefix
+						kp.prefix = prefix
 					})
 
 					for p, k := range checks {
 						func(p, k string) {
 							It(fmt.Sprintf("%q should return %q", p, k), func() {
-								Expect(ie.getKeyForPath(p)).To(Equal(k))
+								Expect(kp.getKeyForPath(p)).To(Equal(k))
 							})
 						}(p, k)
 					}
 				})
 			}(t.prefix, t.checks)
 		}
+	})
+})
+
+var _ = Describe("intervalExplorer", func() {
+	var ie *intervalExplorer
+
+	BeforeEach(func() {
+		ie = &intervalExplorer{}
 	})
 
 	Describe("doFilterAndReceive", func() {
@@ -925,7 +933,7 @@ var _ = Describe("intervalExplorer", func() {
 							fillEntryMap func(string, []entry)
 						)
 
-						ie.keyPrefix = s.keyPrefix
+						ie.keyPrefix.prefix = s.keyPrefix
 
 						fillEntryMap = func(parentPath string, entries []entry) {
 							for _, e := range entries {
