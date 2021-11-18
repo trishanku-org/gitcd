@@ -3644,6 +3644,20 @@ var _ = Describe("backend", func() {
 						matchTreeDef:         GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{"1": []byte("1")}}),
 					},
 					{
+						spec: "subtrees only remove subtree entry tree mutation",
+						td: &TreeDef{
+							Blobs: map[string][]byte{"1": []byte("1")},
+							Subtrees: map[string]TreeDef{
+								"2": {Blobs: map[string][]byte{"2": []byte("2"), "3": []byte("3")}},
+							},
+						},
+						tbFn:         treeBuilderFn,
+						tm:           &treeMutation{Entries: map[string]mutateTreeEntryFunc{"2": remove}},
+						matchErr:     Succeed(),
+						matchMutated: BeTrue(),
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{"1": []byte("1")}}),
+					},
+					{
 						spec: "addOrReplace blob entry with subtree tree mutation",
 						td: &TreeDef{Subtrees: map[string]TreeDef{
 							"1": {Blobs: map[string][]byte{"1": []byte("1")}},
@@ -4227,6 +4241,19 @@ var _ = Describe("backend", func() {
 						matchErr:             Succeed(),
 						matchMutated:         BeTrue(),
 						matchTreeDef:         GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{"1": []byte("1")}}),
+					},
+					{
+						spec: "subtrees only remove subtree entry tree mutation",
+						td: &TreeDef{
+							Blobs: map[string][]byte{"1": []byte("1")},
+							Subtrees: map[string]TreeDef{
+								"2": {Blobs: map[string][]byte{"2": []byte("2"), "3": []byte("3")}},
+							},
+						},
+						tm:           &treeMutation{Entries: map[string]mutateTreeEntryFunc{"2": remove}},
+						matchErr:     Succeed(),
+						matchMutated: BeTrue(),
+						matchTreeDef: GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{"1": []byte("1")}}),
 					},
 					{
 						spec: "addOrReplace blob entry with subtree tree mutation",
