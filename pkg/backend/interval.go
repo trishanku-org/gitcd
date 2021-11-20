@@ -176,6 +176,7 @@ type intervalExplorerReceiverFunc func(ctx context.Context, key string, te git.T
 type intervalExplorer struct {
 	keyPrefix
 	repo     git.Repository
+	errors   git.Errors
 	tree     git.Tree
 	interval interval
 }
@@ -203,6 +204,7 @@ func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn i
 		)
 
 		if te, err = ie.tree.GetEntryByPath(ctx, ie.getPathForKey(k)); err != nil {
+			err = ie.errors.IgnoreNotFound(err)
 			return
 		}
 

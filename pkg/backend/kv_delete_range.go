@@ -23,11 +23,13 @@ func (b *backend) doDeleteRange(
 	err error,
 ) {
 	var (
-		metaRoot, dataRoot           git.Tree
-		dataHead                     git.Commit
-		ie                           *intervalExplorer
-		metaTM, dataTM               *treeMutation
-		newMetaRootID, newDataRootID git.ObjectID
+		metaRoot, dataRoot                    git.Tree
+		dataHead                              git.Commit
+		ie                                    *intervalExplorer
+		metaTM, dataTM                        *treeMutation
+		dMutated                              bool
+		newMetaRootID, newDataRootID, newDHID git.ObjectID
+		ndeleted                              int64
 
 		deleteEntryFn = func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
 			if te != nil {
@@ -67,6 +69,7 @@ func (b *backend) doDeleteRange(
 	ie = &intervalExplorer{
 		keyPrefix: b.keyPrefix,
 		repo:      b.repo,
+		errors:    b.errors,
 		tree:      dataRoot,
 		interval:  newClosedOpenInterval(req.GetKey(), req.GetRangeEnd()),
 	}
@@ -98,7 +101,7 @@ func (b *backend) doDeleteRange(
 				return
 			}
 
-			res.Deleted++
+			ndeleted++
 
 			return
 		},
@@ -111,11 +114,11 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
-	if dataMutated, newDataRootID, err = b.mutateTree(ctx, dataRoot, dataTM, true); err != nil {
+	if dMutated, newDataRootID, err = b.mutateTree(ctx, dataRoot, dataTM, true); err != nil {
 		return
 	}
 
-	if !dataMutated {
+	if !dMutated {
 		return
 	}
 
@@ -123,11 +126,11 @@ func (b *backend) doDeleteRange(
 		metaTM,
 		metadataPathData,
 		func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-			if newDataHeadID, err = commitTreeFn(ctx, revisionToString(newRevision), newDataRootID, dataHead); err != nil {
+			if newDHID, err = commitTreeFn(ctx, revisionToString(newRevision), newDataRootID, dataHead); err != nil {
 				return
 			}
 
-			mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(newDataHeadID.String()), te)
+			mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(newDHID.String()), te)
 			return
 		},
 	); err != nil {
@@ -162,6 +165,7 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
+	dataMutated, newDataHeadID, res.Deleted = dMutated, newDHID, ndeleted
 	return
 }
 
@@ -174,12 +178,20 @@ func (b *backend) DeleteRange(ctx context.Context, req *etcdserverpb.DeleteRange
 		newRevision                  int64
 	)
 
-	if metaRef, err = b.getMetadataReference(ctx); err == nil {
-		defer metaRef.Close()
+	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
+		return
 	}
 
-	if metaHead, err = b.repo.Peeler().PeelToCommit(ctx, metaRef); err == nil {
-		defer metaHead.Close()
+	if metaRef != nil {
+		defer metaRef.Close()
+
+		if metaHead, err = b.repo.Peeler().PeelToCommit(ctx, metaRef); err != nil && err == ctx.Err() {
+			return
+		}
+
+		if metaHead != nil {
+			defer metaHead.Close()
+		}
 	}
 
 	res = &etcdserverpb.DeleteRangeResponse{

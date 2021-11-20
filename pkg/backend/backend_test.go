@@ -107,13 +107,16 @@ var _ = Describe("backend", func() {
 		)
 
 		BeforeEach(func() {
+			var gitImpl = git2go.New()
 			ctx = context.Background()
 
 			Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
 			Expect(dir).ToNot(BeEmpty())
 
-			Expect(func() (err error) { b.repo, err = git2go.New().OpenOrInitBareRepository(ctx, dir); return }()).To(Succeed())
+			Expect(func() (err error) { b.repo, err = gitImpl.OpenOrInitBareRepository(ctx, dir); return }()).To(Succeed())
 			Expect(b.repo).ToNot(BeNil())
+
+			Expect(func() git.Errors { b.errors = gitImpl.Errors(); return b.errors }()).ToNot(BeNil())
 		})
 
 		AfterEach(func() {
@@ -1048,7 +1051,16 @@ var _ = Describe("backend", func() {
 							{k: path.Join(prefix, "treeLease"), matchErr: MatchError(NewUnsupportedObjectType(git.ObjectTypeTree)), matchKV: BeNil()},
 							{k: path.Join(prefix, "stringLease"), matchErr: HaveOccurred(), matchKV: BeNil()},
 							{k: path.Join(prefix, "onlyLease"), matchErr: HaveOccurred(), matchKV: BeNil()},
-							{k: path.Join(prefix, "missingLease"), matchErr: HaveOccurred(), matchKV: BeNil()},
+							{
+								k:        path.Join(prefix, "missingLease"),
+								matchErr: Succeed(),
+								matchKV: Equal(&mvccpb.KeyValue{
+									Key:            []byte(path.Join(prefix, "missingLease")),
+									CreateRevision: createRevision,
+									ModRevision:    modRevision,
+									Version:        version,
+								}),
+							},
 							{k: path.Join(prefix, "emptyModRevision"), matchErr: HaveOccurred(), matchKV: BeNil()},
 							{k: path.Join(prefix, "treeModRevision"), matchErr: MatchError(NewUnsupportedObjectType(git.ObjectTypeTree)), matchKV: BeNil()},
 							{k: path.Join(prefix, "stringModRevision"), matchErr: HaveOccurred(), matchKV: BeNil()},

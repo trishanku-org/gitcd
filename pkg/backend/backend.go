@@ -22,6 +22,7 @@ type commitConfig struct {
 type backend struct {
 	keyPrefix
 	repo                           git.Repository
+	errors                         git.Errors
 	refName, metadataRefNamePrefix git.ReferenceName
 	clusterID, memberID            uint64
 	commitConfig                   commitConfig
@@ -187,7 +188,7 @@ func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k strin
 		return
 	}
 
-	if lease, err = b.readRevision(ctx, t, etcdserverpb.Compare_LEASE.String()); err != nil {
+	if lease, err = b.readRevision(ctx, t, etcdserverpb.Compare_LEASE.String()); b.errors.IgnoreNotFound(err) != nil {
 		return
 	}
 

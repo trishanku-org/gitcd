@@ -69,6 +69,28 @@ type TreeDef struct {
 	Subtrees map[string]TreeDef
 }
 
+func (s *TreeDef) DeepCopy() (t *TreeDef) {
+	t = new(TreeDef)
+
+	if len(s.Blobs) > 0 {
+		t.Blobs = make(map[string][]byte, len(s.Blobs))
+		for k, sv := range s.Blobs {
+			var tv = make([]byte, len(sv))
+			copy(tv, sv)
+			t.Blobs[k] = tv
+		}
+	}
+
+	if len(s.Subtrees) > 0 {
+		t.Subtrees = make(map[string]TreeDef, len(s.Subtrees))
+		for k, sv := range s.Subtrees {
+			t.Subtrees[k] = *sv.DeepCopy()
+		}
+	}
+
+	return
+}
+
 func CreateTreeFromDef(ctx context.Context, repo git.Repository, td *TreeDef) (id git.ObjectID, err error) {
 	var tb git.TreeBuilder
 
@@ -174,6 +196,22 @@ type CommitDef struct {
 	AuthorTime, CommitterTime                              time.Time
 	Tree                                                   TreeDef
 	Parents                                                []CommitDef
+}
+
+func (s *CommitDef) DeepCopy() (t *CommitDef) {
+	t = new(CommitDef)
+	*t = *s
+
+	t.Tree = *s.Tree.DeepCopy()
+
+	if len(s.Parents) > 0 {
+		t.Parents = make([]CommitDef, len(s.Parents))
+		for i, sp := range s.Parents {
+			t.Parents[i] = *sp.DeepCopy()
+		}
+	}
+
+	return
 }
 
 func CreateCommitFromDef(ctx context.Context, repo git.Repository, cd *CommitDef) (id git.ObjectID, err error) {
@@ -330,6 +368,19 @@ func GetCommitDefByCommit(ctx context.Context, repo git.Repository, c git.Commit
 	return
 }
 
+func CreateReferenceFromCommitID(ctx context.Context, repo git.Repository, refName git.ReferenceName, id git.ObjectID) (err error) {
+	var rc git.ReferenceCollection
+
+	if rc, err = repo.References(); err != nil {
+		return
+	}
+
+	defer rc.Close()
+
+	err = rc.Create(ctx, refName, id, false, id.String())
+	return
+}
+
 func CreateReferenceFromDef(ctx context.Context, repo git.Repository, refName git.ReferenceName, cd *CommitDef) (err error) {
 	var (
 		rc git.ReferenceCollection
@@ -364,6 +415,35 @@ func CreateAndLoadReferenceFromDef(ctx context.Context, repo git.Repository, ref
 	defer rc.Close()
 
 	p, err = rc.Get(ctx, refName)
+	return
+}
+
+func GetCommitDefForReferenceName(ctx context.Context, repo git.Repository, refName git.ReferenceName) (cd *CommitDef, err error) {
+	var (
+		rc git.ReferenceCollection
+		p  git.Peelable
+		c  git.Commit
+	)
+
+	if rc, err = repo.References(); err != nil {
+		return
+	}
+
+	defer rc.Close()
+
+	if p, err = rc.Get(ctx, refName); err != nil {
+		return
+	}
+
+	defer p.Close()
+
+	if c, err = repo.Peeler().PeelToCommit(ctx, p); err != nil {
+		return
+	}
+
+	defer c.Close()
+
+	cd = GetCommitDefByCommit(ctx, repo, c)
 	return
 }
 

@@ -613,10 +613,12 @@ var _ = Describe("intervalExplorer", func() {
 
 	Describe("forEachMatchingKey", func() {
 		var (
-			ctx  context.Context
-			ctrl *gomock.Controller
-			repo *mockgit.MockRepository
-			tree *mockgit.MockTree
+			ctx        context.Context
+			ctrl       *gomock.Controller
+			repo       *mockgit.MockRepository
+			errs       *mockgit.MockErrors
+			isNotFound bool
+			tree       *mockgit.MockTree
 		)
 
 		BeforeEach(func() {
@@ -625,9 +627,20 @@ var _ = Describe("intervalExplorer", func() {
 			ctrl = gomock.NewController(GinkgoT())
 
 			repo = mockgit.NewMockRepository(ctrl)
+
+			errs = mockgit.NewMockErrors(ctrl)
+			errs.EXPECT().IgnoreNotFound(gomock.Any()).DoAndReturn(func(err error) error {
+				if isNotFound {
+					return nil
+				}
+
+				return err
+			})
+
 			tree = mockgit.NewMockTree(ctrl)
 
 			ie.repo = repo
+			ie.errors = errs
 			ie.tree = tree
 		})
 
@@ -671,373 +684,383 @@ var _ = Describe("intervalExplorer", func() {
 			{name: "5"},
 		}}
 
-		for _, s := range []spec{
-			{
-				entries: repoRoot.entries,
-				checks: []check{
-					{interval: &closedOpenInterval{start: key("")}, error: true},
-					{interval: &closedOpenInterval{start: key("1")}, match: []string{"1"}},
-					{interval: &closedOpenInterval{start: key("2/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("3")}, match: []string{"3"}},
-					{interval: &closedOpenInterval{start: key("3/1")}, match: []string{"3/1"}},
-					{interval: &closedOpenInterval{start: key("3/1/1")}, match: []string{"3/1/1"}},
-					{interval: &closedOpenInterval{start: key("3/2")}, match: []string{"3/2"}},
-					{interval: &closedOpenInterval{start: key("3/3/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("4/3")}, match: []string{"4/3"}},
-					{interval: &closedOpenInterval{start: key("4/3/2")}, match: []string{"4/3/2"}},
-					{interval: &closedOpenInterval{start: key("4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"4/3/2"}},
-					{interval: &closedOpenInterval{start: key("4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
-					{interval: &closedOpenInterval{start: key("4/5")}, error: true},
-					{interval: &closedOpenInterval{start: key("6")}, error: true},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("2")}, match: []string{"1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("3")}, match: []string{"1", "2"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("3/1/2")}, match: []string{"1", "2", "3", "3/1", "3/1/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("3/2")}, match: []string{"1", "2", "3", "3/1", "3/1/1", "3/1/2"}},
-					{interval: &closedOpenInterval{start: key("3"), end: key("4/3/2")}, match: []string{"3", "3/1", "3/1/1", "3/1/2", "3/2", "3/3", "4", "4/1", "4/2", "4/3", "4/3/1"}},
-					{interval: &closedOpenInterval{start: key("3"), end: key("5")}, match: []string{"3", "3/1", "3/1/1", "3/1/2", "3/2", "3/3", "4", "4/1", "4/2", "4/3", "4/3/1", "4/3/2"}},
-					{interval: &closedOpenInterval{start: key("4/3/1"), end: key("6")}, match: []string{"4/3/1", "4/3/2", "5"}},
-					{interval: &closedOpenInterval{start: key("4/3/1"), end: key("\x00")}, match: []string{"4/3/1", "4/3/2", "5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"1", "2", "3", "3/1", "3/1/1", "3/1/2", "3/2", "3/3", "4", "4/1", "4/2", "4/3", "4/3/1", "4/3/2", "5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"1", "2", "3/1/1", "3/1/2", "3/2", "3/3", "4/1", "4/2", "4/3/1", "4/3/2", "5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"3", "3/1", "4", "4/3"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
-					{interval: &closedOpenInterval{start: key("6"), end: key("7")}},
-				},
-			},
-			{
-				keyPrefix: "/",
-				entries:   repoRoot.entries,
-				checks: []check{
-					{interval: &closedOpenInterval{start: key("/")}, error: true},
-					{interval: &closedOpenInterval{start: key("/1")}, match: []string{"/1"}},
-					{interval: &closedOpenInterval{start: key("/2/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/3")}, match: []string{"/3"}},
-					{interval: &closedOpenInterval{start: key("/3/1")}, match: []string{"/3/1"}},
-					{interval: &closedOpenInterval{start: key("/3/1/1")}, match: []string{"/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("/3/2")}, match: []string{"/3/2"}},
-					{interval: &closedOpenInterval{start: key("/3/3/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/4/3")}, match: []string{"/4/3"}},
-					{interval: &closedOpenInterval{start: key("/4/3/2")}, match: []string{"/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
-					{interval: &closedOpenInterval{start: key("/4/5")}, error: true},
-					{interval: &closedOpenInterval{start: key("/6")}, error: true},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/2")}, match: []string{"/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/3")}, match: []string{"/1", "/2"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/3/1/2")}, match: []string{"/1", "/2", "/3", "/3/1", "/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/3/2")}, match: []string{"/1", "/2", "/3", "/3/1", "/3/1/1", "/3/1/2"}},
-					{interval: &closedOpenInterval{start: key("/3"), end: key("/4/3/2")}, match: []string{"/3", "/3/1", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4", "/4/1", "/4/2", "/4/3", "/4/3/1"}},
-					{interval: &closedOpenInterval{start: key("/3"), end: key("/5")}, match: []string{"/3", "/3/1", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4", "/4/1", "/4/2", "/4/3", "/4/3/1", "/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/4/3/1"), end: key("/6")}, match: []string{"/4/3/1", "/4/3/2", "/5"}},
-					{interval: &closedOpenInterval{start: key("/4/3/1"), end: key("\x00")}, match: []string{"/4/3/1", "/4/3/2", "/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/1", "/2", "/3", "/3/1", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4", "/4/1", "/4/2", "/4/3", "/4/3/1", "/4/3/2", "/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/1", "/2", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4/1", "/4/2", "/4/3/1", "/4/3/2", "/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/3", "/3/1", "/4", "/4/3"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
-					{interval: &closedOpenInterval{start: key("/6"), end: key("/7")}},
-				},
-			},
-			{
-				keyPrefix: "a",
-				entries:   repoRoot.entries,
-				checks: []check{
-					{interval: &closedOpenInterval{start: key("/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/1")}, match: []string{"a/1"}},
-					{interval: &closedOpenInterval{start: key("a/2/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/3")}, match: []string{"a/3"}},
-					{interval: &closedOpenInterval{start: key("a/3/1")}, match: []string{"a/3/1"}},
-					{interval: &closedOpenInterval{start: key("a/3/1/1")}, match: []string{"a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("a/3/2")}, match: []string{"a/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/3/3/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/4/3")}, match: []string{"a/4/3"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/2")}, match: []string{"a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
-					{interval: &closedOpenInterval{start: key("a/4/5")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/6")}, error: true},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/2")}, match: []string{"a/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3")}, match: []string{"a/1", "a/2"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/1/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2"}},
-					{interval: &closedOpenInterval{start: key("a/3"), end: key("a/4/3/2")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1"}},
-					{interval: &closedOpenInterval{start: key("a/3"), end: key("a/5")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("a/6")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("\x00")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/1", "a/2", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4/1", "a/4/2", "a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"a/3", "a/3/1", "a/4", "a/4/3"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
-					{interval: &closedOpenInterval{start: key("a/6"), end: key("a/7")}},
-				},
-			},
-			{
-				keyPrefix: "a/",
-				entries:   repoRoot.entries,
-				checks: []check{
-					{interval: &closedOpenInterval{start: key("/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/1")}, match: []string{"a/1"}},
-					{interval: &closedOpenInterval{start: key("a/2/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/3")}, match: []string{"a/3"}},
-					{interval: &closedOpenInterval{start: key("a/3/1")}, match: []string{"a/3/1"}},
-					{interval: &closedOpenInterval{start: key("a/3/1/1")}, match: []string{"a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("a/3/2")}, match: []string{"a/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/3/3/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/4/3")}, match: []string{"a/4/3"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/2")}, match: []string{"a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
-					{interval: &closedOpenInterval{start: key("a/4/5")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/6")}, error: true},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/2")}, match: []string{"a/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3")}, match: []string{"a/1", "a/2"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/1/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2"}},
-					{interval: &closedOpenInterval{start: key("a/3"), end: key("a/4/3/2")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1"}},
-					{interval: &closedOpenInterval{start: key("a/3"), end: key("a/5")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("a/6")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("\x00")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/1", "a/2", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4/1", "a/4/2", "a/4/3/1", "a/4/3/2", "a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"a/3", "a/3/1", "a/4", "a/4/3"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
-					{interval: &closedOpenInterval{start: key("a/6"), end: key("a/7")}},
-				},
-			},
-			{
-				keyPrefix: "/a",
-				entries:   repoRoot.entries,
-				checks: []check{
-					{interval: &closedOpenInterval{start: key("/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/1")}, match: []string{"/a/1"}},
-					{interval: &closedOpenInterval{start: key("/a/2/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/3")}, match: []string{"/a/3"}},
-					{interval: &closedOpenInterval{start: key("/a/3/1")}, match: []string{"/a/3/1"}},
-					{interval: &closedOpenInterval{start: key("/a/3/1/1")}, match: []string{"/a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("/a/3/2")}, match: []string{"/a/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/3/3/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/4/3")}, match: []string{"/a/4/3"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/2")}, match: []string{"/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
-					{interval: &closedOpenInterval{start: key("/a/4/5")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/6")}, error: true},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/2")}, match: []string{"/a/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3")}, match: []string{"/a/1", "/a/2"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/1/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2"}},
-					{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/4/3/2")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1"}},
-					{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/5")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("/a/6")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("\x00")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/1", "/a/2", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4/1", "/a/4/2", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/a/3", "/a/3/1", "/a/4", "/a/4/3"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
-					{interval: &closedOpenInterval{start: key("/a/6"), end: key("/a/7")}},
-				},
-			},
-			{
-				keyPrefix: "/a/",
-				entries:   repoRoot.entries,
-				checks: []check{
-					{interval: &closedOpenInterval{start: key("/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/1")}, match: []string{"/a/1"}},
-					{interval: &closedOpenInterval{start: key("/a/2/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/3")}, match: []string{"/a/3"}},
-					{interval: &closedOpenInterval{start: key("/a/3/1")}, match: []string{"/a/3/1"}},
-					{interval: &closedOpenInterval{start: key("/a/3/1/1")}, match: []string{"/a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("/a/3/2")}, match: []string{"/a/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/3/3/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/4/3")}, match: []string{"/a/4/3"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/2")}, match: []string{"/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
-					{interval: &closedOpenInterval{start: key("/a/4/5")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/6")}, error: true},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/2")}, match: []string{"/a/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3")}, match: []string{"/a/1", "/a/2"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/1/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2"}},
-					{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/4/3/2")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1"}},
-					{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/5")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("/a/6")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("\x00")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/1", "/a/2", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4/1", "/a/4/2", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/a/3", "/a/3/1", "/a/4", "/a/4/3"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
-					{interval: &closedOpenInterval{start: key("/a/6"), end: key("/a/7")}},
-				},
-			},
-			{
-				keyPrefix: "/a/a/a",
-				entries:   repoRoot.entries,
-				checks: []check{
-					{interval: &closedOpenInterval{start: key("/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/")}, error: true},
-					{interval: &closedOpenInterval{start: key("a/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/a/a/1")}, match: []string{"/a/a/a/1"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/2/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/a/a/3")}, match: []string{"/a/a/a/3"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/3/1")}, match: []string{"/a/a/a/3/1"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/3/1/1")}, match: []string{"/a/a/a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/3/2")}, match: []string{"/a/a/a/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/3/3/1")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4/3")}, match: []string{"/a/a/a/4/3"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4/3/2")}, match: []string{"/a/a/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/a/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4/5")}, error: true},
-					{interval: &closedOpenInterval{start: key("/a/a/a/6")}, error: true},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/2")}, match: []string{"/a/a/a/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/3")}, match: []string{"/a/a/a/1", "/a/a/a/2"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/3/1/2")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/3/2")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/3"), end: key("/a/a/a/4/3/2")}, match: []string{"/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/3"), end: key("/a/a/a/5")}, match: []string{"/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4/3/1"), end: key("/a/a/a/6")}, match: []string{"/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4/3/1"), end: key("\x00")}, match: []string{"/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("/a"), end: key("/b")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("/a"), end: key("/a/b")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("/a"), end: key("/a/a/b")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("/a"), end: key("/a/a/a/3")}, match: []string{"/a/a/a/1", "/a/a/a/2"}},
-					{interval: &closedOpenInterval{start: key("/a"), end: key("/a/a/a/4")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3"}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/4"), end: key("/b")}, match: []string{"/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/a/a/a/3", "/a/a/a/3/1", "/a/a/a/4", "/a/a/a/4/3"}},
-					{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
-					{interval: &closedOpenInterval{start: key("/a/a/a/6"), end: key("/a/a/a/7")}},
-				},
-			},
-		} {
-			func(s spec) {
-				Describe(fmt.Sprintf("with keyPrefix %q and entries %v", s.keyPrefix, s.entries), func() {
+		for _, notFound := range []bool{false, true} {
+			func(notFound bool) {
+				Describe(fmt.Sprintf("notFound=%t", notFound), func() {
 					BeforeEach(func() {
-						var (
-							tw           = mockgit.NewMockTreeWalker(ctrl)
-							entryMap     = make(map[string]git.TreeEntry, len(s.entries))
-							fillEntryMap func(string, []entry)
-						)
+						isNotFound = notFound
+					})
 
-						ie.keyPrefix.prefix = s.keyPrefix
-
-						fillEntryMap = func(parentPath string, entries []entry) {
-							for _, e := range entries {
-								var (
-									p  = joinSafe(parentPath, e.name)
-									te = mockgit.NewMockTreeEntry(ctrl)
-								)
-
-								te.EXPECT().EntryName().Return(e.name).Times(2)
-
-								if len(e.entries) > 0 {
-									te.EXPECT().EntryType().Return(git.ObjectTypeTree)
-								} else {
-									te.EXPECT().EntryType().Return(git.ObjectTypeBlob)
-								}
-
-								entryMap[ie.getKeyForPath(p)] = te
-
-								fillEntryMap(p, e.entries)
-							}
-						}
-
-						fillEntryMap("", s.entries)
-
-						tree.EXPECT().GetEntryByPath(gomock.Any(), gomock.Any()).DoAndReturn(
-							func(_ context.Context, p string) (git.TreeEntry, error) {
-								var k = ie.getKeyForPath(p)
-
-								if te, ok := entryMap[k]; ok {
-									return te, nil
-								}
-
-								return nil, errors.New("error")
+					for _, s := range []spec{
+						{
+							entries: repoRoot.entries,
+							checks: []check{
+								{interval: &closedOpenInterval{start: key("")}, error: true},
+								{interval: &closedOpenInterval{start: key("1")}, match: []string{"1"}},
+								{interval: &closedOpenInterval{start: key("2/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("3")}, match: []string{"3"}},
+								{interval: &closedOpenInterval{start: key("3/1")}, match: []string{"3/1"}},
+								{interval: &closedOpenInterval{start: key("3/1/1")}, match: []string{"3/1/1"}},
+								{interval: &closedOpenInterval{start: key("3/2")}, match: []string{"3/2"}},
+								{interval: &closedOpenInterval{start: key("3/3/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("4/3")}, match: []string{"4/3"}},
+								{interval: &closedOpenInterval{start: key("4/3/2")}, match: []string{"4/3/2"}},
+								{interval: &closedOpenInterval{start: key("4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"4/3/2"}},
+								{interval: &closedOpenInterval{start: key("4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
+								{interval: &closedOpenInterval{start: key("4/5")}, error: true},
+								{interval: &closedOpenInterval{start: key("6")}, error: true},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("2")}, match: []string{"1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("3")}, match: []string{"1", "2"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("3/1/2")}, match: []string{"1", "2", "3", "3/1", "3/1/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("3/2")}, match: []string{"1", "2", "3", "3/1", "3/1/1", "3/1/2"}},
+								{interval: &closedOpenInterval{start: key("3"), end: key("4/3/2")}, match: []string{"3", "3/1", "3/1/1", "3/1/2", "3/2", "3/3", "4", "4/1", "4/2", "4/3", "4/3/1"}},
+								{interval: &closedOpenInterval{start: key("3"), end: key("5")}, match: []string{"3", "3/1", "3/1/1", "3/1/2", "3/2", "3/3", "4", "4/1", "4/2", "4/3", "4/3/1", "4/3/2"}},
+								{interval: &closedOpenInterval{start: key("4/3/1"), end: key("6")}, match: []string{"4/3/1", "4/3/2", "5"}},
+								{interval: &closedOpenInterval{start: key("4/3/1"), end: key("\x00")}, match: []string{"4/3/1", "4/3/2", "5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"1", "2", "3", "3/1", "3/1/1", "3/1/2", "3/2", "3/3", "4", "4/1", "4/2", "4/3", "4/3/1", "4/3/2", "5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"1", "2", "3/1/1", "3/1/2", "3/2", "3/3", "4/1", "4/2", "4/3/1", "4/3/2", "5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"3", "3/1", "4", "4/3"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
+								{interval: &closedOpenInterval{start: key("6"), end: key("7")}},
 							},
-						)
+						},
+						{
+							keyPrefix: "/",
+							entries:   repoRoot.entries,
+							checks: []check{
+								{interval: &closedOpenInterval{start: key("/")}, error: true},
+								{interval: &closedOpenInterval{start: key("/1")}, match: []string{"/1"}},
+								{interval: &closedOpenInterval{start: key("/2/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/3")}, match: []string{"/3"}},
+								{interval: &closedOpenInterval{start: key("/3/1")}, match: []string{"/3/1"}},
+								{interval: &closedOpenInterval{start: key("/3/1/1")}, match: []string{"/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("/3/2")}, match: []string{"/3/2"}},
+								{interval: &closedOpenInterval{start: key("/3/3/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/4/3")}, match: []string{"/4/3"}},
+								{interval: &closedOpenInterval{start: key("/4/3/2")}, match: []string{"/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
+								{interval: &closedOpenInterval{start: key("/4/5")}, error: true},
+								{interval: &closedOpenInterval{start: key("/6")}, error: true},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/2")}, match: []string{"/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/3")}, match: []string{"/1", "/2"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/3/1/2")}, match: []string{"/1", "/2", "/3", "/3/1", "/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/3/2")}, match: []string{"/1", "/2", "/3", "/3/1", "/3/1/1", "/3/1/2"}},
+								{interval: &closedOpenInterval{start: key("/3"), end: key("/4/3/2")}, match: []string{"/3", "/3/1", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4", "/4/1", "/4/2", "/4/3", "/4/3/1"}},
+								{interval: &closedOpenInterval{start: key("/3"), end: key("/5")}, match: []string{"/3", "/3/1", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4", "/4/1", "/4/2", "/4/3", "/4/3/1", "/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/4/3/1"), end: key("/6")}, match: []string{"/4/3/1", "/4/3/2", "/5"}},
+								{interval: &closedOpenInterval{start: key("/4/3/1"), end: key("\x00")}, match: []string{"/4/3/1", "/4/3/2", "/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/1", "/2", "/3", "/3/1", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4", "/4/1", "/4/2", "/4/3", "/4/3/1", "/4/3/2", "/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/1", "/2", "/3/1/1", "/3/1/2", "/3/2", "/3/3", "/4/1", "/4/2", "/4/3/1", "/4/3/2", "/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/3", "/3/1", "/4", "/4/3"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
+								{interval: &closedOpenInterval{start: key("/6"), end: key("/7")}},
+							},
+						},
+						{
+							keyPrefix: "a",
+							entries:   repoRoot.entries,
+							checks: []check{
+								{interval: &closedOpenInterval{start: key("/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/1")}, match: []string{"a/1"}},
+								{interval: &closedOpenInterval{start: key("a/2/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/3")}, match: []string{"a/3"}},
+								{interval: &closedOpenInterval{start: key("a/3/1")}, match: []string{"a/3/1"}},
+								{interval: &closedOpenInterval{start: key("a/3/1/1")}, match: []string{"a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("a/3/2")}, match: []string{"a/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/3/3/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/4/3")}, match: []string{"a/4/3"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/2")}, match: []string{"a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
+								{interval: &closedOpenInterval{start: key("a/4/5")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/6")}, error: true},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/2")}, match: []string{"a/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3")}, match: []string{"a/1", "a/2"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/1/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2"}},
+								{interval: &closedOpenInterval{start: key("a/3"), end: key("a/4/3/2")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1"}},
+								{interval: &closedOpenInterval{start: key("a/3"), end: key("a/5")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("a/6")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("\x00")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/1", "a/2", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4/1", "a/4/2", "a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"a/3", "a/3/1", "a/4", "a/4/3"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
+								{interval: &closedOpenInterval{start: key("a/6"), end: key("a/7")}},
+							},
+						},
+						{
+							keyPrefix: "a/",
+							entries:   repoRoot.entries,
+							checks: []check{
+								{interval: &closedOpenInterval{start: key("/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/1")}, match: []string{"a/1"}},
+								{interval: &closedOpenInterval{start: key("a/2/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/3")}, match: []string{"a/3"}},
+								{interval: &closedOpenInterval{start: key("a/3/1")}, match: []string{"a/3/1"}},
+								{interval: &closedOpenInterval{start: key("a/3/1/1")}, match: []string{"a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("a/3/2")}, match: []string{"a/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/3/3/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/4/3")}, match: []string{"a/4/3"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/2")}, match: []string{"a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
+								{interval: &closedOpenInterval{start: key("a/4/5")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/6")}, error: true},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/2")}, match: []string{"a/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3")}, match: []string{"a/1", "a/2"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/1/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("a/3/2")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2"}},
+								{interval: &closedOpenInterval{start: key("a/3"), end: key("a/4/3/2")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1"}},
+								{interval: &closedOpenInterval{start: key("a/3"), end: key("a/5")}, match: []string{"a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("a/6")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("a/4/3/1"), end: key("\x00")}, match: []string{"a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"a/1", "a/2", "a/3", "a/3/1", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4", "a/4/1", "a/4/2", "a/4/3", "a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"a/1", "a/2", "a/3/1/1", "a/3/1/2", "a/3/2", "a/3/3", "a/4/1", "a/4/2", "a/4/3/1", "a/4/3/2", "a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"a/3", "a/3/1", "a/4", "a/4/3"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
+								{interval: &closedOpenInterval{start: key("a/6"), end: key("a/7")}},
+							},
+						},
+						{
+							keyPrefix: "/a",
+							entries:   repoRoot.entries,
+							checks: []check{
+								{interval: &closedOpenInterval{start: key("/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/1")}, match: []string{"/a/1"}},
+								{interval: &closedOpenInterval{start: key("/a/2/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/3")}, match: []string{"/a/3"}},
+								{interval: &closedOpenInterval{start: key("/a/3/1")}, match: []string{"/a/3/1"}},
+								{interval: &closedOpenInterval{start: key("/a/3/1/1")}, match: []string{"/a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("/a/3/2")}, match: []string{"/a/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/3/3/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/4/3")}, match: []string{"/a/4/3"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/2")}, match: []string{"/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
+								{interval: &closedOpenInterval{start: key("/a/4/5")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/6")}, error: true},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/2")}, match: []string{"/a/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3")}, match: []string{"/a/1", "/a/2"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/1/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2"}},
+								{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/4/3/2")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1"}},
+								{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/5")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("/a/6")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("\x00")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/1", "/a/2", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4/1", "/a/4/2", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/a/3", "/a/3/1", "/a/4", "/a/4/3"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
+								{interval: &closedOpenInterval{start: key("/a/6"), end: key("/a/7")}},
+							},
+						},
+						{
+							keyPrefix: "/a/",
+							entries:   repoRoot.entries,
+							checks: []check{
+								{interval: &closedOpenInterval{start: key("/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/1")}, match: []string{"/a/1"}},
+								{interval: &closedOpenInterval{start: key("/a/2/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/3")}, match: []string{"/a/3"}},
+								{interval: &closedOpenInterval{start: key("/a/3/1")}, match: []string{"/a/3/1"}},
+								{interval: &closedOpenInterval{start: key("/a/3/1/1")}, match: []string{"/a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("/a/3/2")}, match: []string{"/a/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/3/3/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/4/3")}, match: []string{"/a/4/3"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/2")}, match: []string{"/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
+								{interval: &closedOpenInterval{start: key("/a/4/5")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/6")}, error: true},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/2")}, match: []string{"/a/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3")}, match: []string{"/a/1", "/a/2"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/1/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/3/2")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2"}},
+								{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/4/3/2")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1"}},
+								{interval: &closedOpenInterval{start: key("/a/3"), end: key("/a/5")}, match: []string{"/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("/a/6")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("/a/4/3/1"), end: key("\x00")}, match: []string{"/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/a/1", "/a/2", "/a/3", "/a/3/1", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4", "/a/4/1", "/a/4/2", "/a/4/3", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/1", "/a/2", "/a/3/1/1", "/a/3/1/2", "/a/3/2", "/a/3/3", "/a/4/1", "/a/4/2", "/a/4/3/1", "/a/4/3/2", "/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/a/3", "/a/3/1", "/a/4", "/a/4/3"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
+								{interval: &closedOpenInterval{start: key("/a/6"), end: key("/a/7")}},
+							},
+						},
+						{
+							keyPrefix: "/a/a/a",
+							entries:   repoRoot.entries,
+							checks: []check{
+								{interval: &closedOpenInterval{start: key("/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/")}, error: true},
+								{interval: &closedOpenInterval{start: key("a/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/a/a/1")}, match: []string{"/a/a/a/1"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/2/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/a/a/3")}, match: []string{"/a/a/a/3"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/3/1")}, match: []string{"/a/a/a/3/1"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/3/1/1")}, match: []string{"/a/a/a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/3/2")}, match: []string{"/a/a/a/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/3/3/1")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4/3")}, match: []string{"/a/a/a/4/3"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4/3/2")}, match: []string{"/a/a/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/a/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4/3/2")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4/5")}, error: true},
+								{interval: &closedOpenInterval{start: key("/a/a/a/6")}, error: true},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/2")}, match: []string{"/a/a/a/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/3")}, match: []string{"/a/a/a/1", "/a/a/a/2"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/3/1/2")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("/a/a/a/3/2")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/3"), end: key("/a/a/a/4/3/2")}, match: []string{"/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/3"), end: key("/a/a/a/5")}, match: []string{"/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4/3/1"), end: key("/a/a/a/6")}, match: []string{"/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4/3/1"), end: key("\x00")}, match: []string{"/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("/a"), end: key("/b")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("/a"), end: key("/a/b")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("/a"), end: key("/a/a/b")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("/a"), end: key("/a/a/a/3")}, match: []string{"/a/a/a/1", "/a/a/a/2"}},
+								{interval: &closedOpenInterval{start: key("/a"), end: key("/a/a/a/4")}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3", "/a/a/a/3/1", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3"}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/4"), end: key("/b")}, match: []string{"/a/a/a/4", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeBlob)}, match: []string{"/a/a/a/1", "/a/a/a/2", "/a/a/a/3/1/1", "/a/a/a/3/1/2", "/a/a/a/3/2", "/a/a/a/3/3", "/a/a/a/4/1", "/a/a/a/4/2", "/a/a/a/4/3/1", "/a/a/a/4/3/2", "/a/a/a/5"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeTree)}, match: []string{"/a/a/a/3", "/a/a/a/3/1", "/a/a/a/4", "/a/a/a/4/3"}},
+								{interval: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, filterFns: []intervalExplorerFilterFunc{newObjectTypeFilter(git.ObjectTypeCommit)}},
+								{interval: &closedOpenInterval{start: key("/a/a/a/6"), end: key("/a/a/a/7")}},
+							},
+						},
+					} {
+						func(s spec) {
+							Describe(fmt.Sprintf("with keyPrefix %q and entries %v", s.keyPrefix, s.entries), func() {
+								BeforeEach(func() {
+									var (
+										tw           = mockgit.NewMockTreeWalker(ctrl)
+										entryMap     = make(map[string]git.TreeEntry, len(s.entries))
+										fillEntryMap func(string, []entry)
+									)
 
-						repo.EXPECT().TreeWalker().Return(tw)
-						tw.EXPECT().Close().Return(nil)
-						tw.EXPECT().ForEachTreeEntry(gomock.Any(), tree, gomock.Any()).DoAndReturn(
-							func(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) error {
-								var callForEntries func(parentPath string, entries []entry) error
+									ie.keyPrefix.prefix = s.keyPrefix
 
-								callForEntries = func(parentPath string, entries []entry) error {
-									for _, e := range entries {
-										var (
-											p = joinSafe(parentPath, e.name)
-											k = ie.getKeyForPath(p)
-										)
+									fillEntryMap = func(parentPath string, entries []entry) {
+										for _, e := range entries {
+											var (
+												p  = joinSafe(parentPath, e.name)
+												te = mockgit.NewMockTreeEntry(ctrl)
+											)
 
-										if done, skip, err := fn(ctx, parentPath, entryMap[k]); done || err != nil {
-											return err
-										} else if skip {
-											continue
-										}
+											te.EXPECT().EntryName().Return(e.name).Times(2)
 
-										if err := callForEntries(p, e.entries); err != nil {
-											return err
+											if len(e.entries) > 0 {
+												te.EXPECT().EntryType().Return(git.ObjectTypeTree)
+											} else {
+												te.EXPECT().EntryType().Return(git.ObjectTypeBlob)
+											}
+
+											entryMap[ie.getKeyForPath(p)] = te
+
+											fillEntryMap(p, e.entries)
 										}
 									}
 
-									return nil
-								}
+									fillEntryMap("", s.entries)
 
-								return callForEntries("", s.entries)
-							},
-						)
-					})
+									tree.EXPECT().GetEntryByPath(gomock.Any(), gomock.Any()).DoAndReturn(
+										func(_ context.Context, p string) (git.TreeEntry, error) {
+											var k = ie.getKeyForPath(p)
 
-					for _, c := range s.checks {
-						func(c check) {
-							Describe(fmt.Sprintf("interval %s with filterFns %v", c.interval, c.filterFns), func() {
-								BeforeEach(func() {
-									ie.interval = c.interval
-								})
+											if te, ok := entryMap[k]; ok {
+												return te, nil
+											}
 
-								It(fmt.Sprintf("should match %v", c.match), func() {
-									var (
-										entries []string
-										err     = ie.forEachMatchingKey(
-											ctx,
-											func(_ context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
-												Expect(path.Base(k)).To(Equal(te.EntryName()))
-												entries = append(entries, k)
-												return
-											},
-											c.filterFns...,
-										)
+											return nil, errors.New("error")
+										},
 									)
 
-									Expect(entries).To(Equal(c.match))
+									repo.EXPECT().TreeWalker().Return(tw)
+									tw.EXPECT().Close().Return(nil)
+									tw.EXPECT().ForEachTreeEntry(gomock.Any(), tree, gomock.Any()).DoAndReturn(
+										func(ctx context.Context, t git.Tree, fn git.TreeWalkerReceiverFunc) error {
+											var callForEntries func(parentPath string, entries []entry) error
 
-									Expect(err).To(func() types.GomegaMatcher {
-										if c.error {
-											return HaveOccurred()
-										}
+											callForEntries = func(parentPath string, entries []entry) error {
+												for _, e := range entries {
+													var (
+														p = joinSafe(parentPath, e.name)
+														k = ie.getKeyForPath(p)
+													)
 
-										return Succeed()
-									}())
+													if done, skip, err := fn(ctx, parentPath, entryMap[k]); done || err != nil {
+														return err
+													} else if skip {
+														continue
+													}
+
+													if err := callForEntries(p, e.entries); err != nil {
+														return err
+													}
+												}
+
+												return nil
+											}
+
+											return callForEntries("", s.entries)
+										},
+									)
 								})
+
+								for _, c := range s.checks {
+									func(c check) {
+										Describe(fmt.Sprintf("interval %s with filterFns %v", c.interval, c.filterFns), func() {
+											BeforeEach(func() {
+												ie.interval = c.interval
+											})
+
+											It(fmt.Sprintf("should match %v", c.match), func() {
+												var (
+													entries []string
+													err     = ie.forEachMatchingKey(
+														ctx,
+														func(_ context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
+															Expect(path.Base(k)).To(Equal(te.EntryName()))
+															entries = append(entries, k)
+															return
+														},
+														c.filterFns...,
+													)
+												)
+
+												Expect(entries).To(Equal(c.match))
+
+												Expect(err).To(func() types.GomegaMatcher {
+													if c.error && !isNotFound {
+														return HaveOccurred()
+													}
+
+													return Succeed()
+												}())
+											})
+										})
+									}(c)
+								}
 							})
-						}(c)
+						}(s)
 					}
 				})
-			}(s)
+			}(notFound)
 		}
 	})
 })
