@@ -271,7 +271,14 @@ type Repository interface {
 	CommitBuilder(context.Context) (CommitBuilder, error)
 }
 
+type Errors interface {
+	IsNotFound(err error) bool
+
+	IgnoreNotFound(err error) error
+}
+
 // Interface defines access to a Git implementation.
 type Interface interface {
 	OpenOrInitBareRepository(ctx context.Context, path string) (Repository, error)
+	Errors() Errors
 }

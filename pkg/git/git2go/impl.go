@@ -31,3 +31,5 @@ func (gitImpl) OpenOrInitBareRepository(ctx context.Context, path string) (git.R
 		return &repository{impl: implR}, nil
 	}
 }
+
+func (i gitImpl) Errors() git.Errors { return i }
