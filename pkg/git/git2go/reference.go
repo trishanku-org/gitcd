@@ -13,7 +13,7 @@ type reference impl.Reference
 var _ git.Reference = &reference{}
 
 func (ref *reference) impl() *impl.Reference   { return (*impl.Reference)(ref) }
-func (ref *reference) Close() error            { ref.impl().Free(); return nil }
+func (ref *reference) Close() error            { return free(ref.impl()) }
 func (ref *reference) Name() git.ReferenceName { return git.ReferenceName(ref.impl().Name()) }
 func (ref *reference) IsBranch() bool          { return ref.impl().IsBranch() }
 func (ref *reference) IsRemote() bool          { return ref.impl().IsRemote() }

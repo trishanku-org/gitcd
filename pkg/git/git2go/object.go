@@ -35,7 +35,7 @@ type object impl.Object
 var _ git.Object = &object{}
 
 func (o *object) impl() *impl.Object   { return (*impl.Object)(o) }
-func (o *object) Close() error         { o.impl().Free(); return nil }
+func (o *object) Close() error         { return free(o.impl()) }
 func (o *object) ID() git.ObjectID     { return git.ObjectID(*o.impl().Id()) }
 func (o *object) Type() git.ObjectType { return toGitObjectType(o.impl().Type()) }
 
@@ -59,7 +59,7 @@ type blob impl.Blob
 var _ git.Blob = &blob{}
 
 func (b *blob) impl() *impl.Blob                                     { return (*impl.Blob)(b) }
-func (b *blob) Close() error                                         { b.impl().Free(); return nil }
+func (b *blob) Close() error                                         { return free(b.impl()) }
 func (b *blob) object() *object                                      { var implB = b.impl(); return (*object)(&implB.Object) }
 func (b *blob) ID() git.ObjectID                                     { return b.object().ID() }
 func (b *blob) Type() git.ObjectType                                 { return b.object().Type() }
@@ -88,7 +88,7 @@ type tree impl.Tree
 var _ git.Tree = &tree{}
 
 func (t *tree) impl() *impl.Tree                                     { return (*impl.Tree)(t) }
-func (t *tree) Close() error                                         { t.impl().Free(); return nil }
+func (t *tree) Close() error                                         { return free(t.impl()) }
 func (t *tree) object() *object                                      { var implO = t.impl(); return (*object)(&implO.Object) }
 func (t *tree) ID() git.ObjectID                                     { return t.object().ID() }
 func (t *tree) Type() git.ObjectType                                 { return t.object().Type() }
@@ -132,7 +132,7 @@ type commit impl.Commit
 var _ git.Commit = &commit{}
 
 func (c *commit) impl() *impl.Commit   { return (*impl.Commit)(c) }
-func (c *commit) Close() error         { c.impl().Free(); return nil }
+func (c *commit) Close() error         { return free(c.impl()) }
 func (c *commit) object() *object      { var implO = c.impl(); return (*object)(&implO.Object) }
 func (c *commit) ID() git.ObjectID     { return c.object().ID() }
 func (c *commit) Type() git.ObjectType { return c.object().Type() }
@@ -219,7 +219,7 @@ func (b *blobBuilder) SetContent(content []byte) error {
 type treeBuilder impl.TreeBuilder
 
 func (b *treeBuilder) impl() *impl.TreeBuilder { return (*impl.TreeBuilder)(b) }
-func (b *treeBuilder) Close() error            { b.impl().Free(); return nil }
+func (b *treeBuilder) Close() error            { return free(b.impl()) }
 
 func (b *treeBuilder) Build(ctx context.Context) (id git.ObjectID, err error) {
 	var oid *impl.Oid

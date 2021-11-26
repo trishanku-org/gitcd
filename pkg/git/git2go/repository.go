@@ -17,7 +17,7 @@ type repository struct {
 
 var _ git.Repository = &repository{}
 
-func (repo *repository) Close() error { repo.impl.Free(); return nil }
+func (repo *repository) Close() error { return free(repo.impl) }
 
 func (repo *repository) References() (git.ReferenceCollection, error) {
 	return (*referenceCollection)(&repo.impl.References), nil

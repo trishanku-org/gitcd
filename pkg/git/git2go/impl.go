@@ -33,3 +33,17 @@ func (gitImpl) OpenOrInitBareRepository(ctx context.Context, path string) (git.R
 }
 
 func (i gitImpl) Errors() git.Errors { return i }
+
+// freeable defines the contract to free implementation objects.
+type freeable interface {
+	Free()
+}
+
+// free safely frees a freeable object.
+func free(f freeable) error {
+	if f != nil {
+		f.Free()
+	}
+
+	return nil
+}

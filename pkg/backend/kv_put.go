@@ -26,16 +26,15 @@ func (b *backend) doPut(
 	err error,
 ) {
 	var (
-		metaRoot, dataRoot git.Tree
-		dataHead           git.Commit
-		ie                 *intervalExplorer
-		k                  = string(req.GetKey())
-		p                  string
-		prevKV             *mvccpb.KeyValue
-		metaTM             *treeMutation
-		bumpRevision       bool
-		revisionMutateFn   mutateTreeEntryFunc
-		newMetaRootID      git.ObjectID
+		metaRoot, dataRoot     git.Tree
+		dataHead               git.Commit
+		ie                     *intervalExplorer
+		k                      = string(req.GetKey())
+		p                      string
+		metaTM                 *treeMutation
+		revisionMutateFn       mutateTreeEntryFunc
+		newMetaRootID, newDHID git.ObjectID
+		mMutated, dMutated     bool
 	)
 
 	if metaHead != nil {
@@ -43,7 +42,11 @@ func (b *backend) doPut(
 			return
 		}
 
-		defer metaRoot.Close()
+		defer func() {
+			if metaRoot != nil {
+				metaRoot.Close()
+			}
+		}()
 
 		if dataHead, err = b.getDataCommitForMetadata(ctx, metaRoot); err != nil {
 			return
@@ -55,7 +58,11 @@ func (b *backend) doPut(
 			return
 		}
 
-		defer dataRoot.Close()
+		defer func() {
+			if dataRoot != nil {
+				dataRoot.Close()
+			}
+		}()
 	}
 
 	ie = &intervalExplorer{
@@ -69,7 +76,7 @@ func (b *backend) doPut(
 
 	}
 
-	if !req.IgnoreValue {
+	if !req.IgnoreValue || req.PrevKv {
 		var (
 			dataTM        *treeMutation
 			newDataRootID git.ObjectID
@@ -82,21 +89,32 @@ func (b *backend) doPut(
 				var newContent = req.GetValue()
 
 				if te != nil && te.EntryType() == git.ObjectTypeBlob {
-					if prevKV, err = b.getMetadataFor(ctx, metaRoot, k); err != nil {
+					var prevV []byte
+
+					if prevV, err = b.getContentForTreeEntry(ctx, te); err != nil {
 						return
 					}
 
-					if prevKV.Value, err = b.getContentForTreeEntry(ctx, te); err != nil {
-						return
+					if req.PrevKv {
+						var prevKV *mvccpb.KeyValue
+						if prevKV, err = b.getMetadataFor(ctx, metaRoot, k); err != nil {
+							return
+						}
+
+						prevKV.Value = prevV
+
+						if req.GetPrevKv() {
+							res.PrevKv = prevKV
+						}
 					}
 
-					if req.GetPrevKv() {
-						res.PrevKv = prevKV
-					}
-
-					if reflect.DeepEqual(prevKV.Value, newContent) {
+					if reflect.DeepEqual(prevV, newContent) {
 						return
 					}
+				}
+
+				if req.IgnoreValue {
+					return
 				}
 
 				mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, newContent, te)
@@ -106,22 +124,20 @@ func (b *backend) doPut(
 			return
 		}
 
-		if dataMutated, newDataRootID, err = b.mutateTree(ctx, dataRoot, dataTM, false); err != nil {
+		if dMutated, newDataRootID, err = b.mutateTree(ctx, dataRoot, dataTM, false); err != nil {
 			return
 		}
 
-		if dataMutated {
-			bumpRevision = true
-
+		if dMutated {
 			if metaTM, err = addMutation(
 				metaTM,
 				metadataPathData,
 				func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-					if newDataHeadID, err = commitTreeFn(ctx, revisionToString(newRevision), newDataRootID, dataHead); err != nil {
+					if newDHID, err = commitTreeFn(ctx, revisionToString(newRevision), newDataRootID, dataHead); err != nil {
 						return
 					}
 
-					mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(newDataHeadID.String()), te)
+					mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(newDHID.String()), te)
 					return
 				},
 			); err != nil {
@@ -135,7 +151,7 @@ func (b *backend) doPut(
 					var currentVersion int64
 
 					if te != nil && te.EntryType() == git.ObjectTypeBlob {
-						if currentVersion, err = b.readRevisionFromTreeEntry(ctx, te); err != nil {
+						if currentVersion, err = b.readRevisionFromTreeEntry(ctx, te); b.errors.IgnoreNotFound(err) != nil {
 							return
 						}
 					}
@@ -160,7 +176,7 @@ func (b *backend) doPut(
 				)
 
 				if te != nil && te.EntryType() == git.ObjectTypeBlob {
-					if currentLease, err = b.readRevisionFromTreeEntry(ctx, te); err != nil {
+					if currentLease, err = b.readRevisionFromTreeEntry(ctx, te); b.errors.IgnoreNotFound(err) != nil {
 						return
 					}
 				}
@@ -169,14 +185,7 @@ func (b *backend) doPut(
 					return
 				}
 
-				if mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newLease)), te); err != nil {
-					return
-				}
-
-				if mutated {
-					bumpRevision = true
-				}
-
+				mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newLease)), te)
 				return
 			},
 		); err != nil {
@@ -185,15 +194,28 @@ func (b *backend) doPut(
 	}
 
 	if isMutationNOP(metaTM) {
-		dataMutated = false // Just to be sure
-		return              // nop
+		return // nop
 	}
 
-	revisionMutateFn = func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-		if bumpRevision {
-			return
-		}
+	// Apply non-conditional mutations on metadata first to see if the conditional mutations need to be applied.
+	if mMutated, newMetaRootID, err = b.mutateTree(ctx, metaRoot, metaTM, false); err != nil || !mMutated {
+		return
+	}
 
+	// Apply conditional mutations on metadata on the reloaded mutated metaRoot
+	metaTM = nil
+
+	if metaRoot != nil {
+		metaRoot.Close()
+	}
+
+	if metaRoot, err = b.repo.ObjectGetter().GetTree(ctx, newMetaRootID); err != nil {
+		return
+	}
+
+	// metaRoot is already closed in defer at the beginning of the function.
+
+	revisionMutateFn = func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
 		mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newRevision)), te)
 		return
 	}
@@ -226,14 +248,14 @@ func (b *backend) doPut(
 	}
 
 	if !metaMutated {
-		dataMutated = false // Just to be sure
-		return              // nop
+		return // nop
 	}
 
 	if newMetaHeadID, err = commitTreeFn(ctx, revisionToString(newRevision), newMetaRootID, metaHead); err != nil {
 		return
 	}
 
+	dataMutated, newDataHeadID = dMutated, newDHID
 	return
 }
 
@@ -246,12 +268,20 @@ func (b *backend) Put(ctx context.Context, req *etcdserverpb.PutRequest) (res *e
 		newRevision                  int64
 	)
 
-	if metaRef, err = b.getMetadataReference(ctx); err == nil {
-		defer metaRef.Close()
+	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
+		return
 	}
 
-	if metaHead, err = b.repo.Peeler().PeelToCommit(ctx, metaRef); err == nil {
-		defer metaHead.Close()
+	if metaRef != nil {
+		defer metaRef.Close()
+
+		if metaHead, err = b.repo.Peeler().PeelToCommit(ctx, metaRef); err != nil && err == ctx.Err() {
+			return
+		}
+
+		if metaHead != nil {
+			defer metaHead.Close()
+		}
 	}
 
 	res = &etcdserverpb.PutResponse{

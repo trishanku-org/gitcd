@@ -157,8 +157,7 @@ func (b *backend) doDeleteRange(
 	}
 
 	if !metaMutated {
-		dataMutated = false // Just to be sure
-		return              // nop
+		return // nop
 	}
 
 	if newMetaHeadID, err = commitTreeFn(ctx, revisionToString(newRevision), newMetaRootID, metaHead); err != nil {

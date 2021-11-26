@@ -21,81 +21,10 @@ import (
 )
 
 var _ = Describe("backend", func() {
-	type metaHeadFunc func() (git.Commit, error)
-	type expectMetaHeadFunc func(newMetaHead *CommitDef, spec string)
-
 	var (
 		b   *backend
 		ctx context.Context
 		dir string
-
-		metaHeadFrom = func(metaHead, dataHead *CommitDef) metaHeadFunc {
-			return func() (mh git.Commit, err error) {
-				metaHead = metaHead.DeepCopy()
-
-				if dataHead != nil {
-					var dID git.ObjectID
-
-					if dID, err = CreateCommitFromDef(ctx, b.repo, dataHead); err != nil {
-						return
-					}
-
-					if metaHead.Tree.Blobs == nil {
-						metaHead.Tree.Blobs = map[string][]byte{}
-					}
-
-					metaHead.Tree.Blobs[metadataPathData] = []byte(dID.String())
-				}
-
-				mh, err = CreateAndLoadCommitFromDef(ctx, b.repo, metaHead)
-				return
-			}
-		}
-
-		expectMetaHead = func(em, ed *CommitDef) expectMetaHeadFunc {
-			return func(am *CommitDef, spec string) {
-				var dID git.ObjectID
-
-				Expect(func() (id git.ObjectID, err error) {
-					dID, err = git.NewObjectID(string(am.Tree.Blobs[metadataPathData]))
-					id = dID
-					return
-				}()).ToNot(Equal(git.ObjectID{}), spec)
-
-				em, am = em.DeepCopy(), am.DeepCopy()
-				delete(em.Tree.Blobs, metadataPathData)
-				delete(am.Tree.Blobs, metadataPathData)
-
-				Expect(*am).To(GetCommitDefMatcher(em), spec)
-				Expect(*GetCommitDefByID(ctx, b.repo, dID)).To(GetCommitDefMatcher(ed), spec)
-			}
-		}
-
-		expectMetaHeadInherit = func(em, ed *CommitDef) expectMetaHeadFunc {
-			return func(am *CommitDef, spec string) {
-				var emNoParents, amNoParents = em.DeepCopy(), am.DeepCopy()
-
-				emNoParents.Parents, amNoParents.Parents = nil, nil
-
-				expectMetaHead(emNoParents, ed)(amNoParents, spec)
-
-				Expect(em.Parents).To(HaveLen(1), spec)
-				Expect(am.Parents).To(HaveLen(1), spec)
-				Expect(ed.Parents).To(HaveLen(1), spec)
-				expectMetaHead(&em.Parents[0], &ed.Parents[0])(&am.Parents[0], spec)
-			}
-		}
-
-		delegate = func(match types.GomegaMatcher) expectMetaHeadFunc {
-			return func(am *CommitDef, spec string) { Expect(am).To(match, spec) }
-		}
-
-		allMetaKeys = []string{
-			etcdserverpb.Compare_CREATE.String(),
-			etcdserverpb.Compare_LEASE.String(),
-			etcdserverpb.Compare_MOD.String(),
-			etcdserverpb.Compare_VERSION.String(),
-		}
 
 		addMetaKeyEntry = func(td *TreeDef, key string, metaKeys []string, revision int64) {
 			if len(metaKeys) <= 0 {
@@ -312,7 +241,8 @@ var _ = Describe("backend", func() {
 				prefix string,
 				key, rangeEnd []byte,
 				newRevision int64,
-				expectedResult *etcdserverpb.DeleteRangeResponse) []check {
+				expectedResult *etcdserverpb.DeleteRangeResponse,
+			) []check {
 				var keyPrefix = keyPrefix{prefix: prefix}
 
 				checks = append(
@@ -342,7 +272,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              replace,
 						matchErr:                  HaveOccurred(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{}),
@@ -366,7 +296,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              inherit,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeTrue(),
-						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead),
+						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead, true),
 						matchDataMutated:          BeTrue(),
 						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(newDataHead)),
 						matchResponse:             Equal(expectedResult),
@@ -381,7 +311,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              inherit,
 						matchErr:                  HaveOccurred(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{}),
@@ -397,7 +327,8 @@ var _ = Describe("backend", func() {
 				prefix string,
 				key, rangeEnd []byte,
 				newRevision int64,
-				expectedResult *etcdserverpb.DeleteRangeResponse) []check {
+				expectedResult *etcdserverpb.DeleteRangeResponse,
+			) []check {
 				var keyPrefix = keyPrefix{prefix: prefix}
 
 				checks = append(
@@ -450,7 +381,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              inherit,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeTrue(),
-						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead),
+						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead, true),
 						matchDataMutated:          BeTrue(),
 						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(newDataHead)),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{Deleted: expectedResult.Deleted}),
@@ -465,7 +396,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              inherit,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeTrue(),
-						expectMetaHead:            expectMetaHeadInherit(newMetaHead.DeepCopy(), newDataHead.DeepCopy()),
+						expectMetaHead:            expectMetaHeadInherit(newMetaHead.DeepCopy(), newDataHead.DeepCopy(), true),
 						matchDataMutated:          BeTrue(),
 						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(newDataHead.DeepCopy())),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{Deleted: expectedResult.Deleted, PrevKvs: prevKvs}),
@@ -495,7 +426,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              replace,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{}),
@@ -510,7 +441,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              replace,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{}),
@@ -529,7 +460,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              inherit,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{}),
@@ -544,7 +475,7 @@ var _ = Describe("backend", func() {
 						commitTreeFn:              inherit,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{}),
@@ -563,9 +494,9 @@ var _ = Describe("backend", func() {
 					spec:                      "expired context",
 					ctxFn:                     CanceledContext,
 					keyPrefix:                 keyPrefix{prefix: prefix},
-					matchErr:                  Succeed(), // TODO ?
+					matchErr:                  Succeed(),
 					matchMetaMutated:          BeFalse(),
-					expectMetaHead:            delegate(BeNil()),
+					expectMetaHead:            delegateToMatcher(BeNil()),
 					matchDataMutated:          BeFalse(),
 					matchDataHeadCommitDefPtr: BeNil(),
 					matchResponse:             BeNil(),
@@ -577,7 +508,7 @@ var _ = Describe("backend", func() {
 					metaHeadFn:                metaHeadFrom(&CommitDef{Message: "1"}, nil),
 					matchErr:                  MatchError("context canceled"),
 					matchMetaMutated:          BeFalse(),
-					expectMetaHead:            delegate(BeNil()),
+					expectMetaHead:            delegateToMatcher(BeNil()),
 					matchDataMutated:          BeFalse(),
 					matchDataHeadCommitDefPtr: BeNil(),
 					matchResponse:             BeNil(),
@@ -589,7 +520,7 @@ var _ = Describe("backend", func() {
 					metaHeadFn:                metaHeadFrom(&CommitDef{Message: "1"}, &CommitDef{Message: "1"}),
 					matchErr:                  MatchError("context canceled"),
 					matchMetaMutated:          BeFalse(),
-					expectMetaHead:            delegate(BeNil()),
+					expectMetaHead:            delegateToMatcher(BeNil()),
 					matchDataMutated:          BeFalse(),
 					matchDataHeadCommitDefPtr: BeNil(),
 					matchResponse:             BeNil(),
@@ -598,7 +529,7 @@ var _ = Describe("backend", func() {
 					keyPrefix:                 keyPrefix{prefix: prefix},
 					matchErr:                  Succeed(),
 					matchMetaMutated:          BeFalse(),
-					expectMetaHead:            delegate(BeNil()),
+					expectMetaHead:            delegateToMatcher(BeNil()),
 					matchDataMutated:          BeFalse(),
 					matchDataHeadCommitDefPtr: BeNil(),
 					matchResponse:             BeNil(),
@@ -609,7 +540,7 @@ var _ = Describe("backend", func() {
 					metaHeadFn:                metaHeadFrom(&CommitDef{Message: "1"}, nil),
 					matchErr:                  HaveOccurred(),
 					matchMetaMutated:          BeFalse(),
-					expectMetaHead:            delegate(BeNil()),
+					expectMetaHead:            delegateToMatcher(BeNil()),
 					matchDataMutated:          BeFalse(),
 					matchDataHeadCommitDefPtr: BeNil(),
 					matchResponse:             BeNil(),
@@ -623,7 +554,7 @@ var _ = Describe("backend", func() {
 					),
 					matchErr:                  HaveOccurred(),
 					matchMetaMutated:          BeFalse(),
-					expectMetaHead:            delegate(BeNil()),
+					expectMetaHead:            delegateToMatcher(BeNil()),
 					matchDataMutated:          BeFalse(),
 					matchDataHeadCommitDefPtr: BeNil(),
 					matchResponse:             BeNil(),
@@ -634,7 +565,7 @@ var _ = Describe("backend", func() {
 					metaHeadFn:                metaHeadFrom(&CommitDef{Message: "1"}, &CommitDef{Message: "d"}),
 					matchErr:                  Succeed(),
 					matchMetaMutated:          BeFalse(),
-					expectMetaHead:            delegate(BeNil()),
+					expectMetaHead:            delegateToMatcher(BeNil()),
 					matchDataMutated:          BeFalse(),
 					matchDataHeadCommitDefPtr: BeNil(),
 					matchResponse:             BeNil(),
@@ -650,7 +581,7 @@ var _ = Describe("backend", func() {
 						res:                       res,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(res),
@@ -667,7 +598,7 @@ var _ = Describe("backend", func() {
 						res:                       res,
 						matchErr:                  Succeed(),
 						matchMetaMutated:          BeFalse(),
-						expectMetaHead:            delegate(BeNil()),
+						expectMetaHead:            delegateToMatcher(BeNil()),
 						matchDataMutated:          BeFalse(),
 						matchDataHeadCommitDefPtr: BeNil(),
 						matchResponse:             Equal(res),
@@ -1186,6 +1117,8 @@ var _ = Describe("backend", func() {
 
 			{
 				var (
+					spec                        = "full metadata, 3-deep data, delete subtree"
+					keyPrefix                   = keyPrefix{prefix: prefix}
 					key                         = []byte(path.Join(prefix, "a/a"))
 					rangeEnd                    = []byte(path.Join(prefix, "a/b"))
 					newRevision                 = int64(4)
@@ -1204,20 +1137,30 @@ var _ = Describe("backend", func() {
 				nmh.Parents = cmh.Parents
 				ndh.Parents = cdh.Parents
 
-				checks = appendChecksWithFullMetadata(
+				checks = append(
 					checks,
-					"full metadata, 3-deep data, delete subtree",
-					cmh, cdh, nmh, ndh,
-					prevKvs,
-					prefix,
-					key, rangeEnd,
-					newRevision,
-					&etcdserverpb.DeleteRangeResponse{Deleted: 10},
+					check{
+						spec:                      fmt.Sprintf("%s, replace commit", spec),
+						keyPrefix:                 keyPrefix,
+						metaHeadFn:                metaHeadFrom(cmh.DeepCopy(), cdh.DeepCopy()),
+						req:                       &etcdserverpb.DeleteRangeRequest{Key: key, RangeEnd: rangeEnd, PrevKv: true},
+						res:                       &etcdserverpb.DeleteRangeResponse{},
+						newRevision:               newRevision,
+						commitTreeFn:              replace,
+						matchErr:                  Succeed(),
+						matchMetaMutated:          BeTrue(),
+						expectMetaHead:            expectMetaHead(nmh, ndh),
+						matchDataMutated:          BeTrue(),
+						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(ndh)),
+						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{Deleted: 10, PrevKvs: prevKvs}),
+					},
 				)
 			}
 
 			{
 				var (
+					spec                        = "full metadata, 3-deep data, delete subtree"
+					keyPrefix                   = keyPrefix{prefix: prefix}
 					key                         = []byte(path.Join(prefix, "a"))
 					rangeEnd                    = []byte(path.Join(prefix, "b"))
 					newRevision                 = int64(4)
@@ -1236,20 +1179,30 @@ var _ = Describe("backend", func() {
 				nmh.Parents = cmh.Parents
 				ndh.Parents = cdh.Parents
 
-				checks = appendChecksWithFullMetadata(
+				checks = append(
 					checks,
-					"full metadata, 3-deep data, delete subtree",
-					cmh, cdh, nmh, ndh,
-					prevKvs,
-					prefix,
-					key, rangeEnd,
-					newRevision,
-					&etcdserverpb.DeleteRangeResponse{Deleted: 110},
+					check{
+						spec:                      fmt.Sprintf("%s, replace commit", spec),
+						keyPrefix:                 keyPrefix,
+						metaHeadFn:                metaHeadFrom(cmh.DeepCopy(), cdh.DeepCopy()),
+						req:                       &etcdserverpb.DeleteRangeRequest{Key: key, RangeEnd: rangeEnd, PrevKv: true},
+						res:                       &etcdserverpb.DeleteRangeResponse{},
+						newRevision:               newRevision,
+						commitTreeFn:              replace,
+						matchErr:                  Succeed(),
+						matchMetaMutated:          BeTrue(),
+						expectMetaHead:            expectMetaHead(nmh, ndh),
+						matchDataMutated:          BeTrue(),
+						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(ndh)),
+						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{Deleted: 110, PrevKvs: prevKvs}),
+					},
 				)
 			}
 
 			{
 				var (
+					spec                        = "full metadata, 3-deep data, delete everything"
+					keyPrefix                   = keyPrefix{prefix: prefix}
 					key                         = []byte("\x00")
 					rangeEnd                    = []byte("\x00")
 					newRevision                 = int64(4)
@@ -1268,108 +1221,129 @@ var _ = Describe("backend", func() {
 				nmh.Parents = cmh.Parents
 				ndh.Parents = cdh.Parents
 
-				checks = appendChecksWithFullMetadata(
+				checks = append(
 					checks,
-					"full metadata, 3-deep data, delete everything",
-					cmh, cdh, nmh, ndh,
-					prevKvs,
-					prefix,
-					key, rangeEnd,
-					newRevision,
-					&etcdserverpb.DeleteRangeResponse{Deleted: 1110},
+					check{
+						spec:                      fmt.Sprintf("%s, replace commit", spec),
+						keyPrefix:                 keyPrefix,
+						metaHeadFn:                metaHeadFrom(cmh.DeepCopy(), cdh.DeepCopy()),
+						req:                       &etcdserverpb.DeleteRangeRequest{Key: key, RangeEnd: rangeEnd, PrevKv: true},
+						res:                       &etcdserverpb.DeleteRangeResponse{},
+						newRevision:               newRevision,
+						commitTreeFn:              replace,
+						matchErr:                  Succeed(),
+						matchMetaMutated:          BeTrue(),
+						expectMetaHead:            expectMetaHead(nmh, ndh),
+						matchDataMutated:          BeTrue(),
+						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(ndh)),
+						matchResponse:             Equal(&etcdserverpb.DeleteRangeResponse{Deleted: 1110, PrevKvs: prevKvs}),
+					},
 				)
 			}
 
 			for _, s := range checks {
 				func(s check) {
-					Describe(fmt.Sprintf("%s keyPrefix=%q hasMetaHead=%t req=%v res=%v newRevision=%d", s.spec, s.keyPrefix.prefix, s.metaHeadFn != nil, s.req, s.res, s.newRevision), func() {
-						var (
-							metaHead  git.Commit
-							parentCtx context.Context
-						)
-
-						BeforeEach(func() {
-							b.keyPrefix = s.keyPrefix
-
-							if s.metaHeadFn != nil {
-								Expect(func() (err error) { metaHead, err = s.metaHeadFn(); return }()).To(Succeed())
-							}
-
-							parentCtx = ctx
-
-							if s.ctxFn != nil {
-								ctx = s.ctxFn(ctx)
-							}
-						})
-
-						AfterEach(func() {
-							if metaHead != nil {
-								Expect(metaHead.Close()).To(Succeed())
-							}
-						})
-
-						It(ItSpecForMatchError(s.matchErr), func() {
+					Describe(
+						fmt.Sprintf(
+							"%s keyPrefix=%q hasMetaHead=%t req=%v res=%v newRevision=%d",
+							s.spec,
+							s.keyPrefix.prefix,
+							s.metaHeadFn != nil,
+							s.req,
+							s.res,
+							s.newRevision,
+						),
+						func() {
 							var (
-								commitTreeFn                 commitTreeFunc
-								metaMutated, dataMutated     bool
-								newMetaHeadID, newDataHeadID git.ObjectID
-								err                          error
+								metaHead  git.Commit
+								parentCtx context.Context
 							)
 
-							if s.commitTreeFn != nil {
-								commitTreeFn = s.commitTreeFn()
-							}
+							BeforeEach(func() {
+								b.keyPrefix = s.keyPrefix
 
-							metaMutated, newMetaHeadID, dataMutated, newDataHeadID, err = b.doDeleteRange(
-								ctx,
-								metaHead,
-								s.req,
-								s.res,
-								s.newRevision,
-								commitTreeFn,
-							)
+								if s.metaHeadFn != nil {
+									Expect(func() (err error) { metaHead, err = s.metaHeadFn(ctx, b.repo); return }()).To(Succeed())
+								}
 
-							Expect(err).To(s.matchErr)
+								parentCtx = ctx
 
-							for _, s := range []struct {
-								spec            string
-								mutated         bool
-								id              git.ObjectID
-								matchMutated    types.GomegaMatcher
-								expectCommitDef expectMetaHeadFunc
-							}{
-								{
-									spec:            "data", // Check data first to see the details of the difference on error
-									mutated:         dataMutated,
-									id:              newDataHeadID,
-									matchMutated:    s.matchDataMutated,
-									expectCommitDef: delegate(s.matchDataHeadCommitDefPtr),
-								},
-								{
-									spec:            "metadata",
-									mutated:         metaMutated,
-									id:              newMetaHeadID,
-									matchMutated:    s.matchMetaMutated,
-									expectCommitDef: s.expectMetaHead,
-								},
-							} {
-								Expect(s.mutated).To(s.matchMutated, s.spec)
+								if s.ctxFn != nil {
+									ctx = s.ctxFn(ctx)
+								}
+							})
 
-								s.expectCommitDef(
-									func() *CommitDef {
-										if reflect.DeepEqual(s.id, git.ObjectID{}) {
-											return nil
-										}
+							AfterEach(func() {
+								if metaHead != nil {
+									Expect(metaHead.Close()).To(Succeed())
+								}
+							})
 
-										return GetCommitDefByID(parentCtx, b.repo, s.id)
-									}(),
-									s.spec,
+							It(ItSpecForMatchError(s.matchErr), func() {
+								var (
+									commitTreeFn                 commitTreeFunc
+									metaMutated, dataMutated     bool
+									newMetaHeadID, newDataHeadID git.ObjectID
+									err                          error
 								)
-							}
 
-							Expect(s.res).To(s.matchResponse)
-						})
-					})
+								if s.commitTreeFn != nil {
+									commitTreeFn = s.commitTreeFn()
+								}
+
+								metaMutated, newMetaHeadID, dataMutated, newDataHeadID, err = b.doDeleteRange(
+									ctx,
+									metaHead,
+									s.req,
+									s.res,
+									s.newRevision,
+									commitTreeFn,
+								)
+
+								Expect(err).To(s.matchErr)
+
+								for _, s := range []struct {
+									spec            string
+									mutated         bool
+									id              git.ObjectID
+									matchMutated    types.GomegaMatcher
+									expectCommitDef expectMetaHeadFunc
+								}{
+									{
+										spec:            "data", // Check data first to see the details of the difference on error
+										mutated:         dataMutated,
+										id:              newDataHeadID,
+										matchMutated:    s.matchDataMutated,
+										expectCommitDef: delegateToMatcher(s.matchDataHeadCommitDefPtr),
+									},
+									{
+										spec:            "metadata",
+										mutated:         metaMutated,
+										id:              newMetaHeadID,
+										matchMutated:    s.matchMetaMutated,
+										expectCommitDef: s.expectMetaHead,
+									},
+								} {
+									Expect(s.mutated).To(s.matchMutated, s.spec)
+
+									s.expectCommitDef(
+										parentCtx,
+										b.repo,
+										func() *CommitDef {
+											if reflect.DeepEqual(s.id, git.ObjectID{}) {
+												return nil
+											}
+
+											return GetCommitDefByID(parentCtx, b.repo, s.id)
+										}(),
+										s.spec,
+									)
+								}
+
+								Expect(s.res).To(s.matchResponse)
+							})
+						},
+					)
 				}(s)
 			}
 		}
@@ -1410,7 +1384,7 @@ var _ = Describe("backend", func() {
 						dataHead:                  currentDataHead,
 						req:                       &etcdserverpb.DeleteRangeRequest{Key: key, RangeEnd: rangeEnd},
 						matchErr:                  Succeed(),
-						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead),
+						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead, true),
 						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(newDataHead)),
 						matchResponse:             Equal(expectedResult),
 					},
@@ -1454,7 +1428,7 @@ var _ = Describe("backend", func() {
 						dataHead:                  currentDataHead,
 						req:                       &etcdserverpb.DeleteRangeRequest{Key: key, RangeEnd: rangeEnd},
 						matchErr:                  Succeed(),
-						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead),
+						expectMetaHead:            expectMetaHeadInherit(newMetaHead, newDataHead, true),
 						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(newDataHead)),
 						matchResponse:             Equal(expectedResult),
 					},
@@ -1464,7 +1438,7 @@ var _ = Describe("backend", func() {
 						dataHead:                  currentDataHead.DeepCopy(),
 						req:                       &etcdserverpb.DeleteRangeRequest{Key: key, RangeEnd: rangeEnd, PrevKv: true},
 						matchErr:                  Succeed(),
-						expectMetaHead:            expectMetaHeadInherit(newMetaHead.DeepCopy(), newDataHead.DeepCopy()),
+						expectMetaHead:            expectMetaHeadInherit(newMetaHead.DeepCopy(), newDataHead.DeepCopy(), true),
 						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(newDataHead.DeepCopy())),
 						matchResponse: Equal(&etcdserverpb.DeleteRangeResponse{
 							Header:  expectedResult.Header,
@@ -1535,7 +1509,7 @@ var _ = Describe("backend", func() {
 										spec:                      "expired context",
 										ctxFn:                     CanceledContext,
 										matchErr:                  MatchError("context canceled"),
-										expectMetaHead:            delegate(BeNil()),
+										expectMetaHead:            delegateToMatcher(BeNil()),
 										matchDataHeadCommitDefPtr: BeNil(),
 										matchResponse:             BeNil(),
 									},
@@ -1547,7 +1521,7 @@ var _ = Describe("backend", func() {
 											ctxFn:                     CanceledContext,
 											metaHeadFn:                metaHeadFrom(cmh, nil),
 											matchErr:                  MatchError("context canceled"),
-											expectMetaHead:            delegate(PointTo(GetCommitDefMatcher(cmh))),
+											expectMetaHead:            delegateToMatcher(PointTo(GetCommitDefMatcher(cmh))),
 											matchDataHeadCommitDefPtr: BeNil(),
 											matchResponse:             BeNil(),
 										}
@@ -1571,7 +1545,7 @@ var _ = Describe("backend", func() {
 									}(),
 									{
 										matchErr:                  Succeed(),
-										expectMetaHead:            delegate(BeNil()),
+										expectMetaHead:            delegateToMatcher(BeNil()),
 										matchDataHeadCommitDefPtr: BeNil(),
 										matchResponse: Equal(&etcdserverpb.DeleteRangeResponse{
 											Header: &etcdserverpb.ResponseHeader{ClusterId: clusterID, MemberId: memberID},
@@ -1584,7 +1558,7 @@ var _ = Describe("backend", func() {
 											spec:                      "metadata without data",
 											metaHeadFn:                metaHeadFrom(cmh, nil),
 											matchErr:                  HaveOccurred(),
-											expectMetaHead:            delegate(PointTo(GetCommitDefMatcher(cmh))),
+											expectMetaHead:            delegateToMatcher(PointTo(GetCommitDefMatcher(cmh))),
 											matchDataHeadCommitDefPtr: BeNil(),
 											matchResponse: Equal(&etcdserverpb.DeleteRangeResponse{
 												Header: &etcdserverpb.ResponseHeader{ClusterId: clusterID, MemberId: memberID},
@@ -1598,7 +1572,7 @@ var _ = Describe("backend", func() {
 											spec:                      "metadata with invalid data ID in metadata",
 											metaHeadFn:                metaHeadFrom(cmh, nil),
 											matchErr:                  HaveOccurred(),
-											expectMetaHead:            delegate(PointTo(GetCommitDefMatcher(cmh))),
+											expectMetaHead:            delegateToMatcher(PointTo(GetCommitDefMatcher(cmh))),
 											matchDataHeadCommitDefPtr: BeNil(),
 											matchResponse: Equal(&etcdserverpb.DeleteRangeResponse{
 												Header: &etcdserverpb.ResponseHeader{ClusterId: clusterID, MemberId: memberID},
@@ -2401,7 +2375,7 @@ var _ = Describe("backend", func() {
 																return
 															}
 
-															if c, err = s.metaHeadFn(); err != nil {
+															if c, err = s.metaHeadFn(ctx, b.repo); err != nil {
 																return
 															}
 
@@ -2455,7 +2429,7 @@ var _ = Describe("backend", func() {
 														{
 															spec:         "data",
 															refNameFn:    b.getDataRefName,
-															expectHeadFn: delegate(s.matchDataHeadCommitDefPtr),
+															expectHeadFn: delegateToMatcher(s.matchDataHeadCommitDefPtr),
 														},
 														{
 															spec:         "metadata",
@@ -2464,6 +2438,8 @@ var _ = Describe("backend", func() {
 														},
 													} {
 														s.expectHeadFn(
+															ctx,
+															b.repo,
 															func() (cd *CommitDef) {
 																var refName git.ReferenceName
 
