@@ -781,6 +781,64 @@ var _ = Describe("backend", func() {
 						)
 					}
 
+					{
+						var (
+							entryName   = "a"
+							k, v        = []byte(path.Join(prefix, entryName)), []byte(entryName)
+							newRevision = int64(4)
+							cdh         = existing3LevelDataWithoutKey.DeepCopy()
+							cmh         = fillMetadataForData(
+								&CommitDef{Message: "1", Parents: []CommitDef{{Message: "0"}}},
+								cdh,
+								map[string]int64{
+									etcdserverpb.Compare_CREATE.String():  1,
+									etcdserverpb.Compare_LEASE.String():   1,
+									etcdserverpb.Compare_MOD.String():     1,
+									etcdserverpb.Compare_VERSION.String(): 1,
+								},
+							)
+
+							ndh = cdh.DeepCopy()
+							nmh = cmh.DeepCopy()
+						)
+
+						ndh.Message = revisionToString(newRevision)
+						ndh.Tree.Blobs[entryName] = v
+						delete(ndh.Tree.Subtrees, entryName)
+
+						nmh.Message = revisionToString(newRevision)
+						nmh.Tree.Subtrees[entryName] = TreeDef{
+							Blobs: map[string][]byte{
+								etcdserverpb.Compare_CREATE.String():  []byte(revisionToString(newRevision)),
+								etcdserverpb.Compare_LEASE.String():   []byte(revisionToString(newRevision)),
+								etcdserverpb.Compare_MOD.String():     []byte(revisionToString(newRevision)),
+								etcdserverpb.Compare_VERSION.String(): []byte(revisionToString(1)),
+							},
+						}
+
+						nmh.Tree.Blobs = map[string][]byte{metadataPathRevision: []byte(revisionToString(newRevision))}
+
+						checks = append(checks, check{
+							spec:       "full metadata, existing data, replace subtree",
+							metaHeadFn: metaHeadFrom(cmh, cdh),
+							req: &etcdserverpb.PutRequest{
+								Key:    k,
+								Value:  v,
+								Lease:  newRevision,
+								PrevKv: true,
+							},
+							res:                       &etcdserverpb.PutResponse{},
+							newRevision:               newRevision,
+							commitTreeFn:              replace,
+							matchErr:                  Succeed(),
+							matchMetaMutated:          BeTrue(),
+							expectMetaHead:            expectMetaHead(nmh, ndh),
+							matchDataMutated:          BeTrue(),
+							matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(ndh)),
+							matchResponse:             Equal(&etcdserverpb.PutResponse{}),
+						})
+					}
+
 					for _, s := range checks {
 						func(s check) {
 							Describe(
@@ -1093,7 +1151,7 @@ var _ = Describe("backend", func() {
 						"refs/heads/main":   "",
 						"refs/heads/custom": "refs/custom/prefix",
 					} {
-						func(refName, metametaRefNamePrefix git.ReferenceName) {
+						func(refName, metaRefNamePrefix git.ReferenceName) {
 							Describe(fmt.Sprintf("refName=%q, metaRefNamePrefix=%q", refName, metaRefNamePrefix), func() {
 								BeforeEach(func() {
 									b.refName = refName

@@ -122,6 +122,7 @@ func (b *backend) doTxnRequestOps(
 
 	subHeader = copyResponseHeaderFrom(res.Header)
 
+	// Do first requestOp.
 	switch sop := requestOps[0].GetRequest().(type) {
 	case *etcdserverpb.RequestOp_RequestRange:
 		if rangeRes, err = b.doRange(ctx, metaHead, sop.RequestRange); err != nil {
@@ -206,6 +207,7 @@ func (b *backend) doTxnRequestOps(
 		defer metaHead.Close()
 	}
 
+	// Delegate rest of the requestOps recursively.
 	if subMetaMutated, subNewMetaHeadID, subDataMutated, subNewDataHeadID, err = b.doTxnRequestOps(
 		ctx,
 		metaHead,

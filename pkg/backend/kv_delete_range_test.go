@@ -1497,7 +1497,7 @@ var _ = Describe("backend", func() {
 						"refs/heads/main":   "",
 						"refs/heads/custom": "refs/custom/prefix",
 					} {
-						func(refName, metametaRefNamePrefix git.ReferenceName) {
+						func(refName, metaRefNamePrefix git.ReferenceName) {
 							Describe(fmt.Sprintf("refName=%q, metaRefNamePrefix=%q", refName, metaRefNamePrefix), func() {
 								BeforeEach(func() {
 									b.refName = refName

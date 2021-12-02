@@ -453,6 +453,16 @@ func (b *backend) isTreeEmpty(ctx context.Context, treeID git.ObjectID) (empty b
 	return
 }
 
+func deleteEntry(_ context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
+	if te != nil {
+		err = tb.RemoveEntry(entryName)
+		mutated = err == nil
+	}
+	return
+}
+
+var _ mutateTreeEntryFunc = deleteEntry
+
 func (b *backend) mutateTreeBuilder(ctx context.Context, t git.Tree, tb git.TreeBuilder, tm *treeMutation, cleanupEmptySubtrees bool) (mutated bool, err error) {
 	// Process subtrees first to ensure depth first mutation.
 

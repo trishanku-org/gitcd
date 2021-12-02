@@ -35,6 +35,7 @@ func (b *backend) doPut(
 		revisionMutateFn       mutateTreeEntryFunc
 		newMetaRootID, newDHID git.ObjectID
 		mMutated, dMutated     bool
+		mte                    git.TreeEntry
 	)
 
 	if metaHead != nil {
@@ -214,6 +215,32 @@ func (b *backend) doPut(
 	}
 
 	// metaRoot is already closed in defer at the beginning of the function.
+
+	// Add mutations to cleanup any non-metadata entries to handle a subtree being replaced by a value.
+	if mte, err = metaRoot.GetEntryByPath(ctx, p); b.errors.IgnoreNotFound(err) != nil {
+		return
+	} else if !b.errors.IsNotFound(err) && mte.EntryType() == git.ObjectTypeTree {
+		var t git.Tree
+
+		if t, err = b.repo.ObjectGetter().GetTree(ctx, mte.EntryID()); err != nil {
+			return
+		}
+
+		defer t.Close()
+
+		if err = t.ForEachEntry(ctx, func(_ context.Context, te git.TreeEntry) (done bool, err error) {
+			var entryName = te.EntryName()
+
+			if _, ok := etcdserverpb.Compare_CompareTarget_value[entryName]; ok {
+				return
+			}
+
+			metaTM, err = addMutation(metaTM, path.Join(p, entryName), deleteEntry)
+			return
+		}); err != nil {
+			return
+		}
+	}
 
 	revisionMutateFn = func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
 		mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newRevision)), te)

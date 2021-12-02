@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -4767,6 +4768,91 @@ var _ = Describe("newClosedOpenInterval", func() {
 				Expect(newClosedOpenInterval(start, end)).To(matchInterval)
 			})
 		}(s.start, s.end, s.matchInterval)
+	}
+})
+
+var _ = Describe("deleteEntry", func() {
+	var (
+		ctx  context.Context
+		ctrl = gomock.NewController(GinkgoT())
+
+		mockTreeBuilder = func(entryName string, err error) git.TreeBuilder {
+			var tb = mockgit.NewMockTreeBuilder(ctrl)
+
+			tb.EXPECT().RemoveEntry(gomock.Any()).DoAndReturn(
+				func(n string) error {
+					Expect(n).To(Equal(entryName))
+					return err
+				},
+			)
+
+			return tb
+		}
+
+		mockTreeEntry = func() git.TreeEntry { return mockgit.NewMockTreeEntry(ctrl) }
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
+	for _, ctxFn := range []ContextFunc{nil, CanceledContext} {
+		func(ctxFn ContextFunc) {
+			Describe(fmt.Sprintf("expired-context=%t", ctxFn != nil), func() {
+				BeforeEach(func() {
+					if ctxFn != nil {
+						ctx = ctxFn(ctx)
+					}
+				})
+
+				for _, s := range []struct {
+					tb                     git.TreeBuilder
+					entryName              string
+					te                     git.TreeEntry
+					matchMutated, matchErr types.GomegaMatcher
+				}{
+					{matchMutated: BeFalse(), matchErr: Succeed()},
+					{entryName: "entry", matchMutated: BeFalse(), matchErr: Succeed()},
+					{
+						tb:           mockTreeBuilder("", nil),
+						te:           mockTreeEntry(),
+						matchMutated: BeTrue(),
+						matchErr:     Succeed(),
+					},
+					{
+						tb:           mockTreeBuilder("entry", nil),
+						entryName:    "entry",
+						te:           mockTreeEntry(),
+						matchMutated: BeTrue(),
+						matchErr:     Succeed(),
+					},
+					{
+						tb:           mockTreeBuilder("entry", errors.New("error")),
+						entryName:    "entry",
+						te:           mockTreeEntry(),
+						matchMutated: BeFalse(),
+						matchErr:     MatchError("error"),
+					},
+				} {
+					func(tb git.TreeBuilder, entryName string, te git.TreeEntry, matchMutated, matchErr types.GomegaMatcher) {
+						It(
+							fmt.Sprintf(
+								"hasTreeBuilder=%t entryName=%q hasTreeEntry=%t %s",
+								tb != nil,
+								entryName,
+								te != nil,
+								ItSpecForMatchError(matchErr),
+							),
+							func() {
+								var mutated, err = deleteEntry(ctx, tb, entryName, te)
+								Expect(err).To(matchErr)
+								Expect(mutated).To(matchMutated)
+							},
+						)
+					}(s.tb, s.entryName, s.te, s.matchMutated, s.matchErr)
+				}
+			})
+		}(ctxFn)
 	}
 })
 

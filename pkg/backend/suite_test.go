@@ -49,6 +49,61 @@ func metaHeadFrom(metaHead, dataHead *CommitDef) metaHeadFunc {
 	}
 }
 
+func metaHeadInheritFrom(metaHead, dataHead *CommitDef) metaHeadFunc {
+	return func(ctx context.Context, repo git.Repository) (mh git.Commit, err error) {
+		if metaHead == nil {
+			return
+		}
+
+		metaHead = metaHead.DeepCopy()
+
+		if dataHead != nil {
+			var dID git.ObjectID
+
+			if dID, err = CreateCommitFromDef(ctx, repo, dataHead); err != nil {
+				return
+			}
+
+			if metaHead.Tree.Blobs == nil {
+				metaHead.Tree.Blobs = map[string][]byte{}
+			}
+
+			metaHead.Tree.Blobs[metadataPathData] = []byte(dID.String())
+		}
+
+		for i := range metaHead.Parents {
+			var (
+				mp = &metaHead.Parents[i]
+				dp *CommitDef
+			)
+
+			if i < len(dataHead.Parents) {
+				dp = &dataHead.Parents[i]
+			}
+
+			if err = func() (err error) {
+				var c git.Commit
+
+				if c, err = metaHeadInheritFrom(mp, dp)(ctx, repo); err != nil {
+					return
+				}
+
+				defer c.Close()
+
+				mp = GetCommitDefByCommit(ctx, repo, c)
+				return
+			}(); err != nil {
+				return
+			}
+
+			metaHead.Parents[i] = *mp
+		}
+
+		mh, err = CreateAndLoadCommitFromDef(ctx, repo, metaHead)
+		return
+	}
+}
+
 func expectMetaHead(em, ed *CommitDef) expectMetaHeadFunc {
 	return func(ctx context.Context, repo git.Repository, am *CommitDef, spec string) {
 		var dID git.ObjectID

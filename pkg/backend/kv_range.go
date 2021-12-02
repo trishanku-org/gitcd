@@ -23,6 +23,10 @@ func (b *backend) doRange(ctx context.Context, metaHead git.Commit, req *etcdser
 		revision           int64
 	)
 
+	if metaHead == nil {
+		return
+	}
+
 	if req.GetRevision() == 0 {
 		metaP = metaHead
 	} else if metaP, err = b.getMetadataPeelableForRevision(ctx, metaHead, req.GetRevision()); err != nil {
@@ -60,6 +64,7 @@ func (b *backend) doRange(ctx context.Context, metaHead git.Commit, req *etcdser
 	err = (&intervalExplorer{
 		keyPrefix: b.keyPrefix,
 		repo:      b.repo,
+		errors:    b.errors,
 		tree:      dataRoot,
 		interval:  newClosedOpenInterval(req.GetKey(), req.GetRangeEnd()),
 	}).forEachMatchingKey(
@@ -67,42 +72,53 @@ func (b *backend) doRange(ctx context.Context, metaHead git.Commit, req *etcdser
 		func(ctx context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
 			var kv *mvccpb.KeyValue
 
-			if len(res.Kvs) >= int(req.GetLimit()) {
+			if done = !checkMaxConstraint(req.GetLimit(), int64(len(res.Kvs)+1)); done {
 				res.More = true
-				done = true
 				return
 			}
 
-			if kv, err = b.getMetadataFor(ctx, metaRoot, k); err != nil {
-				return
-			}
+			if req.GetMaxCreateRevision()+req.GetMinCreateRevision()+req.GetMaxModRevision()+req.GetMinModRevision() > 0 {
+				if kv, err = b.getMetadataFor(ctx, metaRoot, k); err != nil {
+					return
+				}
 
-			for _, satisfied := range []bool{
-				checkMaxConstraint(req.MaxCreateRevision, kv.CreateRevision),
-				checkMinConstraint(req.MinCreateRevision, kv.CreateRevision),
-				checkMaxConstraint(req.MaxModRevision, kv.ModRevision),
-				checkMinConstraint(req.MinModRevision, kv.ModRevision),
-			} {
-				if !satisfied {
+				if !checkMaxConstraint(req.MaxCreateRevision, kv.CreateRevision) ||
+					!checkMinConstraint(req.MinCreateRevision, kv.CreateRevision) ||
+					!checkMaxConstraint(req.MaxModRevision, kv.ModRevision) ||
+					!checkMinConstraint(req.MinModRevision, kv.ModRevision) {
 					return
 				}
 			}
 
-			if req.CountOnly {
+			if req.GetCountOnly() {
 				res.Count++
 				return
 			}
 
-			if req.KeysOnly {
+			if req.GetKeysOnly() {
+				res.Kvs = append(res.Kvs, &mvccpb.KeyValue{Key: []byte(k)})
 				return
 			}
 
-			kv.Value, err = b.getContentForTreeEntry(ctx, te)
+			if kv == nil {
+				if kv, err = b.getMetadataFor(ctx, metaRoot, k); err != nil {
+					return
+				}
+			}
 
+			if kv.Value, err = b.getContentForTreeEntry(ctx, te); err != nil {
+				return
+			}
+
+			res.Kvs = append(res.Kvs, kv)
 			return
 		},
 		newObjectTypeFilter(git.ObjectTypeBlob),
 	)
+
+	if !req.GetCountOnly() {
+		res.Count = int64(len(res.Kvs))
+	}
 
 	return
 }

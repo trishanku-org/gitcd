@@ -30,14 +30,6 @@ func (b *backend) doDeleteRange(
 		dMutated                              bool
 		newMetaRootID, newDataRootID, newDHID git.ObjectID
 		ndeleted                              int64
-
-		deleteEntryFn = func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-			if te != nil {
-				err = tb.RemoveEntry(entryName)
-				mutated = err == nil
-			}
-			return
-		}
 	)
 
 	if metaHead == nil {
@@ -93,11 +85,11 @@ func (b *backend) doDeleteRange(
 				res.PrevKvs = append(res.PrevKvs, kv)
 			}
 
-			if dataTM, err = addMutation(dataTM, p, deleteEntryFn); err != nil {
+			if dataTM, err = addMutation(dataTM, p, deleteEntry); err != nil {
 				return
 			}
 
-			if metaTM, err = addMutation(metaTM, p, deleteEntryFn); err != nil {
+			if metaTM, err = addMutation(metaTM, p, deleteEntry); err != nil {
 				return
 			}
 
