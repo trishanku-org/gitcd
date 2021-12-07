@@ -11,6 +11,8 @@ import (
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
+
+	"github.com/go-logr/logr"
 )
 
 // committerConfig defines the committer configuration to be used when creating Git commits.
@@ -26,14 +28,16 @@ type backend struct {
 	refName, metadataRefNamePrefix git.ReferenceName
 	clusterID, memberID            uint64
 	commitConfig                   commitConfig
+	log                            logr.Logger
 }
 
-var _ etcdserverpb.KVServer = &backend{}
+var _ etcdserverpb.KVServer = (*backend)(nil)
 
 const (
-	defaultMetadataReferencePrefix = "refs/gitcd/metadata/"
+	DefaultMetadataReferencePrefix = "refs/gitcd/metadata/"
 	metadataPathRevision           = ".revision"
 	metadataPathData               = ".data"
+	metadataPathVersion            = ".version"
 )
 
 func (b *backend) getDataRefName() (refName git.ReferenceName, err error) {
@@ -53,7 +57,7 @@ func (b *backend) getMetadataRefName() (refName git.ReferenceName, err error) {
 	)
 
 	if len(metaRefNamePrefix) == 0 {
-		metaRefNamePrefix = defaultMetadataReferencePrefix
+		metaRefNamePrefix = DefaultMetadataReferencePrefix
 	}
 
 	if dataRefName, err = b.getDataRefName(); err != nil {
@@ -163,10 +167,9 @@ func (b *backend) readOjectID(ctx context.Context, t git.Tree, path string) (git
 
 func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k string) (kv *mvccpb.KeyValue, err error) {
 	var (
-		t                                           git.Tree
-		te                                          git.TreeEntry
-		typ                                         git.ObjectType
-		createRevision, lease, modRevision, version int64
+		t   git.Tree
+		te  git.TreeEntry
+		typ git.ObjectType
 	)
 
 	if te, err = metaRoot.GetEntryByPath(ctx, b.getPathForKey(k)); err != nil {
@@ -183,6 +186,14 @@ func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k strin
 	}
 
 	defer t.Close()
+
+	kv, err = b.loadKeyValue(ctx, t, []byte(k), nil)
+	return
+}
+
+// TODO test
+func (b *backend) loadKeyValue(ctx context.Context, t git.Tree, k, v []byte) (kv *mvccpb.KeyValue, err error) {
+	var createRevision, lease, modRevision, version int64
 
 	if createRevision, err = b.readRevision(ctx, t, etcdserverpb.Compare_CREATE.String()); err != nil {
 		return
@@ -201,13 +212,13 @@ func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k strin
 	}
 
 	kv = &mvccpb.KeyValue{
-		Key:            []byte(k),
+		Key:            k,
 		CreateRevision: createRevision,
 		Lease:          lease,
 		ModRevision:    modRevision,
 		Version:        version,
+		Value:          v,
 	}
-
 	return
 }
 
@@ -600,6 +611,25 @@ func (b *backend) mutateTree(ctx context.Context, currentT git.Tree, tm *treeMut
 	}
 
 	return
+}
+
+func (b *backend) mutateRevisionTo(newRevision int64) mutateTreeEntryFunc {
+	return func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
+		if te != nil && te.EntryType() == git.ObjectTypeBlob {
+			var currentRevision int64
+
+			if currentRevision, err = b.readRevisionFromTreeEntry(ctx, te); b.errors.IgnoreNotFound(err) != nil {
+				return
+			}
+
+			if err == nil && currentRevision == newRevision {
+				return
+			}
+		}
+
+		mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newRevision)), te)
+		return
+	}
 }
 
 func (b *backend) createBlob(ctx context.Context, content []byte) (blobID git.ObjectID, err error) {

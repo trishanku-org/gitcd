@@ -3,7 +3,9 @@ package git2go
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
+	"path/filepath"
 
 	impl "github.com/libgit2/git2go/v31"
 	"github.com/trishanku/gitcd/pkg/git"
@@ -13,6 +15,7 @@ import (
 // repository implements the Repository interface defined in the parent git package.
 type repository struct {
 	impl *impl.Repository
+	path string
 }
 
 var _ git.Repository = &repository{}
@@ -330,6 +333,23 @@ func (repo *repository) CommitBuilder(ctx context.Context) (b git.CommitBuilder,
 	if err = ctx.Err(); err == nil {
 		b = &commitBuilder{repo: repo}
 	}
+
+	return
+}
+
+func (repo *repository) Size() (size int64, err error) {
+	if repo == nil {
+		return
+	}
+
+	filepath.Walk(repo.path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		size += info.Size()
+		return err
+	})
 
 	return
 }

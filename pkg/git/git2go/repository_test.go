@@ -69,7 +69,7 @@ var _ = Describe("repository", func() {
 				Expect(o).To(matchObject)
 
 				if o != nil {
-					defer Expect(o.Close()).To(Succeed())
+					defer func() { Expect(o.Close()).To(Succeed()) }()
 
 					Expect(o.ID()).To(matchID)
 					Expect(o.Type()).To(matchType)
@@ -139,7 +139,7 @@ var _ = Describe("repository", func() {
 				Expect(b).To(matchObject)
 
 				if b != nil {
-					defer Expect(b.Close()).To(Succeed())
+					defer func() { Expect(b.Close()).To(Succeed()) }()
 
 					Expect(b.ID()).To(matchID)
 					Expect(b.Type()).To(Equal(git.ObjectTypeBlob))
@@ -228,7 +228,7 @@ var _ = Describe("repository", func() {
 				Expect(t).To(matchObject)
 
 				if t != nil {
-					defer Expect(t.Close()).To(Succeed())
+					defer func() { Expect(t.Close()).To(Succeed()) }()
 					Expect(t.ID()).To(matchID)
 					Expect(t.Type()).To(Equal(git.ObjectTypeTree))
 				}
@@ -314,7 +314,7 @@ var _ = Describe("repository", func() {
 				Expect(c).To(matchObject)
 
 				if c != nil {
-					defer Expect(c.Close()).To(Succeed())
+					defer func() { Expect(c.Close()).To(Succeed()) }()
 
 					Expect(c.ID()).To(matchID)
 					Expect(c.Type()).To(Equal(git.ObjectTypeCommit))
@@ -410,7 +410,7 @@ var _ = Describe("repository", func() {
 					return
 				}
 
-				defer Expect(o.Close()).To(Succeed())
+				defer func() { Expect(o.Close()).To(Succeed()) }()
 
 				Expect(err).To(matchErr)
 				Expect(b).To(matchBlob)
@@ -517,7 +517,7 @@ var _ = Describe("repository", func() {
 					return
 				}
 
-				defer Expect(o.Close()).To(Succeed())
+				defer func() { Expect(o.Close()).To(Succeed()) }()
 
 				Expect(err).To(matchErr)
 				Expect(t).To(matchTree)
@@ -622,7 +622,7 @@ var _ = Describe("repository", func() {
 					return
 				}
 
-				defer Expect(o.Close()).To(Succeed())
+				defer func() { Expect(o.Close()).To(Succeed()) }()
 
 				Expect(err).To(matchErr)
 				Expect(c).To(matchCommit)

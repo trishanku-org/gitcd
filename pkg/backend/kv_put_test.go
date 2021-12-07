@@ -783,6 +783,48 @@ var _ = Describe("backend", func() {
 
 					{
 						var (
+							spec        = "full metadata with new revisions, existing data, replace with only first metadata mutation"
+							newRevision = int64(4)
+						)
+
+						for p, dh := range existingDataWithKey {
+							checks = appendChecks(
+								checks,
+								spec,
+								fillMetadataForData(
+									&CommitDef{
+										Message: revisionToString(newRevision),
+										Tree: TreeDef{
+											Blobs: map[string][]byte{metadataPathRevision: []byte(revisionToString(newRevision))},
+										},
+										Parents: []CommitDef{{Message: "0"}},
+									},
+									dh,
+									map[string]int64{
+										etcdserverpb.Compare_CREATE.String():  newRevision,
+										etcdserverpb.Compare_LEASE.String():   1,
+										etcdserverpb.Compare_MOD.String():     newRevision,
+										etcdserverpb.Compare_VERSION.String(): 1,
+									},
+								),
+								dh,
+								&mvccpb.KeyValue{
+									Key:            []byte(path.Join(prefix, p)),
+									CreateRevision: newRevision,
+									Lease:          1,
+									ModRevision:    newRevision,
+									Version:        1,
+									Value:          []byte("1"),
+								},
+								prefix, p, []byte("10"),
+								newRevision,
+								true,
+							)
+						}
+					}
+
+					{
+						var (
 							entryName   = "a"
 							k, v        = []byte(path.Join(prefix, entryName)), []byte(entryName)
 							newRevision = int64(4)

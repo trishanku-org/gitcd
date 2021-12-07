@@ -44,8 +44,8 @@ type checkCompareResultFunc func(cmpResult) bool
 var compareResult_checker = map[etcdserverpb.Compare_CompareResult]checkCompareResultFunc{
 	etcdserverpb.Compare_EQUAL:     func(r cmpResult) bool { return r == cmpResultEqual },
 	etcdserverpb.Compare_NOT_EQUAL: func(r cmpResult) bool { return r != cmpResultEqual },
-	etcdserverpb.Compare_GREATER:   func(r cmpResult) bool { return r == cmpResultMore },
-	etcdserverpb.Compare_LESS:      func(r cmpResult) bool { return r == cmpResultLess },
+	etcdserverpb.Compare_GREATER:   func(r cmpResult) bool { return r >= cmpResultMore },
+	etcdserverpb.Compare_LESS:      func(r cmpResult) bool { return r <= cmpResultLess },
 }
 
 func checkCompareResult(c *etcdserverpb.Compare, r cmpResult) (bool, error) {
@@ -56,26 +56,29 @@ func checkCompareResult(c *etcdserverpb.Compare, r cmpResult) (bool, error) {
 	return false, fmt.Errorf("unsupported compare result %s", c.GetResult().String())
 }
 
-func (b *backend) readInt64(ctx context.Context, te git.TreeEntry, path string) (ignore, skip bool, i int64, err error) {
+func (b *backend) readInt64(ctx context.Context, te git.TreeEntry, path string) (i int64, err error) {
 	var (
 		t git.Tree
 		v []byte
 	)
 
+	if te.EntryType() != git.ObjectTypeTree {
+		err = NewUnsupportedObjectType(te.EntryType())
+		return
+	}
+
 	if t, err = b.repo.ObjectGetter().GetTree(ctx, te.EntryID()); err != nil {
-		ignore, err = true, nil
 		return
 	}
 
 	defer t.Close()
 
 	if te, err = t.GetEntryByPath(ctx, path); err != nil {
-		ignore, err = true, nil
 		return
 	}
 
 	if te.EntryType() != git.ObjectTypeBlob {
-		ignore, skip = true, true
+		err = NewUnsupportedObjectType(te.EntryType())
 		return
 	}
 
@@ -87,9 +90,105 @@ func (b *backend) readInt64(ctx context.Context, te git.TreeEntry, path string) 
 	return
 }
 
-func copyResponseHeaderFrom(h *etcdserverpb.ResponseHeader) *etcdserverpb.ResponseHeader {
-	var r = *h
-	return &r
+func (b *backend) checkTxnCompare(ctx context.Context, metaRoot, dataRoot git.Tree, compares []*etcdserverpb.Compare) (compare bool, err error) {
+	var ie = &intervalExplorer{
+		keyPrefix: b.keyPrefix,
+		repo:      b.repo,
+		errors:    b.errors,
+	}
+
+	for _, c := range compares {
+		var (
+			receiverFn intervalExplorerReceiverFunc
+			filterFns  []intervalExplorerFilterFunc
+			cmp, found = true, false
+		)
+
+		cmp = true
+
+		if c.GetTarget() == etcdserverpb.Compare_VALUE {
+			var target = c.GetValue()
+
+			if dataRoot == nil {
+				return
+			}
+
+			ie.tree = dataRoot
+
+			receiverFn = func(ctx context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
+				var value []byte
+
+				if value, err = b.getContentForTreeEntry(ctx, te); err != nil {
+					return
+				}
+
+				found = true
+
+				if cmp, err = checkCompareResult(c, key(value).Cmp(key(target))); err != nil {
+					return
+				}
+
+				done = !cmp
+				return
+			}
+
+			filterFns = append(filterFns, newObjectTypeFilter(git.ObjectTypeBlob))
+		} else {
+			var target int64
+
+			if target, err = getCompareTargetInt64(c); err != nil {
+				return
+			}
+
+			if metaRoot == nil {
+				return
+			}
+
+			ie.tree = metaRoot
+
+			receiverFn = func(ctx context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
+				var value int64
+
+				if value, err = b.readInt64(ctx, te, c.GetTarget().String()); b.errors.IgnoreNotFound(err) != nil {
+					return
+				} else if b.errors.IsNotFound(err) {
+					// Ignore parent keys which will not have metadata.
+					err = nil
+					return
+				}
+
+				found = true
+
+				if cmp, err = checkCompareResult(c, int64Cmp(value).Cmp(target)); err != nil {
+					return
+				}
+
+				done = !cmp
+				return
+			}
+
+			filterFns = append(filterFns, newObjectTypeFilter(git.ObjectTypeTree))
+		}
+
+		ie.interval = newClosedOpenInterval(c.GetKey(), c.GetRangeEnd())
+
+		if err = ie.forEachMatchingKey(ctx, receiverFn, filterFns...); err != nil || !cmp {
+			return
+		}
+
+		if cmp = found; !cmp {
+			return
+		}
+	}
+
+	compare = true
+	return
+}
+
+func copyResponseHeaderFrom(h *etcdserverpb.ResponseHeader) (r *etcdserverpb.ResponseHeader) {
+	r = new(etcdserverpb.ResponseHeader)
+	*r = *h
+	return
 }
 
 func (b *backend) doTxnRequestOps(
@@ -149,6 +248,8 @@ func (b *backend) doTxnRequestOps(
 			return
 		}
 
+		setHeaderRevision(putRes.Header, metaMutated, newRevision)
+
 		res.Responses = append(res.Responses, &etcdserverpb.ResponseOp{
 			Response: &etcdserverpb.ResponseOp_ResponsePut{
 				ResponsePut: putRes,
@@ -168,6 +269,8 @@ func (b *backend) doTxnRequestOps(
 		); err != nil {
 			return
 		}
+
+		setHeaderRevision(deleteRangeRes.Header, metaMutated, newRevision)
 
 		res.Responses = append(res.Responses, &etcdserverpb.ResponseOp{
 			Response: &etcdserverpb.ResponseOp_ResponseDeleteRange{
@@ -189,6 +292,8 @@ func (b *backend) doTxnRequestOps(
 			return
 		}
 
+		setHeaderRevision(txnRes.Header, metaMutated, newRevision)
+
 		res.Responses = append(res.Responses, &etcdserverpb.ResponseOp{
 			Response: &etcdserverpb.ResponseOp_ResponseTxn{
 				ResponseTxn: txnRes,
@@ -197,6 +302,7 @@ func (b *backend) doTxnRequestOps(
 
 	default:
 		err = fmt.Errorf("unsupported request type %T", sop)
+		return
 	}
 
 	if metaMutated {
@@ -205,6 +311,8 @@ func (b *backend) doTxnRequestOps(
 		}
 
 		defer metaHead.Close()
+
+		commitTreeFn = b.replaceCurrentCommit
 	}
 
 	// Delegate rest of the requestOps recursively.
@@ -214,7 +322,7 @@ func (b *backend) doTxnRequestOps(
 		requestOps[1:],
 		res,
 		newRevision,
-		b.replaceCurrentCommit,
+		commitTreeFn,
 	); err != nil {
 		return
 	}
@@ -246,8 +354,6 @@ func (b *backend) doTxn(
 ) {
 	var (
 		metaRoot, dataRoot git.Tree
-		compare            = true
-		ie                 *intervalExplorer
 		requestOps         []*etcdserverpb.RequestOp
 	)
 
@@ -270,108 +376,14 @@ func (b *backend) doTxn(
 			return
 		}
 
-		defer dataRoot.Close()
-	}
-
-	ie = &intervalExplorer{
-		keyPrefix: b.keyPrefix,
-		repo:      b.repo,
-	}
-
-	for _, c := range req.GetCompare() {
-		var (
-			receiverFn intervalExplorerReceiverFunc
-			filterFns  []intervalExplorerFilterFunc
-		)
-
-		if !compare {
-			break
-		}
-
-		if c == nil {
-			continue
-		}
-
-		if c.GetTarget() == etcdserverpb.Compare_VALUE {
-			if dataRoot == nil {
-				compare = false
-				continue
-			}
-
-			ie.tree = dataRoot
-
-			receiverFn = func(ctx context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
-				var (
-					value, target []byte
-					entryCompare  bool
-				)
-
-				if value, err = b.getContentForTreeEntry(ctx, te); err != nil {
-					return
-				}
-
-				if entryCompare, err = checkCompareResult(c, key(value).Cmp(key(target))); err != nil {
-					return
-				}
-
-				if !entryCompare {
-					compare = false
-					done = true
-				}
-
-				return
-			}
-
-			filterFns = append(filterFns, newObjectTypeFilter(git.ObjectTypeBlob))
-		} else {
-			if metaRoot == nil {
-				compare = false
-				continue
-			}
-
-			ie.tree = metaRoot
-
-			receiverFn = func(ctx context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
-				var (
-					value, target        int64
-					ignore, entryCompare bool
-				)
-
-				if ignore, skip, value, err = b.readInt64(ctx, te, c.GetTarget().String()); err != nil {
-					return
-				}
-
-				if ignore || skip {
-					return
-				}
-
-				if target, err = getCompareTargetInt64(c); err != nil {
-					return
-				}
-
-				if entryCompare, err = checkCompareResult(c, int64Cmp(value).Cmp(target)); err != nil {
-					return
-				}
-
-				if !entryCompare {
-					compare = false
-					done = true
-				}
-
-				return
-			}
-
-			filterFns = append(filterFns, newObjectTypeFilter(git.ObjectTypeTree))
-		}
-
-		ie.interval = newClosedOpenInterval(c.GetKey(), c.GetRangeEnd())
-
-		if err = ie.forEachMatchingKey(ctx, receiverFn, filterFns...); err != nil {
-			return
+		if dataRoot != nil {
+			defer dataRoot.Close()
 		}
 	}
 
-	if compare {
+	if res.Succeeded, err = b.checkTxnCompare(ctx, metaRoot, dataRoot, req.GetCompare()); err != nil {
+		return
+	} else if res.Succeeded {
 		requestOps = req.Success
 	} else {
 		requestOps = req.Failure

@@ -269,6 +269,8 @@ type Repository interface {
 	TreeBuilder(context.Context) (TreeBuilder, error)
 	TreeBuilderFromTree(context.Context, Tree) (TreeBuilder, error)
 	CommitBuilder(context.Context) (CommitBuilder, error)
+
+	Size() (int64, error)
 }
 
 type Errors interface {

@@ -15,8 +15,6 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 
-	// . "github.com/onsi/gomega/gstruct"
-
 	"github.com/onsi/gomega/types"
 	"github.com/trishanku/gitcd/pkg/git"
 	"github.com/trishanku/gitcd/pkg/git/git2go"

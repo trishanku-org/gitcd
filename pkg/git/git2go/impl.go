@@ -26,9 +26,9 @@ func (gitImpl) OpenOrInitBareRepository(ctx context.Context, path string) (git.R
 			return nil, firstErr
 		}
 
-		return &repository{impl: implR}, nil
+		return &repository{impl: implR, path: path}, nil
 	} else {
-		return &repository{impl: implR}, nil
+		return &repository{impl: implR, path: path}, nil
 	}
 }
 

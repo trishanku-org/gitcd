@@ -1320,6 +1320,19 @@ func (mr *MockRepositoryMockRecorder) References() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "References", reflect.TypeOf((*MockRepository)(nil).References))
 }
 
+// Size mocks base method
+func (m *MockRepository) Size() (int64, error) {
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Size indicates an expected call of Size
+func (mr *MockRepositoryMockRecorder) Size() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRepository)(nil).Size))
+}
+
 // TreeBuilder mocks base method
 func (m *MockRepository) TreeBuilder(arg0 context.Context) (git.TreeBuilder, error) {
 	ret := m.ctrl.Call(m, "TreeBuilder", arg0)

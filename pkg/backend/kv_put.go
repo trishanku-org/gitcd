@@ -26,16 +26,16 @@ func (b *backend) doPut(
 	err error,
 ) {
 	var (
-		metaRoot, dataRoot     git.Tree
-		dataHead               git.Commit
-		ie                     *intervalExplorer
-		k                      = string(req.GetKey())
-		p                      string
-		metaTM                 *treeMutation
-		revisionMutateFn       mutateTreeEntryFunc
-		newMetaRootID, newDHID git.ObjectID
-		mMutated, dMutated     bool
-		mte                    git.TreeEntry
+		metaRoot, dataRoot                     git.Tree
+		dataHead                               git.Commit
+		ie                                     *intervalExplorer
+		k                                      = string(req.GetKey())
+		p                                      string
+		metaTM                                 *treeMutation
+		revisionMutateFn                       mutateTreeEntryFunc
+		newMetaRootID, newMetaRootID2, newDHID git.ObjectID
+		metaMutated2, dMutated                 bool
+		mte                                    git.TreeEntry
 	)
 
 	if metaHead != nil {
@@ -199,7 +199,7 @@ func (b *backend) doPut(
 	}
 
 	// Apply non-conditional mutations on metadata first to see if the conditional mutations need to be applied.
-	if mMutated, newMetaRootID, err = b.mutateTree(ctx, metaRoot, metaTM, false); err != nil || !mMutated {
+	if metaMutated, newMetaRootID, err = b.mutateTree(ctx, metaRoot, metaTM, false); err != nil || !metaMutated {
 		return
 	}
 
@@ -242,10 +242,7 @@ func (b *backend) doPut(
 		}
 	}
 
-	revisionMutateFn = func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-		mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newRevision)), te)
-		return
-	}
+	revisionMutateFn = b.mutateRevisionTo(newRevision)
 
 	if metaTM, err = addMutation(metaTM, metadataPathRevision, revisionMutateFn); err != nil {
 		return
@@ -270,12 +267,12 @@ func (b *backend) doPut(
 		return
 	}
 
-	if metaMutated, newMetaRootID, err = b.mutateTree(ctx, metaRoot, metaTM, false); err != nil {
+	if metaMutated2, newMetaRootID2, err = b.mutateTree(ctx, metaRoot, metaTM, false); err != nil {
 		return
 	}
 
-	if !metaMutated {
-		return // nop
+	if metaMutated2 {
+		newMetaRootID = newMetaRootID2
 	}
 
 	if newMetaHeadID, err = commitTreeFn(ctx, revisionToString(newRevision), newMetaRootID, metaHead); err != nil {

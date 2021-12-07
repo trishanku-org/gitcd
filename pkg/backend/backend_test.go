@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 
 	"github.com/golang/mock/gomock"
@@ -73,8 +74,8 @@ var _ = Describe("backend", func() {
 			matchErr                                        types.GomegaMatcher
 		}{
 			{matchErr: MatchError(rpctypes.ErrGRPCCorrupt)},
-			{refName: "a", expectedMetaRefName: defaultMetadataReferencePrefix + "a", matchErr: Succeed()},
-			{refName: "refs/heads/main", expectedMetaRefName: defaultMetadataReferencePrefix + "refs/heads/main", matchErr: Succeed()},
+			{refName: "a", expectedMetaRefName: DefaultMetadataReferencePrefix + "a", matchErr: Succeed()},
+			{refName: "refs/heads/main", expectedMetaRefName: DefaultMetadataReferencePrefix + "refs/heads/main", matchErr: Succeed()},
 			{metaRefNamePrefix: "refs/p", matchErr: MatchError(rpctypes.ErrGRPCCorrupt)},
 			{refName: "a", metaRefNamePrefix: "refs/p", expectedMetaRefName: "refs/p/a", matchErr: Succeed()},
 			{refName: "refs/heads/main", metaRefNamePrefix: "refs/p", expectedMetaRefName: "refs/p/refs/heads/main", matchErr: Succeed()},
@@ -4489,6 +4490,163 @@ var _ = Describe("backend", func() {
 								if mutated && err == nil {
 									Expect(*GetTreeDef(parentCtx, b.repo, id)).To(s.matchTreeDef)
 								}
+							})
+						})
+					}(s)
+				}
+			})
+
+			Describe("mutateRevisionTo", func() {
+				type check struct {
+					spec                                    string
+					ctxFn                                   ContextFunc
+					td                                      TreeDef
+					path                                    string
+					newRevision                             int64
+					matchErr, matchMutated, matchTreeDefPtr types.GomegaMatcher
+				}
+
+				for _, s := range []check{
+					{
+						spec:            "expired context with non-existent path",
+						ctxFn:           CanceledContext,
+						path:            "a",
+						newRevision:     4,
+						matchErr:        MatchError("context canceled"),
+						matchMutated:    BeFalse(),
+						matchTreeDefPtr: BeNil(),
+					},
+					{
+						spec:            "expired context with existing path with invalid value",
+						ctxFn:           CanceledContext,
+						td:              TreeDef{Blobs: map[string][]byte{"a": []byte("a")}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        MatchError("context canceled"),
+						matchMutated:    BeFalse(),
+						matchTreeDefPtr: BeNil(),
+					},
+					{
+						spec:            "expired context with existing path with non-matching value",
+						ctxFn:           CanceledContext,
+						td:              TreeDef{Blobs: map[string][]byte{"a": []byte("1")}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        MatchError("context canceled"),
+						matchMutated:    BeFalse(),
+						matchTreeDefPtr: BeNil(),
+					},
+					{
+						spec:            "expired context with existing path with tree value",
+						ctxFn:           CanceledContext,
+						td:              TreeDef{Subtrees: map[string]TreeDef{"a": {}}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        MatchError("context canceled"),
+						matchMutated:    BeFalse(),
+						matchTreeDefPtr: BeNil(),
+					},
+					{
+						spec:            "expired context with existing path with matching value",
+						ctxFn:           CanceledContext,
+						td:              TreeDef{Blobs: map[string][]byte{"a": []byte("4")}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        MatchError("context canceled"),
+						matchMutated:    BeFalse(),
+						matchTreeDefPtr: BeNil(),
+					},
+					{
+						spec:            "non-existent path",
+						path:            "a",
+						newRevision:     4,
+						matchErr:        Succeed(),
+						matchMutated:    BeTrue(),
+						matchTreeDefPtr: PointTo(GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{"a": []byte("4")}})),
+					},
+					{
+						spec:            "existing path with invalid value",
+						td:              TreeDef{Blobs: map[string][]byte{"a": []byte("a")}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        MatchError(ContainSubstring("ParseInt")),
+						matchMutated:    BeFalse(),
+						matchTreeDefPtr: BeNil(),
+					},
+					{
+						spec:            "existing path with non-matching value",
+						td:              TreeDef{Blobs: map[string][]byte{"a": []byte("1")}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        Succeed(),
+						matchMutated:    BeTrue(),
+						matchTreeDefPtr: PointTo(GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{"a": []byte("4")}})),
+					},
+					{
+						spec:            "existing path with tree value",
+						td:              TreeDef{Subtrees: map[string]TreeDef{"a": {}}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        Succeed(),
+						matchMutated:    BeTrue(),
+						matchTreeDefPtr: PointTo(GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{"a": []byte("4")}})),
+					},
+					{
+						spec:            "existing path with matching value",
+						td:              TreeDef{Blobs: map[string][]byte{"a": []byte("4")}},
+						path:            "a",
+						newRevision:     4,
+						matchErr:        Succeed(),
+						matchMutated:    BeFalse(),
+						matchTreeDefPtr: BeNil(),
+					},
+				} {
+					func(s check) {
+						Describe(fmt.Sprintf("%s path=%q newRevision=%d", s.spec, s.path, s.newRevision), func() {
+							var (
+								t         git.Tree
+								parentCtx context.Context
+							)
+
+							BeforeEach(func() {
+								Expect(func() (err error) { t, err = CreateAndLoadTreeFromDef(ctx, b.repo, &s.td); return }()).To(Succeed())
+
+								parentCtx = ctx
+
+								if s.ctxFn != nil {
+									ctx = s.ctxFn(ctx)
+								}
+							})
+
+							AfterEach(func() {
+								if t != nil {
+									Expect(t.Close()).To(Succeed())
+								}
+							})
+
+							It(ItSpecForMatchError(s.matchErr), func() {
+								var (
+									tm      *treeMutation
+									mutated bool
+									ntID    git.ObjectID
+									err     error
+								)
+
+								Expect(func() (err error) { tm, err = addMutation(tm, s.path, b.mutateRevisionTo(s.newRevision)); return }()).To(Succeed())
+
+								mutated, ntID, err = b.mutateTree(ctx, t, tm, false)
+
+								Expect(err).To(s.matchErr)
+								Expect(mutated).To(s.matchMutated)
+
+								Expect(func() (td *TreeDef) {
+									if reflect.DeepEqual(ntID, git.ObjectID{}) {
+										return
+									}
+
+									td = GetTreeDef(parentCtx, b.repo, ntID)
+									return
+								}()).To(s.matchTreeDefPtr)
 							})
 						})
 					}(s)

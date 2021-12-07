@@ -18,10 +18,13 @@ func checkMaxConstraint(constraint, value int64) bool {
 
 func (b *backend) doRange(ctx context.Context, metaHead git.Commit, req *etcdserverpb.RangeRequest) (res *etcdserverpb.RangeResponse, err error) {
 	var (
+		log                = b.log.WithName("doRange").WithValues("request", req)
 		dataP, metaP       git.Peelable
 		metaRoot, dataRoot git.Tree
 		revision           int64
 	)
+
+	log.Info("Processing")
 
 	if metaHead == nil {
 		return
@@ -71,6 +74,8 @@ func (b *backend) doRange(ctx context.Context, metaHead git.Commit, req *etcdser
 		ctx,
 		func(ctx context.Context, k string, te git.TreeEntry) (done, skip bool, err error) {
 			var kv *mvccpb.KeyValue
+
+			log.Info("forEachMatchingKey", "k", k)
 
 			if done = !checkMaxConstraint(req.GetLimit(), int64(len(res.Kvs)+1)); done {
 				res.More = true

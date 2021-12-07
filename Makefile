@@ -1,7 +1,8 @@
 install-requirements:
 	go install -mod vendor \
 		github.com/golang/mock/mockgen \
-		github.com/onsi/ginkgo/ginkgo
+		github.com/onsi/ginkgo/ginkgo \
+		github.com/spf13/cobra/cobra
 
 revendor:
 	go mod vendor -v
