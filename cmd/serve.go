@@ -29,6 +29,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 	"github.com/trishanku/gitcd/pkg/backend"
+	"github.com/trishanku/gitcd/pkg/backend/mutex"
 	"github.com/trishanku/gitcd/pkg/git"
 	"github.com/trishanku/gitcd/pkg/git/git2go"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
@@ -369,7 +370,7 @@ func registerKVServer(si *serverInfo, ctx context.Context, repo git.Repository, 
 		return
 	}
 
-	etcdserverpb.RegisterKVServer(grpcSrv, kvs)
+	etcdserverpb.RegisterKVServer(grpcSrv, mutex.NewKVServer(kvs))
 	return
 }
 
