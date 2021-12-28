@@ -29,18 +29,24 @@ type clusterImpl struct {
 
 var _ etcdserverpb.ClusterServer = (*clusterImpl)(nil)
 
-func (c *clusterImpl) MemberList(ctx context.Context, req *etcdserverpb.MemberListRequest) (*etcdserverpb.MemberListResponse, error) {
+func (c *clusterImpl) MemberList(ctx context.Context, req *etcdserverpb.MemberListRequest) (res *etcdserverpb.MemberListResponse, err error) {
 	var (
-		b = c.backend
-		h = b.newResponseHeader(ctx)
+		b   = c.backend
+		log = b.log.WithName("MemberList")
+		h   = b.newResponseHeader(ctx)
 	)
 
-	return &etcdserverpb.MemberListResponse{
+	log.V(-1).Info("received", "request", req)
+	defer log.V(-1).Info("returned", "response", res, "error", err)
+
+	res = &etcdserverpb.MemberListResponse{
 		Header: h,
 		Members: []*etcdserverpb.Member{{
 			ID:         h.MemberId,
 			Name:       memberName,
 			ClientURLs: c.clientURLs,
 		}},
-	}, nil
+	}
+
+	return
 }

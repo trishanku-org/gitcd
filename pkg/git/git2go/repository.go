@@ -22,6 +22,43 @@ var _ git.Repository = &repository{}
 
 func (repo *repository) Close() error { return free(repo.impl) }
 
+// TODO testing
+func (repo *repository) ForEachReferenceName(ctx context.Context, receiverFn git.ReferenceNameReceiverFunc) (err error) {
+	var i *impl.ReferenceIterator
+
+	defer func() {
+		if (gitImpl{}).isErrCode(err, impl.ErrorCodeIterOver) {
+			err = nil
+		}
+	}()
+
+	if i, err = repo.impl.NewReferenceIterator(); err != nil {
+		return
+	}
+
+	for {
+		var (
+			ref  *impl.Reference
+			done bool
+		)
+
+		if ref, err = i.Next(); err != nil {
+			return
+		}
+
+		func() {
+			defer ref.Free()
+
+			fmt.Println("ForEachReferenceName", ref.Name(), err)
+			done, err = receiverFn(ctx, git.ReferenceName(ref.Name()))
+		}()
+
+		if done || err != nil {
+			return
+		}
+	}
+}
+
 func (repo *repository) References() (git.ReferenceCollection, error) {
 	return (*referenceCollection)(&repo.impl.References), nil
 }

@@ -162,12 +162,16 @@ func (b *backend) doDeleteRange(
 
 func (b *backend) DeleteRange(ctx context.Context, req *etcdserverpb.DeleteRangeRequest) (res *etcdserverpb.DeleteRangeResponse, err error) {
 	var (
+		log                          = b.log.WithName("DeleteRange")
 		metaRef                      git.Reference
 		metaHead                     git.Commit
 		metaMutated, dataMutated     bool
 		newMetaHeadID, newDataHeadID git.ObjectID
 		newRevision                  int64
 	)
+
+	log.V(-1).Info("received", "request", req)
+	defer log.V(-1).Info("returned", "response", res, "error", err)
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
 		return

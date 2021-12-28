@@ -285,12 +285,16 @@ func (b *backend) doPut(
 
 func (b *backend) Put(ctx context.Context, req *etcdserverpb.PutRequest) (res *etcdserverpb.PutResponse, err error) {
 	var (
+		log                          = b.log.WithName("Put")
 		metaRef                      git.Reference
 		metaHead                     git.Commit
 		metaMutated, dataMutated     bool
 		newMetaHeadID, newDataHeadID git.ObjectID
 		newRevision                  int64
 	)
+
+	log.V(-1).Info("received", "request", req)
+	defer log.V(-1).Info("returned", "response", res, "error", err)
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
 		return

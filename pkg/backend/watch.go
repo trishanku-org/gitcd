@@ -1051,8 +1051,12 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 	var (
 		w      = ws.registerWatch(ctx, req)
 		b      = ws.mgr.backend
+		log    = ws.mgr.log.WithName("accept")
 		header *etcdserverpb.ResponseHeader
 	)
+
+	log.V(-1).Info("received", "request", req)
+	defer log.V(-1).Info("returned", "error", err)
 
 	defer func() {
 		if err != nil {
@@ -1099,7 +1103,13 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 }
 
 func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) (err error) {
-	var w watch
+	var (
+		w   watch
+		log = ws.mgr.log.WithName("cancel")
+	)
+
+	log.V(-1).Info("received", "watchId", watchID, "cause", cause)
+	defer log.V(-1).Info("returned", "error", err)
 
 	func() {
 		ws.Mutex.Lock()

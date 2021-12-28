@@ -254,10 +254,14 @@ type CommitBuilder interface {
 	AddParentIDs(...ObjectID) error
 }
 
+// ReferenceNameReceiverFunc defines the signature for the receiver function while walking reference names.
+type ReferenceNameReceiverFunc func(context.Context, ReferenceName) (done bool, err error)
+
 // Repository defines access to a Git repository.
 type Repository interface {
 	io.Closer
 
+	ForEachReferenceName(context.Context, ReferenceNameReceiverFunc) error
 	References() (ReferenceCollection, error)
 
 	ObjectGetter() ObjectGetter

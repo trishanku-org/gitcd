@@ -395,12 +395,16 @@ func (b *backend) doTxn(
 
 func (b *backend) Txn(ctx context.Context, req *etcdserverpb.TxnRequest) (res *etcdserverpb.TxnResponse, err error) {
 	var (
+		log                          = b.log.WithName("Txn")
 		metaRef                      git.Reference
 		metaHead                     git.Commit
 		metaMutated, dataMutated     bool
 		newMetaHeadID, newDataHeadID git.ObjectID
 		newRevision                  int64
 	)
+
+	log.V(-1).Info("received", "request", req)
+	defer log.V(-1).Info("returned", "response", res, "error", err)
 
 	if metaRef, err = b.getMetadataReference(ctx); err == nil {
 		defer metaRef.Close()

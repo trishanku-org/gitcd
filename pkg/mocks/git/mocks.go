@@ -6,326 +6,364 @@ package git
 
 import (
 	context "context"
-	gomock "github.com/golang/mock/gomock"
-	git "github.com/trishanku/gitcd/pkg/git"
 	io "io"
 	reflect "reflect"
 	time "time"
+
+	gomock "github.com/golang/mock/gomock"
+	git "github.com/trishanku/gitcd/pkg/git"
 )
 
-// MockBlob is a mock of Blob interface
+// MockBlob is a mock of Blob interface.
 type MockBlob struct {
 	ctrl     *gomock.Controller
 	recorder *MockBlobMockRecorder
 }
 
-// MockBlobMockRecorder is the mock recorder for MockBlob
+// MockBlobMockRecorder is the mock recorder for MockBlob.
 type MockBlobMockRecorder struct {
 	mock *MockBlob
 }
 
-// NewMockBlob creates a new mock instance
+// NewMockBlob creates a new mock instance.
 func NewMockBlob(ctrl *gomock.Controller) *MockBlob {
 	mock := &MockBlob{ctrl: ctrl}
 	mock.recorder = &MockBlobMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBlob) EXPECT() *MockBlobMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockBlob) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockBlobMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockBlob)(nil).Close))
 }
 
-// Content mocks base method
+// Content mocks base method.
 func (m *MockBlob) Content() ([]byte, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Content")
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Content indicates an expected call of Content
+// Content indicates an expected call of Content.
 func (mr *MockBlobMockRecorder) Content() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Content", reflect.TypeOf((*MockBlob)(nil).Content))
 }
 
-// ContentReader mocks base method
+// ContentReader mocks base method.
 func (m *MockBlob) ContentReader() (io.ReadCloser, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ContentReader")
 	ret0, _ := ret[0].(io.ReadCloser)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ContentReader indicates an expected call of ContentReader
+// ContentReader indicates an expected call of ContentReader.
 func (mr *MockBlobMockRecorder) ContentReader() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContentReader", reflect.TypeOf((*MockBlob)(nil).ContentReader))
 }
 
-// ID mocks base method
+// ID mocks base method.
 func (m *MockBlob) ID() git.ObjectID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(git.ObjectID)
 	return ret0
 }
 
-// ID indicates an expected call of ID
+// ID indicates an expected call of ID.
 func (mr *MockBlobMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockBlob)(nil).ID))
 }
 
-// Peel mocks base method
+// Peel mocks base method.
 func (m *MockBlob) Peel(arg0 context.Context, arg1 git.ObjectReceiver) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peel", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Peel indicates an expected call of Peel
+// Peel indicates an expected call of Peel.
 func (mr *MockBlobMockRecorder) Peel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peel", reflect.TypeOf((*MockBlob)(nil).Peel), arg0, arg1)
 }
 
-// Size mocks base method
+// Size mocks base method.
 func (m *MockBlob) Size() git.BlobSize {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Size")
 	ret0, _ := ret[0].(git.BlobSize)
 	return ret0
 }
 
-// Size indicates an expected call of Size
+// Size indicates an expected call of Size.
 func (mr *MockBlobMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockBlob)(nil).Size))
 }
 
-// Type mocks base method
+// Type mocks base method.
 func (m *MockBlob) Type() git.ObjectType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
 	ret0, _ := ret[0].(git.ObjectType)
 	return ret0
 }
 
-// Type indicates an expected call of Type
+// Type indicates an expected call of Type.
 func (mr *MockBlobMockRecorder) Type() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockBlob)(nil).Type))
 }
 
-// MockBlobBuilder is a mock of BlobBuilder interface
+// MockBlobBuilder is a mock of BlobBuilder interface.
 type MockBlobBuilder struct {
 	ctrl     *gomock.Controller
 	recorder *MockBlobBuilderMockRecorder
 }
 
-// MockBlobBuilderMockRecorder is the mock recorder for MockBlobBuilder
+// MockBlobBuilderMockRecorder is the mock recorder for MockBlobBuilder.
 type MockBlobBuilderMockRecorder struct {
 	mock *MockBlobBuilder
 }
 
-// NewMockBlobBuilder creates a new mock instance
+// NewMockBlobBuilder creates a new mock instance.
 func NewMockBlobBuilder(ctrl *gomock.Controller) *MockBlobBuilder {
 	mock := &MockBlobBuilder{ctrl: ctrl}
 	mock.recorder = &MockBlobBuilderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBlobBuilder) EXPECT() *MockBlobBuilderMockRecorder {
 	return m.recorder
 }
 
-// Build mocks base method
+// Build mocks base method.
 func (m *MockBlobBuilder) Build(arg0 context.Context) (git.ObjectID, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Build", arg0)
 	ret0, _ := ret[0].(git.ObjectID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Build indicates an expected call of Build
+// Build indicates an expected call of Build.
 func (mr *MockBlobBuilderMockRecorder) Build(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockBlobBuilder)(nil).Build), arg0)
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockBlobBuilder) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockBlobBuilderMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockBlobBuilder)(nil).Close))
 }
 
-// SetContent mocks base method
+// SetContent mocks base method.
 func (m *MockBlobBuilder) SetContent(arg0 []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetContent", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetContent indicates an expected call of SetContent
+// SetContent indicates an expected call of SetContent.
 func (mr *MockBlobBuilderMockRecorder) SetContent(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContent", reflect.TypeOf((*MockBlobBuilder)(nil).SetContent), arg0)
 }
 
-// MockCommit is a mock of Commit interface
+// MockCommit is a mock of Commit interface.
 type MockCommit struct {
 	ctrl     *gomock.Controller
 	recorder *MockCommitMockRecorder
 }
 
-// MockCommitMockRecorder is the mock recorder for MockCommit
+// MockCommitMockRecorder is the mock recorder for MockCommit.
 type MockCommitMockRecorder struct {
 	mock *MockCommit
 }
 
-// NewMockCommit creates a new mock instance
+// NewMockCommit creates a new mock instance.
 func NewMockCommit(ctrl *gomock.Controller) *MockCommit {
 	mock := &MockCommit{ctrl: ctrl}
 	mock.recorder = &MockCommitMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockCommit) EXPECT() *MockCommitMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockCommit) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockCommitMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockCommit)(nil).Close))
 }
 
-// ForEachParent mocks base method
+// ForEachParent mocks base method.
 func (m *MockCommit) ForEachParent(arg0 context.Context, arg1 git.CommitReceiverFunc) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForEachParent", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ForEachParent indicates an expected call of ForEachParent
+// ForEachParent indicates an expected call of ForEachParent.
 func (mr *MockCommitMockRecorder) ForEachParent(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachParent", reflect.TypeOf((*MockCommit)(nil).ForEachParent), arg0, arg1)
 }
 
-// ForEachParentID mocks base method
+// ForEachParentID mocks base method.
 func (m *MockCommit) ForEachParentID(arg0 context.Context, arg1 git.CommitIDReceiverFunc) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForEachParentID", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ForEachParentID indicates an expected call of ForEachParentID
+// ForEachParentID indicates an expected call of ForEachParentID.
 func (mr *MockCommitMockRecorder) ForEachParentID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachParentID", reflect.TypeOf((*MockCommit)(nil).ForEachParentID), arg0, arg1)
 }
 
-// ID mocks base method
+// ID mocks base method.
 func (m *MockCommit) ID() git.ObjectID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(git.ObjectID)
 	return ret0
 }
 
-// ID indicates an expected call of ID
+// ID indicates an expected call of ID.
 func (mr *MockCommitMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockCommit)(nil).ID))
 }
 
-// Message mocks base method
+// Message mocks base method.
 func (m *MockCommit) Message() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Message")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// Message indicates an expected call of Message
+// Message indicates an expected call of Message.
 func (mr *MockCommitMockRecorder) Message() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Message", reflect.TypeOf((*MockCommit)(nil).Message))
 }
 
-// Peel mocks base method
+// Peel mocks base method.
 func (m *MockCommit) Peel(arg0 context.Context, arg1 git.ObjectReceiver) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peel", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Peel indicates an expected call of Peel
+// Peel indicates an expected call of Peel.
 func (mr *MockCommitMockRecorder) Peel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peel", reflect.TypeOf((*MockCommit)(nil).Peel), arg0, arg1)
 }
 
-// TreeID mocks base method
+// TreeID mocks base method.
 func (m *MockCommit) TreeID() git.ObjectID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TreeID")
 	ret0, _ := ret[0].(git.ObjectID)
 	return ret0
 }
 
-// TreeID indicates an expected call of TreeID
+// TreeID indicates an expected call of TreeID.
 func (mr *MockCommitMockRecorder) TreeID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TreeID", reflect.TypeOf((*MockCommit)(nil).TreeID))
 }
 
-// Type mocks base method
+// Type mocks base method.
 func (m *MockCommit) Type() git.ObjectType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
 	ret0, _ := ret[0].(git.ObjectType)
 	return ret0
 }
 
-// Type indicates an expected call of Type
+// Type indicates an expected call of Type.
 func (mr *MockCommitMockRecorder) Type() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockCommit)(nil).Type))
 }
 
-// MockCommitBuilder is a mock of CommitBuilder interface
+// MockCommitBuilder is a mock of CommitBuilder interface.
 type MockCommitBuilder struct {
 	ctrl     *gomock.Controller
 	recorder *MockCommitBuilderMockRecorder
 }
 
-// MockCommitBuilderMockRecorder is the mock recorder for MockCommitBuilder
+// MockCommitBuilderMockRecorder is the mock recorder for MockCommitBuilder.
 type MockCommitBuilderMockRecorder struct {
 	mock *MockCommitBuilder
 }
 
-// NewMockCommitBuilder creates a new mock instance
+// NewMockCommitBuilder creates a new mock instance.
 func NewMockCommitBuilder(ctrl *gomock.Controller) *MockCommitBuilder {
 	mock := &MockCommitBuilder{ctrl: ctrl}
 	mock.recorder = &MockCommitBuilderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockCommitBuilder) EXPECT() *MockCommitBuilderMockRecorder {
 	return m.recorder
 }
 
-// AddParentIDs mocks base method
+// AddParentIDs mocks base method.
 func (m *MockCommitBuilder) AddParentIDs(arg0 ...git.ObjectID) error {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{}
 	for _, a := range arg0 {
 		varargs = append(varargs, a)
@@ -335,13 +373,15 @@ func (m *MockCommitBuilder) AddParentIDs(arg0 ...git.ObjectID) error {
 	return ret0
 }
 
-// AddParentIDs indicates an expected call of AddParentIDs
+// AddParentIDs indicates an expected call of AddParentIDs.
 func (mr *MockCommitBuilderMockRecorder) AddParentIDs(arg0 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddParentIDs", reflect.TypeOf((*MockCommitBuilder)(nil).AddParentIDs), arg0...)
 }
 
-// AddParents mocks base method
+// AddParents mocks base method.
 func (m *MockCommitBuilder) AddParents(arg0 ...git.Commit) error {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{}
 	for _, a := range arg0 {
 		varargs = append(varargs, a)
@@ -351,1308 +391,1471 @@ func (m *MockCommitBuilder) AddParents(arg0 ...git.Commit) error {
 	return ret0
 }
 
-// AddParents indicates an expected call of AddParents
+// AddParents indicates an expected call of AddParents.
 func (mr *MockCommitBuilderMockRecorder) AddParents(arg0 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddParents", reflect.TypeOf((*MockCommitBuilder)(nil).AddParents), arg0...)
 }
 
-// Build mocks base method
+// Build mocks base method.
 func (m *MockCommitBuilder) Build(arg0 context.Context) (git.ObjectID, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Build", arg0)
 	ret0, _ := ret[0].(git.ObjectID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Build indicates an expected call of Build
+// Build indicates an expected call of Build.
 func (mr *MockCommitBuilderMockRecorder) Build(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockCommitBuilder)(nil).Build), arg0)
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockCommitBuilder) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockCommitBuilderMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockCommitBuilder)(nil).Close))
 }
 
-// SetAuthorEmail mocks base method
+// SetAuthorEmail mocks base method.
 func (m *MockCommitBuilder) SetAuthorEmail(arg0 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAuthorEmail", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetAuthorEmail indicates an expected call of SetAuthorEmail
+// SetAuthorEmail indicates an expected call of SetAuthorEmail.
 func (mr *MockCommitBuilderMockRecorder) SetAuthorEmail(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAuthorEmail", reflect.TypeOf((*MockCommitBuilder)(nil).SetAuthorEmail), arg0)
 }
 
-// SetAuthorName mocks base method
+// SetAuthorName mocks base method.
 func (m *MockCommitBuilder) SetAuthorName(arg0 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAuthorName", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetAuthorName indicates an expected call of SetAuthorName
+// SetAuthorName indicates an expected call of SetAuthorName.
 func (mr *MockCommitBuilderMockRecorder) SetAuthorName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAuthorName", reflect.TypeOf((*MockCommitBuilder)(nil).SetAuthorName), arg0)
 }
 
-// SetAuthorTime mocks base method
+// SetAuthorTime mocks base method.
 func (m *MockCommitBuilder) SetAuthorTime(arg0 time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAuthorTime", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetAuthorTime indicates an expected call of SetAuthorTime
+// SetAuthorTime indicates an expected call of SetAuthorTime.
 func (mr *MockCommitBuilderMockRecorder) SetAuthorTime(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAuthorTime", reflect.TypeOf((*MockCommitBuilder)(nil).SetAuthorTime), arg0)
 }
 
-// SetCommitterEmail mocks base method
+// SetCommitterEmail mocks base method.
 func (m *MockCommitBuilder) SetCommitterEmail(arg0 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCommitterEmail", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetCommitterEmail indicates an expected call of SetCommitterEmail
+// SetCommitterEmail indicates an expected call of SetCommitterEmail.
 func (mr *MockCommitBuilderMockRecorder) SetCommitterEmail(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCommitterEmail", reflect.TypeOf((*MockCommitBuilder)(nil).SetCommitterEmail), arg0)
 }
 
-// SetCommitterName mocks base method
+// SetCommitterName mocks base method.
 func (m *MockCommitBuilder) SetCommitterName(arg0 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCommitterName", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetCommitterName indicates an expected call of SetCommitterName
+// SetCommitterName indicates an expected call of SetCommitterName.
 func (mr *MockCommitBuilderMockRecorder) SetCommitterName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCommitterName", reflect.TypeOf((*MockCommitBuilder)(nil).SetCommitterName), arg0)
 }
 
-// SetCommitterTime mocks base method
+// SetCommitterTime mocks base method.
 func (m *MockCommitBuilder) SetCommitterTime(arg0 time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCommitterTime", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetCommitterTime indicates an expected call of SetCommitterTime
+// SetCommitterTime indicates an expected call of SetCommitterTime.
 func (mr *MockCommitBuilderMockRecorder) SetCommitterTime(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCommitterTime", reflect.TypeOf((*MockCommitBuilder)(nil).SetCommitterTime), arg0)
 }
 
-// SetMessage mocks base method
+// SetMessage mocks base method.
 func (m *MockCommitBuilder) SetMessage(arg0 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMessage", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetMessage indicates an expected call of SetMessage
+// SetMessage indicates an expected call of SetMessage.
 func (mr *MockCommitBuilderMockRecorder) SetMessage(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMessage", reflect.TypeOf((*MockCommitBuilder)(nil).SetMessage), arg0)
 }
 
-// SetTree mocks base method
+// SetTree mocks base method.
 func (m *MockCommitBuilder) SetTree(arg0 git.Tree) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTree", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetTree indicates an expected call of SetTree
+// SetTree indicates an expected call of SetTree.
 func (mr *MockCommitBuilderMockRecorder) SetTree(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTree", reflect.TypeOf((*MockCommitBuilder)(nil).SetTree), arg0)
 }
 
-// SetTreeID mocks base method
+// SetTreeID mocks base method.
 func (m *MockCommitBuilder) SetTreeID(arg0 git.ObjectID) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTreeID", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// SetTreeID indicates an expected call of SetTreeID
+// SetTreeID indicates an expected call of SetTreeID.
 func (mr *MockCommitBuilderMockRecorder) SetTreeID(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTreeID", reflect.TypeOf((*MockCommitBuilder)(nil).SetTreeID), arg0)
 }
 
-// MockCommitWalker is a mock of CommitWalker interface
+// MockCommitWalker is a mock of CommitWalker interface.
 type MockCommitWalker struct {
 	ctrl     *gomock.Controller
 	recorder *MockCommitWalkerMockRecorder
 }
 
-// MockCommitWalkerMockRecorder is the mock recorder for MockCommitWalker
+// MockCommitWalkerMockRecorder is the mock recorder for MockCommitWalker.
 type MockCommitWalkerMockRecorder struct {
 	mock *MockCommitWalker
 }
 
-// NewMockCommitWalker creates a new mock instance
+// NewMockCommitWalker creates a new mock instance.
 func NewMockCommitWalker(ctrl *gomock.Controller) *MockCommitWalker {
 	mock := &MockCommitWalker{ctrl: ctrl}
 	mock.recorder = &MockCommitWalkerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockCommitWalker) EXPECT() *MockCommitWalkerMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockCommitWalker) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockCommitWalkerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockCommitWalker)(nil).Close))
 }
 
-// ForEachCommit mocks base method
+// ForEachCommit mocks base method.
 func (m *MockCommitWalker) ForEachCommit(arg0 context.Context, arg1 git.Commit, arg2 git.CommitWalkerReceiverFunc) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForEachCommit", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ForEachCommit indicates an expected call of ForEachCommit
+// ForEachCommit indicates an expected call of ForEachCommit.
 func (mr *MockCommitWalkerMockRecorder) ForEachCommit(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachCommit", reflect.TypeOf((*MockCommitWalker)(nil).ForEachCommit), arg0, arg1, arg2)
 }
 
-// MockErrors is a mock of Errors interface
+// MockErrors is a mock of Errors interface.
 type MockErrors struct {
 	ctrl     *gomock.Controller
 	recorder *MockErrorsMockRecorder
 }
 
-// MockErrorsMockRecorder is the mock recorder for MockErrors
+// MockErrorsMockRecorder is the mock recorder for MockErrors.
 type MockErrorsMockRecorder struct {
 	mock *MockErrors
 }
 
-// NewMockErrors creates a new mock instance
+// NewMockErrors creates a new mock instance.
 func NewMockErrors(ctrl *gomock.Controller) *MockErrors {
 	mock := &MockErrors{ctrl: ctrl}
 	mock.recorder = &MockErrorsMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockErrors) EXPECT() *MockErrorsMockRecorder {
 	return m.recorder
 }
 
-// IgnoreNotFound mocks base method
+// IgnoreNotFound mocks base method.
 func (m *MockErrors) IgnoreNotFound(arg0 error) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IgnoreNotFound", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// IgnoreNotFound indicates an expected call of IgnoreNotFound
+// IgnoreNotFound indicates an expected call of IgnoreNotFound.
 func (mr *MockErrorsMockRecorder) IgnoreNotFound(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IgnoreNotFound", reflect.TypeOf((*MockErrors)(nil).IgnoreNotFound), arg0)
 }
 
-// IsNotFound mocks base method
+// IsNotFound mocks base method.
 func (m *MockErrors) IsNotFound(arg0 error) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsNotFound", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// IsNotFound indicates an expected call of IsNotFound
+// IsNotFound indicates an expected call of IsNotFound.
 func (mr *MockErrorsMockRecorder) IsNotFound(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNotFound", reflect.TypeOf((*MockErrors)(nil).IsNotFound), arg0)
 }
 
-// MockInterface is a mock of Interface interface
+// MockInterface is a mock of Interface interface.
 type MockInterface struct {
 	ctrl     *gomock.Controller
 	recorder *MockInterfaceMockRecorder
 }
 
-// MockInterfaceMockRecorder is the mock recorder for MockInterface
+// MockInterfaceMockRecorder is the mock recorder for MockInterface.
 type MockInterfaceMockRecorder struct {
 	mock *MockInterface
 }
 
-// NewMockInterface creates a new mock instance
+// NewMockInterface creates a new mock instance.
 func NewMockInterface(ctrl *gomock.Controller) *MockInterface {
 	mock := &MockInterface{ctrl: ctrl}
 	mock.recorder = &MockInterfaceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockInterface) EXPECT() *MockInterfaceMockRecorder {
 	return m.recorder
 }
 
-// Errors mocks base method
+// Errors mocks base method.
 func (m *MockInterface) Errors() git.Errors {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Errors")
 	ret0, _ := ret[0].(git.Errors)
 	return ret0
 }
 
-// Errors indicates an expected call of Errors
+// Errors indicates an expected call of Errors.
 func (mr *MockInterfaceMockRecorder) Errors() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Errors", reflect.TypeOf((*MockInterface)(nil).Errors))
 }
 
-// OpenOrInitBareRepository mocks base method
+// OpenOrInitBareRepository mocks base method.
 func (m *MockInterface) OpenOrInitBareRepository(arg0 context.Context, arg1 string) (git.Repository, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OpenOrInitBareRepository", arg0, arg1)
 	ret0, _ := ret[0].(git.Repository)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// OpenOrInitBareRepository indicates an expected call of OpenOrInitBareRepository
+// OpenOrInitBareRepository indicates an expected call of OpenOrInitBareRepository.
 func (mr *MockInterfaceMockRecorder) OpenOrInitBareRepository(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenOrInitBareRepository", reflect.TypeOf((*MockInterface)(nil).OpenOrInitBareRepository), arg0, arg1)
 }
 
-// MockObject is a mock of Object interface
+// MockObject is a mock of Object interface.
 type MockObject struct {
 	ctrl     *gomock.Controller
 	recorder *MockObjectMockRecorder
 }
 
-// MockObjectMockRecorder is the mock recorder for MockObject
+// MockObjectMockRecorder is the mock recorder for MockObject.
 type MockObjectMockRecorder struct {
 	mock *MockObject
 }
 
-// NewMockObject creates a new mock instance
+// NewMockObject creates a new mock instance.
 func NewMockObject(ctrl *gomock.Controller) *MockObject {
 	mock := &MockObject{ctrl: ctrl}
 	mock.recorder = &MockObjectMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockObject) EXPECT() *MockObjectMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockObject) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockObjectMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockObject)(nil).Close))
 }
 
-// ID mocks base method
+// ID mocks base method.
 func (m *MockObject) ID() git.ObjectID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(git.ObjectID)
 	return ret0
 }
 
-// ID indicates an expected call of ID
+// ID indicates an expected call of ID.
 func (mr *MockObjectMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockObject)(nil).ID))
 }
 
-// Peel mocks base method
+// Peel mocks base method.
 func (m *MockObject) Peel(arg0 context.Context, arg1 git.ObjectReceiver) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peel", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Peel indicates an expected call of Peel
+// Peel indicates an expected call of Peel.
 func (mr *MockObjectMockRecorder) Peel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peel", reflect.TypeOf((*MockObject)(nil).Peel), arg0, arg1)
 }
 
-// Type mocks base method
+// Type mocks base method.
 func (m *MockObject) Type() git.ObjectType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
 	ret0, _ := ret[0].(git.ObjectType)
 	return ret0
 }
 
-// Type indicates an expected call of Type
+// Type indicates an expected call of Type.
 func (mr *MockObjectMockRecorder) Type() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockObject)(nil).Type))
 }
 
-// MockObjectBuilder is a mock of ObjectBuilder interface
+// MockObjectBuilder is a mock of ObjectBuilder interface.
 type MockObjectBuilder struct {
 	ctrl     *gomock.Controller
 	recorder *MockObjectBuilderMockRecorder
 }
 
-// MockObjectBuilderMockRecorder is the mock recorder for MockObjectBuilder
+// MockObjectBuilderMockRecorder is the mock recorder for MockObjectBuilder.
 type MockObjectBuilderMockRecorder struct {
 	mock *MockObjectBuilder
 }
 
-// NewMockObjectBuilder creates a new mock instance
+// NewMockObjectBuilder creates a new mock instance.
 func NewMockObjectBuilder(ctrl *gomock.Controller) *MockObjectBuilder {
 	mock := &MockObjectBuilder{ctrl: ctrl}
 	mock.recorder = &MockObjectBuilderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockObjectBuilder) EXPECT() *MockObjectBuilderMockRecorder {
 	return m.recorder
 }
 
-// Build mocks base method
+// Build mocks base method.
 func (m *MockObjectBuilder) Build(arg0 context.Context) (git.ObjectID, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Build", arg0)
 	ret0, _ := ret[0].(git.ObjectID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Build indicates an expected call of Build
+// Build indicates an expected call of Build.
 func (mr *MockObjectBuilderMockRecorder) Build(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockObjectBuilder)(nil).Build), arg0)
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockObjectBuilder) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockObjectBuilderMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockObjectBuilder)(nil).Close))
 }
 
-// MockObjectConverter is a mock of ObjectConverter interface
+// MockObjectConverter is a mock of ObjectConverter interface.
 type MockObjectConverter struct {
 	ctrl     *gomock.Controller
 	recorder *MockObjectConverterMockRecorder
 }
 
-// MockObjectConverterMockRecorder is the mock recorder for MockObjectConverter
+// MockObjectConverterMockRecorder is the mock recorder for MockObjectConverter.
 type MockObjectConverterMockRecorder struct {
 	mock *MockObjectConverter
 }
 
-// NewMockObjectConverter creates a new mock instance
+// NewMockObjectConverter creates a new mock instance.
 func NewMockObjectConverter(ctrl *gomock.Controller) *MockObjectConverter {
 	mock := &MockObjectConverter{ctrl: ctrl}
 	mock.recorder = &MockObjectConverterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockObjectConverter) EXPECT() *MockObjectConverterMockRecorder {
 	return m.recorder
 }
 
-// ToBlob mocks base method
+// ToBlob mocks base method.
 func (m *MockObjectConverter) ToBlob(arg0 context.Context, arg1 git.Object) (git.Blob, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ToBlob", arg0, arg1)
 	ret0, _ := ret[0].(git.Blob)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ToBlob indicates an expected call of ToBlob
+// ToBlob indicates an expected call of ToBlob.
 func (mr *MockObjectConverterMockRecorder) ToBlob(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToBlob", reflect.TypeOf((*MockObjectConverter)(nil).ToBlob), arg0, arg1)
 }
 
-// ToCommit mocks base method
+// ToCommit mocks base method.
 func (m *MockObjectConverter) ToCommit(arg0 context.Context, arg1 git.Object) (git.Commit, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ToCommit", arg0, arg1)
 	ret0, _ := ret[0].(git.Commit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ToCommit indicates an expected call of ToCommit
+// ToCommit indicates an expected call of ToCommit.
 func (mr *MockObjectConverterMockRecorder) ToCommit(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToCommit", reflect.TypeOf((*MockObjectConverter)(nil).ToCommit), arg0, arg1)
 }
 
-// ToTree mocks base method
+// ToTree mocks base method.
 func (m *MockObjectConverter) ToTree(arg0 context.Context, arg1 git.Object) (git.Tree, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ToTree", arg0, arg1)
 	ret0, _ := ret[0].(git.Tree)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ToTree indicates an expected call of ToTree
+// ToTree indicates an expected call of ToTree.
 func (mr *MockObjectConverterMockRecorder) ToTree(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToTree", reflect.TypeOf((*MockObjectConverter)(nil).ToTree), arg0, arg1)
 }
 
-// MockObjectGetter is a mock of ObjectGetter interface
+// MockObjectGetter is a mock of ObjectGetter interface.
 type MockObjectGetter struct {
 	ctrl     *gomock.Controller
 	recorder *MockObjectGetterMockRecorder
 }
 
-// MockObjectGetterMockRecorder is the mock recorder for MockObjectGetter
+// MockObjectGetterMockRecorder is the mock recorder for MockObjectGetter.
 type MockObjectGetterMockRecorder struct {
 	mock *MockObjectGetter
 }
 
-// NewMockObjectGetter creates a new mock instance
+// NewMockObjectGetter creates a new mock instance.
 func NewMockObjectGetter(ctrl *gomock.Controller) *MockObjectGetter {
 	mock := &MockObjectGetter{ctrl: ctrl}
 	mock.recorder = &MockObjectGetterMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockObjectGetter) EXPECT() *MockObjectGetterMockRecorder {
 	return m.recorder
 }
 
-// GetBlob mocks base method
+// GetBlob mocks base method.
 func (m *MockObjectGetter) GetBlob(arg0 context.Context, arg1 git.ObjectID) (git.Blob, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBlob", arg0, arg1)
 	ret0, _ := ret[0].(git.Blob)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlob indicates an expected call of GetBlob
+// GetBlob indicates an expected call of GetBlob.
 func (mr *MockObjectGetterMockRecorder) GetBlob(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlob", reflect.TypeOf((*MockObjectGetter)(nil).GetBlob), arg0, arg1)
 }
 
-// GetCommit mocks base method
+// GetCommit mocks base method.
 func (m *MockObjectGetter) GetCommit(arg0 context.Context, arg1 git.ObjectID) (git.Commit, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCommit", arg0, arg1)
 	ret0, _ := ret[0].(git.Commit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetCommit indicates an expected call of GetCommit
+// GetCommit indicates an expected call of GetCommit.
 func (mr *MockObjectGetterMockRecorder) GetCommit(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommit", reflect.TypeOf((*MockObjectGetter)(nil).GetCommit), arg0, arg1)
 }
 
-// GetObject mocks base method
+// GetObject mocks base method.
 func (m *MockObjectGetter) GetObject(arg0 context.Context, arg1 git.ObjectID) (git.Object, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetObject", arg0, arg1)
 	ret0, _ := ret[0].(git.Object)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetObject indicates an expected call of GetObject
+// GetObject indicates an expected call of GetObject.
 func (mr *MockObjectGetterMockRecorder) GetObject(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetObject", reflect.TypeOf((*MockObjectGetter)(nil).GetObject), arg0, arg1)
 }
 
-// GetTree mocks base method
+// GetTree mocks base method.
 func (m *MockObjectGetter) GetTree(arg0 context.Context, arg1 git.ObjectID) (git.Tree, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTree", arg0, arg1)
 	ret0, _ := ret[0].(git.Tree)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetTree indicates an expected call of GetTree
+// GetTree indicates an expected call of GetTree.
 func (mr *MockObjectGetterMockRecorder) GetTree(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTree", reflect.TypeOf((*MockObjectGetter)(nil).GetTree), arg0, arg1)
 }
 
-// MockObjectReceiver is a mock of ObjectReceiver interface
+// MockObjectReceiver is a mock of ObjectReceiver interface.
 type MockObjectReceiver struct {
 	ctrl     *gomock.Controller
 	recorder *MockObjectReceiverMockRecorder
 }
 
-// MockObjectReceiverMockRecorder is the mock recorder for MockObjectReceiver
+// MockObjectReceiverMockRecorder is the mock recorder for MockObjectReceiver.
 type MockObjectReceiverMockRecorder struct {
 	mock *MockObjectReceiver
 }
 
-// NewMockObjectReceiver creates a new mock instance
+// NewMockObjectReceiver creates a new mock instance.
 func NewMockObjectReceiver(ctrl *gomock.Controller) *MockObjectReceiver {
 	mock := &MockObjectReceiver{ctrl: ctrl}
 	mock.recorder = &MockObjectReceiverMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockObjectReceiver) EXPECT() *MockObjectReceiverMockRecorder {
 	return m.recorder
 }
 
-// Receive mocks base method
+// Receive mocks base method.
 func (m *MockObjectReceiver) Receive(arg0 context.Context, arg1 git.Object) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Receive", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Receive indicates an expected call of Receive
+// Receive indicates an expected call of Receive.
 func (mr *MockObjectReceiverMockRecorder) Receive(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Receive", reflect.TypeOf((*MockObjectReceiver)(nil).Receive), arg0, arg1)
 }
 
-// Type mocks base method
+// Type mocks base method.
 func (m *MockObjectReceiver) Type() git.ObjectType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
 	ret0, _ := ret[0].(git.ObjectType)
 	return ret0
 }
 
-// Type indicates an expected call of Type
+// Type indicates an expected call of Type.
 func (mr *MockObjectReceiverMockRecorder) Type() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockObjectReceiver)(nil).Type))
 }
 
-// MockPeelable is a mock of Peelable interface
+// MockPeelable is a mock of Peelable interface.
 type MockPeelable struct {
 	ctrl     *gomock.Controller
 	recorder *MockPeelableMockRecorder
 }
 
-// MockPeelableMockRecorder is the mock recorder for MockPeelable
+// MockPeelableMockRecorder is the mock recorder for MockPeelable.
 type MockPeelableMockRecorder struct {
 	mock *MockPeelable
 }
 
-// NewMockPeelable creates a new mock instance
+// NewMockPeelable creates a new mock instance.
 func NewMockPeelable(ctrl *gomock.Controller) *MockPeelable {
 	mock := &MockPeelable{ctrl: ctrl}
 	mock.recorder = &MockPeelableMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockPeelable) EXPECT() *MockPeelableMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockPeelable) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockPeelableMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockPeelable)(nil).Close))
 }
 
-// Peel mocks base method
+// Peel mocks base method.
 func (m *MockPeelable) Peel(arg0 context.Context, arg1 git.ObjectReceiver) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peel", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Peel indicates an expected call of Peel
+// Peel indicates an expected call of Peel.
 func (mr *MockPeelableMockRecorder) Peel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peel", reflect.TypeOf((*MockPeelable)(nil).Peel), arg0, arg1)
 }
 
-// MockPeeler is a mock of Peeler interface
+// MockPeeler is a mock of Peeler interface.
 type MockPeeler struct {
 	ctrl     *gomock.Controller
 	recorder *MockPeelerMockRecorder
 }
 
-// MockPeelerMockRecorder is the mock recorder for MockPeeler
+// MockPeelerMockRecorder is the mock recorder for MockPeeler.
 type MockPeelerMockRecorder struct {
 	mock *MockPeeler
 }
 
-// NewMockPeeler creates a new mock instance
+// NewMockPeeler creates a new mock instance.
 func NewMockPeeler(ctrl *gomock.Controller) *MockPeeler {
 	mock := &MockPeeler{ctrl: ctrl}
 	mock.recorder = &MockPeelerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockPeeler) EXPECT() *MockPeelerMockRecorder {
 	return m.recorder
 }
 
-// PeelToBlob mocks base method
+// PeelToBlob mocks base method.
 func (m *MockPeeler) PeelToBlob(arg0 context.Context, arg1 git.Peelable) (git.Blob, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PeelToBlob", arg0, arg1)
 	ret0, _ := ret[0].(git.Blob)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PeelToBlob indicates an expected call of PeelToBlob
+// PeelToBlob indicates an expected call of PeelToBlob.
 func (mr *MockPeelerMockRecorder) PeelToBlob(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PeelToBlob", reflect.TypeOf((*MockPeeler)(nil).PeelToBlob), arg0, arg1)
 }
 
-// PeelToCommit mocks base method
+// PeelToCommit mocks base method.
 func (m *MockPeeler) PeelToCommit(arg0 context.Context, arg1 git.Peelable) (git.Commit, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PeelToCommit", arg0, arg1)
 	ret0, _ := ret[0].(git.Commit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PeelToCommit indicates an expected call of PeelToCommit
+// PeelToCommit indicates an expected call of PeelToCommit.
 func (mr *MockPeelerMockRecorder) PeelToCommit(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PeelToCommit", reflect.TypeOf((*MockPeeler)(nil).PeelToCommit), arg0, arg1)
 }
 
-// PeelToTree mocks base method
+// PeelToTree mocks base method.
 func (m *MockPeeler) PeelToTree(arg0 context.Context, arg1 git.Peelable) (git.Tree, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PeelToTree", arg0, arg1)
 	ret0, _ := ret[0].(git.Tree)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PeelToTree indicates an expected call of PeelToTree
+// PeelToTree indicates an expected call of PeelToTree.
 func (mr *MockPeelerMockRecorder) PeelToTree(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PeelToTree", reflect.TypeOf((*MockPeeler)(nil).PeelToTree), arg0, arg1)
 }
 
-// MockReference is a mock of Reference interface
+// MockReference is a mock of Reference interface.
 type MockReference struct {
 	ctrl     *gomock.Controller
 	recorder *MockReferenceMockRecorder
 }
 
-// MockReferenceMockRecorder is the mock recorder for MockReference
+// MockReferenceMockRecorder is the mock recorder for MockReference.
 type MockReferenceMockRecorder struct {
 	mock *MockReference
 }
 
-// NewMockReference creates a new mock instance
+// NewMockReference creates a new mock instance.
 func NewMockReference(ctrl *gomock.Controller) *MockReference {
 	mock := &MockReference{ctrl: ctrl}
 	mock.recorder = &MockReferenceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockReference) EXPECT() *MockReferenceMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockReference) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockReferenceMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReference)(nil).Close))
 }
 
-// IsBranch mocks base method
+// IsBranch mocks base method.
 func (m *MockReference) IsBranch() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBranch")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// IsBranch indicates an expected call of IsBranch
+// IsBranch indicates an expected call of IsBranch.
 func (mr *MockReferenceMockRecorder) IsBranch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBranch", reflect.TypeOf((*MockReference)(nil).IsBranch))
 }
 
-// IsRemote mocks base method
+// IsRemote mocks base method.
 func (m *MockReference) IsRemote() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsRemote")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// IsRemote indicates an expected call of IsRemote
+// IsRemote indicates an expected call of IsRemote.
 func (mr *MockReferenceMockRecorder) IsRemote() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsRemote", reflect.TypeOf((*MockReference)(nil).IsRemote))
 }
 
-// IsSymbolic mocks base method
+// IsSymbolic mocks base method.
 func (m *MockReference) IsSymbolic() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsSymbolic")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// IsSymbolic indicates an expected call of IsSymbolic
+// IsSymbolic indicates an expected call of IsSymbolic.
 func (mr *MockReferenceMockRecorder) IsSymbolic() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSymbolic", reflect.TypeOf((*MockReference)(nil).IsSymbolic))
 }
 
-// Name mocks base method
+// Name mocks base method.
 func (m *MockReference) Name() git.ReferenceName {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Name")
 	ret0, _ := ret[0].(git.ReferenceName)
 	return ret0
 }
 
-// Name indicates an expected call of Name
+// Name indicates an expected call of Name.
 func (mr *MockReferenceMockRecorder) Name() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockReference)(nil).Name))
 }
 
-// Peel mocks base method
+// Peel mocks base method.
 func (m *MockReference) Peel(arg0 context.Context, arg1 git.ObjectReceiver) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peel", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Peel indicates an expected call of Peel
+// Peel indicates an expected call of Peel.
 func (mr *MockReferenceMockRecorder) Peel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peel", reflect.TypeOf((*MockReference)(nil).Peel), arg0, arg1)
 }
 
-// MockReferenceCollection is a mock of ReferenceCollection interface
+// MockReferenceCollection is a mock of ReferenceCollection interface.
 type MockReferenceCollection struct {
 	ctrl     *gomock.Controller
 	recorder *MockReferenceCollectionMockRecorder
 }
 
-// MockReferenceCollectionMockRecorder is the mock recorder for MockReferenceCollection
+// MockReferenceCollectionMockRecorder is the mock recorder for MockReferenceCollection.
 type MockReferenceCollectionMockRecorder struct {
 	mock *MockReferenceCollection
 }
 
-// NewMockReferenceCollection creates a new mock instance
+// NewMockReferenceCollection creates a new mock instance.
 func NewMockReferenceCollection(ctrl *gomock.Controller) *MockReferenceCollection {
 	mock := &MockReferenceCollection{ctrl: ctrl}
 	mock.recorder = &MockReferenceCollectionMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockReferenceCollection) EXPECT() *MockReferenceCollectionMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockReferenceCollection) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockReferenceCollectionMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReferenceCollection)(nil).Close))
 }
 
-// Create mocks base method
+// Create mocks base method.
 func (m *MockReferenceCollection) Create(arg0 context.Context, arg1 git.ReferenceName, arg2 git.ObjectID, arg3 bool, arg4 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Create indicates an expected call of Create
+// Create indicates an expected call of Create.
 func (mr *MockReferenceCollectionMockRecorder) Create(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockReferenceCollection)(nil).Create), arg0, arg1, arg2, arg3, arg4)
 }
 
-// Get mocks base method
+// Get mocks base method.
 func (m *MockReferenceCollection) Get(arg0 context.Context, arg1 git.ReferenceName) (git.Reference, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", arg0, arg1)
 	ret0, _ := ret[0].(git.Reference)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Get indicates an expected call of Get
+// Get indicates an expected call of Get.
 func (mr *MockReferenceCollectionMockRecorder) Get(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockReferenceCollection)(nil).Get), arg0, arg1)
 }
 
-// MockRepository is a mock of Repository interface
+// MockRepository is a mock of Repository interface.
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
 }
 
-// MockRepositoryMockRecorder is the mock recorder for MockRepository
+// MockRepositoryMockRecorder is the mock recorder for MockRepository.
 type MockRepositoryMockRecorder struct {
 	mock *MockRepository
 }
 
-// NewMockRepository creates a new mock instance
+// NewMockRepository creates a new mock instance.
 func NewMockRepository(ctrl *gomock.Controller) *MockRepository {
 	mock := &MockRepository{ctrl: ctrl}
 	mock.recorder = &MockRepositoryMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
-// BlobBuilder mocks base method
+// BlobBuilder mocks base method.
 func (m *MockRepository) BlobBuilder(arg0 context.Context) (git.BlobBuilder, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlobBuilder", arg0)
 	ret0, _ := ret[0].(git.BlobBuilder)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// BlobBuilder indicates an expected call of BlobBuilder
+// BlobBuilder indicates an expected call of BlobBuilder.
 func (mr *MockRepositoryMockRecorder) BlobBuilder(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlobBuilder", reflect.TypeOf((*MockRepository)(nil).BlobBuilder), arg0)
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockRepository) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockRepositoryMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRepository)(nil).Close))
 }
 
-// CommitBuilder mocks base method
+// CommitBuilder mocks base method.
 func (m *MockRepository) CommitBuilder(arg0 context.Context) (git.CommitBuilder, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CommitBuilder", arg0)
 	ret0, _ := ret[0].(git.CommitBuilder)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CommitBuilder indicates an expected call of CommitBuilder
+// CommitBuilder indicates an expected call of CommitBuilder.
 func (mr *MockRepositoryMockRecorder) CommitBuilder(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitBuilder", reflect.TypeOf((*MockRepository)(nil).CommitBuilder), arg0)
 }
 
-// CommitWalker mocks base method
+// CommitWalker mocks base method.
 func (m *MockRepository) CommitWalker() git.CommitWalker {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CommitWalker")
 	ret0, _ := ret[0].(git.CommitWalker)
 	return ret0
 }
 
-// CommitWalker indicates an expected call of CommitWalker
+// CommitWalker indicates an expected call of CommitWalker.
 func (mr *MockRepositoryMockRecorder) CommitWalker() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitWalker", reflect.TypeOf((*MockRepository)(nil).CommitWalker))
 }
 
-// ObjectConverter mocks base method
+// ForEachReferenceName mocks base method.
+func (m *MockRepository) ForEachReferenceName(arg0 context.Context, arg1 git.ReferenceNameReceiverFunc) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ForEachReferenceName", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ForEachReferenceName indicates an expected call of ForEachReferenceName.
+func (mr *MockRepositoryMockRecorder) ForEachReferenceName(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachReferenceName", reflect.TypeOf((*MockRepository)(nil).ForEachReferenceName), arg0, arg1)
+}
+
+// ObjectConverter mocks base method.
 func (m *MockRepository) ObjectConverter() git.ObjectConverter {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ObjectConverter")
 	ret0, _ := ret[0].(git.ObjectConverter)
 	return ret0
 }
 
-// ObjectConverter indicates an expected call of ObjectConverter
+// ObjectConverter indicates an expected call of ObjectConverter.
 func (mr *MockRepositoryMockRecorder) ObjectConverter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ObjectConverter", reflect.TypeOf((*MockRepository)(nil).ObjectConverter))
 }
 
-// ObjectGetter mocks base method
+// ObjectGetter mocks base method.
 func (m *MockRepository) ObjectGetter() git.ObjectGetter {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ObjectGetter")
 	ret0, _ := ret[0].(git.ObjectGetter)
 	return ret0
 }
 
-// ObjectGetter indicates an expected call of ObjectGetter
+// ObjectGetter indicates an expected call of ObjectGetter.
 func (mr *MockRepositoryMockRecorder) ObjectGetter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ObjectGetter", reflect.TypeOf((*MockRepository)(nil).ObjectGetter))
 }
 
-// Peeler mocks base method
+// Peeler mocks base method.
 func (m *MockRepository) Peeler() git.Peeler {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peeler")
 	ret0, _ := ret[0].(git.Peeler)
 	return ret0
 }
 
-// Peeler indicates an expected call of Peeler
+// Peeler indicates an expected call of Peeler.
 func (mr *MockRepositoryMockRecorder) Peeler() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peeler", reflect.TypeOf((*MockRepository)(nil).Peeler))
 }
 
-// References mocks base method
+// References mocks base method.
 func (m *MockRepository) References() (git.ReferenceCollection, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "References")
 	ret0, _ := ret[0].(git.ReferenceCollection)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// References indicates an expected call of References
+// References indicates an expected call of References.
 func (mr *MockRepositoryMockRecorder) References() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "References", reflect.TypeOf((*MockRepository)(nil).References))
 }
 
-// Size mocks base method
+// Size mocks base method.
 func (m *MockRepository) Size() (int64, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Size")
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Size indicates an expected call of Size
+// Size indicates an expected call of Size.
 func (mr *MockRepositoryMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockRepository)(nil).Size))
 }
 
-// TreeBuilder mocks base method
+// TreeBuilder mocks base method.
 func (m *MockRepository) TreeBuilder(arg0 context.Context) (git.TreeBuilder, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TreeBuilder", arg0)
 	ret0, _ := ret[0].(git.TreeBuilder)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// TreeBuilder indicates an expected call of TreeBuilder
+// TreeBuilder indicates an expected call of TreeBuilder.
 func (mr *MockRepositoryMockRecorder) TreeBuilder(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TreeBuilder", reflect.TypeOf((*MockRepository)(nil).TreeBuilder), arg0)
 }
 
-// TreeBuilderFromTree mocks base method
+// TreeBuilderFromTree mocks base method.
 func (m *MockRepository) TreeBuilderFromTree(arg0 context.Context, arg1 git.Tree) (git.TreeBuilder, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TreeBuilderFromTree", arg0, arg1)
 	ret0, _ := ret[0].(git.TreeBuilder)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// TreeBuilderFromTree indicates an expected call of TreeBuilderFromTree
+// TreeBuilderFromTree indicates an expected call of TreeBuilderFromTree.
 func (mr *MockRepositoryMockRecorder) TreeBuilderFromTree(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TreeBuilderFromTree", reflect.TypeOf((*MockRepository)(nil).TreeBuilderFromTree), arg0, arg1)
 }
 
-// TreeWalker mocks base method
+// TreeWalker mocks base method.
 func (m *MockRepository) TreeWalker() git.TreeWalker {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TreeWalker")
 	ret0, _ := ret[0].(git.TreeWalker)
 	return ret0
 }
 
-// TreeWalker indicates an expected call of TreeWalker
+// TreeWalker indicates an expected call of TreeWalker.
 func (mr *MockRepositoryMockRecorder) TreeWalker() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TreeWalker", reflect.TypeOf((*MockRepository)(nil).TreeWalker))
 }
 
-// MockTree is a mock of Tree interface
+// MockTree is a mock of Tree interface.
 type MockTree struct {
 	ctrl     *gomock.Controller
 	recorder *MockTreeMockRecorder
 }
 
-// MockTreeMockRecorder is the mock recorder for MockTree
+// MockTreeMockRecorder is the mock recorder for MockTree.
 type MockTreeMockRecorder struct {
 	mock *MockTree
 }
 
-// NewMockTree creates a new mock instance
+// NewMockTree creates a new mock instance.
 func NewMockTree(ctrl *gomock.Controller) *MockTree {
 	mock := &MockTree{ctrl: ctrl}
 	mock.recorder = &MockTreeMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTree) EXPECT() *MockTreeMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockTree) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockTreeMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockTree)(nil).Close))
 }
 
-// ForEachEntry mocks base method
+// ForEachEntry mocks base method.
 func (m *MockTree) ForEachEntry(arg0 context.Context, arg1 git.TreeEntryReceiverFunc) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForEachEntry", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ForEachEntry indicates an expected call of ForEachEntry
+// ForEachEntry indicates an expected call of ForEachEntry.
 func (mr *MockTreeMockRecorder) ForEachEntry(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachEntry", reflect.TypeOf((*MockTree)(nil).ForEachEntry), arg0, arg1)
 }
 
-// GetEntryByPath mocks base method
+// GetEntryByPath mocks base method.
 func (m *MockTree) GetEntryByPath(arg0 context.Context, arg1 string) (git.TreeEntry, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEntryByPath", arg0, arg1)
 	ret0, _ := ret[0].(git.TreeEntry)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetEntryByPath indicates an expected call of GetEntryByPath
+// GetEntryByPath indicates an expected call of GetEntryByPath.
 func (mr *MockTreeMockRecorder) GetEntryByPath(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEntryByPath", reflect.TypeOf((*MockTree)(nil).GetEntryByPath), arg0, arg1)
 }
 
-// ID mocks base method
+// ID mocks base method.
 func (m *MockTree) ID() git.ObjectID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(git.ObjectID)
 	return ret0
 }
 
-// ID indicates an expected call of ID
+// ID indicates an expected call of ID.
 func (mr *MockTreeMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockTree)(nil).ID))
 }
 
-// Peel mocks base method
+// Peel mocks base method.
 func (m *MockTree) Peel(arg0 context.Context, arg1 git.ObjectReceiver) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Peel", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Peel indicates an expected call of Peel
+// Peel indicates an expected call of Peel.
 func (mr *MockTreeMockRecorder) Peel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peel", reflect.TypeOf((*MockTree)(nil).Peel), arg0, arg1)
 }
 
-// Type mocks base method
+// Type mocks base method.
 func (m *MockTree) Type() git.ObjectType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
 	ret0, _ := ret[0].(git.ObjectType)
 	return ret0
 }
 
-// Type indicates an expected call of Type
+// Type indicates an expected call of Type.
 func (mr *MockTreeMockRecorder) Type() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockTree)(nil).Type))
 }
 
-// MockTreeBuilder is a mock of TreeBuilder interface
+// MockTreeBuilder is a mock of TreeBuilder interface.
 type MockTreeBuilder struct {
 	ctrl     *gomock.Controller
 	recorder *MockTreeBuilderMockRecorder
 }
 
-// MockTreeBuilderMockRecorder is the mock recorder for MockTreeBuilder
+// MockTreeBuilderMockRecorder is the mock recorder for MockTreeBuilder.
 type MockTreeBuilderMockRecorder struct {
 	mock *MockTreeBuilder
 }
 
-// NewMockTreeBuilder creates a new mock instance
+// NewMockTreeBuilder creates a new mock instance.
 func NewMockTreeBuilder(ctrl *gomock.Controller) *MockTreeBuilder {
 	mock := &MockTreeBuilder{ctrl: ctrl}
 	mock.recorder = &MockTreeBuilderMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTreeBuilder) EXPECT() *MockTreeBuilderMockRecorder {
 	return m.recorder
 }
 
-// AddEntry mocks base method
+// AddEntry mocks base method.
 func (m *MockTreeBuilder) AddEntry(arg0 string, arg1 git.ObjectID, arg2 git.Filemode) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddEntry", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// AddEntry indicates an expected call of AddEntry
+// AddEntry indicates an expected call of AddEntry.
 func (mr *MockTreeBuilderMockRecorder) AddEntry(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddEntry", reflect.TypeOf((*MockTreeBuilder)(nil).AddEntry), arg0, arg1, arg2)
 }
 
-// Build mocks base method
+// Build mocks base method.
 func (m *MockTreeBuilder) Build(arg0 context.Context) (git.ObjectID, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Build", arg0)
 	ret0, _ := ret[0].(git.ObjectID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Build indicates an expected call of Build
+// Build indicates an expected call of Build.
 func (mr *MockTreeBuilderMockRecorder) Build(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockTreeBuilder)(nil).Build), arg0)
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockTreeBuilder) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockTreeBuilderMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockTreeBuilder)(nil).Close))
 }
 
-// RemoveEntry mocks base method
+// RemoveEntry mocks base method.
 func (m *MockTreeBuilder) RemoveEntry(arg0 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveEntry", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// RemoveEntry indicates an expected call of RemoveEntry
+// RemoveEntry indicates an expected call of RemoveEntry.
 func (mr *MockTreeBuilderMockRecorder) RemoveEntry(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveEntry", reflect.TypeOf((*MockTreeBuilder)(nil).RemoveEntry), arg0)
 }
 
-// MockTreeEntry is a mock of TreeEntry interface
+// MockTreeEntry is a mock of TreeEntry interface.
 type MockTreeEntry struct {
 	ctrl     *gomock.Controller
 	recorder *MockTreeEntryMockRecorder
 }
 
-// MockTreeEntryMockRecorder is the mock recorder for MockTreeEntry
+// MockTreeEntryMockRecorder is the mock recorder for MockTreeEntry.
 type MockTreeEntryMockRecorder struct {
 	mock *MockTreeEntry
 }
 
-// NewMockTreeEntry creates a new mock instance
+// NewMockTreeEntry creates a new mock instance.
 func NewMockTreeEntry(ctrl *gomock.Controller) *MockTreeEntry {
 	mock := &MockTreeEntry{ctrl: ctrl}
 	mock.recorder = &MockTreeEntryMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTreeEntry) EXPECT() *MockTreeEntryMockRecorder {
 	return m.recorder
 }
 
-// EntryID mocks base method
+// EntryID mocks base method.
 func (m *MockTreeEntry) EntryID() git.ObjectID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EntryID")
 	ret0, _ := ret[0].(git.ObjectID)
 	return ret0
 }
 
-// EntryID indicates an expected call of EntryID
+// EntryID indicates an expected call of EntryID.
 func (mr *MockTreeEntryMockRecorder) EntryID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EntryID", reflect.TypeOf((*MockTreeEntry)(nil).EntryID))
 }
 
-// EntryMode mocks base method
+// EntryMode mocks base method.
 func (m *MockTreeEntry) EntryMode() git.Filemode {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EntryMode")
 	ret0, _ := ret[0].(git.Filemode)
 	return ret0
 }
 
-// EntryMode indicates an expected call of EntryMode
+// EntryMode indicates an expected call of EntryMode.
 func (mr *MockTreeEntryMockRecorder) EntryMode() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EntryMode", reflect.TypeOf((*MockTreeEntry)(nil).EntryMode))
 }
 
-// EntryName mocks base method
+// EntryName mocks base method.
 func (m *MockTreeEntry) EntryName() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EntryName")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// EntryName indicates an expected call of EntryName
+// EntryName indicates an expected call of EntryName.
 func (mr *MockTreeEntryMockRecorder) EntryName() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EntryName", reflect.TypeOf((*MockTreeEntry)(nil).EntryName))
 }
 
-// EntryType mocks base method
+// EntryType mocks base method.
 func (m *MockTreeEntry) EntryType() git.ObjectType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EntryType")
 	ret0, _ := ret[0].(git.ObjectType)
 	return ret0
 }
 
-// EntryType indicates an expected call of EntryType
+// EntryType indicates an expected call of EntryType.
 func (mr *MockTreeEntryMockRecorder) EntryType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EntryType", reflect.TypeOf((*MockTreeEntry)(nil).EntryType))
 }
 
-// MockTreeWalker is a mock of TreeWalker interface
+// MockTreeWalker is a mock of TreeWalker interface.
 type MockTreeWalker struct {
 	ctrl     *gomock.Controller
 	recorder *MockTreeWalkerMockRecorder
 }
 
-// MockTreeWalkerMockRecorder is the mock recorder for MockTreeWalker
+// MockTreeWalkerMockRecorder is the mock recorder for MockTreeWalker.
 type MockTreeWalkerMockRecorder struct {
 	mock *MockTreeWalker
 }
 
-// NewMockTreeWalker creates a new mock instance
+// NewMockTreeWalker creates a new mock instance.
 func NewMockTreeWalker(ctrl *gomock.Controller) *MockTreeWalker {
 	mock := &MockTreeWalker{ctrl: ctrl}
 	mock.recorder = &MockTreeWalkerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTreeWalker) EXPECT() *MockTreeWalkerMockRecorder {
 	return m.recorder
 }
 
-// Close mocks base method
+// Close mocks base method.
 func (m *MockTreeWalker) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Close indicates an expected call of Close
+// Close indicates an expected call of Close.
 func (mr *MockTreeWalkerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockTreeWalker)(nil).Close))
 }
 
-// ForEachTreeEntry mocks base method
+// ForEachTreeEntry mocks base method.
 func (m *MockTreeWalker) ForEachTreeEntry(arg0 context.Context, arg1 git.Tree, arg2 git.TreeWalkerReceiverFunc) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForEachTreeEntry", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ForEachTreeEntry indicates an expected call of ForEachTreeEntry
+// ForEachTreeEntry indicates an expected call of ForEachTreeEntry.
 func (mr *MockTreeWalkerMockRecorder) ForEachTreeEntry(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachTreeEntry", reflect.TypeOf((*MockTreeWalker)(nil).ForEachTreeEntry), arg0, arg1, arg2)
 }

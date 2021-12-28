@@ -26,9 +26,20 @@ type maintenanceImpl struct {
 
 var _ etcdserverpb.MaintenanceServer = (*maintenanceImpl)(nil)
 
+func (m *maintenanceImpl) Alarm(ctx context.Context, req *etcdserverpb.AlarmRequest) (res *etcdserverpb.AlarmResponse, err error) {
+	if req.Action != etcdserverpb.AlarmRequest_GET {
+		res, err = m.UnimplementedMaintenanceServer.Alarm(ctx, req)
+		return
+	}
+
+	res = &etcdserverpb.AlarmResponse{Header: m.backend.newResponseHeader(ctx)}
+	return
+}
+
 func (m *maintenanceImpl) Status(ctx context.Context, req *etcdserverpb.StatusRequest) (res *etcdserverpb.StatusResponse, err error) {
 	var (
 		b       = m.backend
+		log     = b.log.WithName("Status")
 		version []byte
 		size    int64
 		h       *etcdserverpb.ResponseHeader
@@ -36,6 +47,9 @@ func (m *maintenanceImpl) Status(ctx context.Context, req *etcdserverpb.StatusRe
 		metaRef git.Reference
 		metaT   git.Tree
 	)
+
+	log.V(-1).Info("received", "request", req)
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil {
 		return
@@ -49,8 +63,9 @@ func (m *maintenanceImpl) Status(ctx context.Context, req *etcdserverpb.StatusRe
 
 	defer metaT.Close()
 
-	if version, err = b.getContent(ctx, metaT, metadataPathVersion); err != nil {
-		return
+	if version, _ = b.getContent(ctx, metaT, metadataPathVersion); err != nil {
+		log.V(1).Info("Error reading backend version", "error", err)
+		err = nil
 	}
 
 	if size, err = b.repo.Size(); err != nil {
