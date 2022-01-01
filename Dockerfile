@@ -1,6 +1,6 @@
-FROM golang:1.17-bullseye AS builder
+FROM golang:1.17-alpine3.14 AS builder
 
-RUN apt update && apt install -y pkg-config libgit2-dev
+RUN apk update && apk add libc-dev gcc pkgconfig libgit2-dev
 
 WORKDIR /trishanku/gitcd
 
@@ -17,10 +17,10 @@ RUN go build -mod=vendor \
 
 RUN cat /gitcd
 
-FROM debian:bullseye AS runner
+FROM alpine:3.14 AS runner
 
-RUN apt update && apt install -y libgit2-1.1
+RUN apk update && apk add libgit2
 
 COPY --from=builder /gitcd /gitcd
 
-CMD ["/gitcd"]
+ENTRYPOINT [ "/gitcd" ]
