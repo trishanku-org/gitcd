@@ -11,9 +11,10 @@ Gitcd - Git as a distributed key-value store.
   - [Run help and version commands](#run-help-and-version-commands)
   - [Serve as ETCD with the backend repo in TMPFS](#serve-as-etcd-with-the-backend-repo-in-tmpfs)
     - [Consume](#consume)
+    - [Cleanup](#cleanup)
   - [Serve ETCD with the backend repo in a separate volume](#serve-etcd-with-the-backend-repo-in-a-separate-volume)
     - [Consume](#consume-1)
-    - [Cleanup](#cleanup)
+    - [Cleanup](#cleanup-1)
 
 ## Take it for a spin
 
@@ -71,9 +72,8 @@ Gitcd: v0.0.1-dev
 ### Serve as ETCD with the backend repo in TMPFS
 ```sh
 $ RUN_ARGS=serve make docker-run
-docker run -it --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd "trishanku/gitcd:latest" serve
-{"level":"info","ts":1641036471.821782,"logger":"serve","caller":"cmd/serve.go:64","msg":"Found struct { repoPath string; keyPrefix map[string]string; dataRefNames map[string]string; metadataRefNamePrefix string; clusterId map[string]int64; memberId map[string]int64; committerName string; committerEmail string; listenURL map[string]string; clientURLs map[string]string; watchTickerDuration time.Duration; serverCertFile string; serverKeyFile string }{repoPath:\"/tmp/trishanku/gitcd\", keyPrefix:map[string]string{\"default\":\"/\"}, dataRefNames:map[string]string{\"default\":\"refs/heads/main\"}, metadataRefNamePrefix:\"refs/gitcd/metadata/\", clusterId:map[string]int64{\"default\":0}, memberId:map[string]int64{\"default\":0}, committerName:\"trishanku\", committerEmail:\"trishanku@heaven.com\", listenURL:map[string]string{\"default\":\"http://0.0.0.0:2379/\"}, clientURLs:map[string]string{\"default\":\"http://127.0.0.1:2379/\"}, watchTickerDuration:1000000000, serverCertFile:\"\", serverKeyFile:\"\"}"}
-{"level":"info","ts":1641036471.8232765,"logger":"serve","caller":"cmd/serve.go:289","msg":"Serving","dataRefName":"refs/heads/main","url":"http://0.0.0.0:2379/"}
+docker run -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd "trishanku/gitcd:latest" serve
+72910d5706b501ea8d24c87ca467b3006b9edb30989733b8562efa2e4e9fd7c9
 ```
 
 #### Consume
@@ -112,6 +112,13 @@ $ docker run -it --rm --entrypoint etcdctl --network=container:gitcd bitnami/etc
 +----+---------+-----------+------------+------------------------+------------+
 ```
 
+#### Cleanup
+
+```sh
+$ docker stop gitcd
+gitcd
+```
+
 ### Serve ETCD with the backend repo in a separate volume
 
 ```sh
@@ -121,14 +128,11 @@ gitcd-backend-repo
 
 # Serve as ETCD with the backend repo in the volume.
 $ DOCKER_RUN_OPTS="-v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd"  RUN_ARGS=serve make docker-run
-docker run -it --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd "trishanku/gitcd:latest" serve
-{"level":"info","ts":1641038440.3920991,"logger":"serve","caller":"cmd/serve.go:64","msg":"Found struct { repoPath string; keyPrefix map[string]string; dataRefNames map[string]string; metadataRefNamePrefix string; clusterId map[string]int64; memberId map[string]int64; committerName string; committerEmail string; listenURL map[string]string; clientURLs map[string]string; watchTickerDuration time.Duration; serverCertFile string; serverKeyFile string }{repoPath:\"/tmp/trishanku/gitcd\", keyPrefix:map[string]string{\"default\":\"/\"}, dataRefNames:map[string]string{\"default\":\"refs/heads/main\"}, metadataRefNamePrefix:\"refs/gitcd/metadata/\", clusterId:map[string]int64{\"default\":0}, memberId:map[string]int64{\"default\":0}, committerName:\"trishanku\", committerEmail:\"trishanku@heaven.com\", listenURL:map[string]string{\"default\":\"http://0.0.0.0:2379/\"}, clientURLs:map[string]string{\"default\":\"http://127.0.0.1:2379/\"}, watchTickerDuration:1000000000, serverCertFile:\"\", serverKeyFile:\"\"}"}
-{"level":"info","ts":1641038440.3949974,"logger":"serve","caller":"cmd/serve.go:289","msg":"Serving","dataRefName":"refs/heads/main","url":"http://0.0.0.0:2379/"}
+docker run -d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd "trishanku/gitcd:latest" serve
+34560a9ddc640f3268230d950d60430122ac955cf949dda93832222cc799b37e
 ```
 
 #### Consume
-
-_In a separate shell_.
 
 ```sh
 # Check if the backend repo has been initialized as an empty and bare Git repo neither any data nor any references.
@@ -390,9 +394,12 @@ $ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --
 
 #### Cleanup
 
-_Make sure to stop the docker container serving as ETCD_.
-
 ```sh
+# Stop the Gitcd container.
+$ docker stop gitcd
+gitcd
+
+# Remove the volume backing the backend Git repo.
 $ docker volume rm gitcd-backend-repo
 gitcd-backend-repo
 ```

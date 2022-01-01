@@ -55,4 +55,4 @@ docker-build:
 	docker build -t "${IMAGE_TAG}" .
 
 docker-run:
-	docker run -it --rm ${DOCKER_RUN_OPTS} "${IMAGE_TAG}" ${RUN_ARGS}
+	docker run -d --rm ${DOCKER_RUN_OPTS} "${IMAGE_TAG}" ${RUN_ARGS}
