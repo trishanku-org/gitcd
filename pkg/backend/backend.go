@@ -15,6 +15,9 @@ import (
 	"github.com/go-logr/logr"
 )
 
+// Version of the backend. Set during go build.
+var Version string
+
 // committerConfig defines the committer configuration to be used when creating Git commits.
 type commitConfig struct {
 	committerName, committerEmail string

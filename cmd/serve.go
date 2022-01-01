@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -60,20 +61,7 @@ var serveCmd = &cobra.Command{
 			err         error
 		)
 
-		log.Info(
-			"Found",
-			"repoPath", repoPath,
-			"committerName", committerName,
-			"committerEmail", committerEmail,
-			"keyPrefix", keyPrefix,
-			"dataRefNames", dataRefNames,
-			"metadataRefNamePrefix", metadataRefNamePrefix,
-			"clusterId", clusterId,
-			"memberId", memberId,
-			"listenURL", listenURL,
-			"clientURLs", clientURLs,
-			"watchTickerDuration", watchTickerDuration,
-		)
+		log.Info(fmt.Sprintf("Found %#v", serveFlags))
 
 		defer log.Info("Stopped.")
 
@@ -93,14 +81,14 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
-		if err = os.MkdirAll(repoPath, 0755); err != nil {
+		if err = os.MkdirAll(serveFlags.repoPath, 0755); err != nil {
 			return
 		}
 
 		ctx, cancelFn = context.WithCancel(getContext())
 		defer cancelFn()
 
-		if repo, err = gitImpl.OpenOrInitBareRepository(ctx, repoPath); err != nil {
+		if repo, err = gitImpl.OpenOrInitBareRepository(ctx, serveFlags.repoPath); err != nil {
 			return
 		}
 
@@ -110,7 +98,7 @@ var serveCmd = &cobra.Command{
 			return
 		}
 
-		watchTicker = time.NewTicker(watchTickerDuration)
+		watchTicker = time.NewTicker(serveFlags.watchTickerDuration)
 		defer watchTicker.Stop()
 
 		if grpcServers, err = registerGRPCServers(sis, ctx, repo, gitImpl.Errors(), watchTicker, log); err != nil {
@@ -136,7 +124,7 @@ type serverInfo struct {
 }
 
 func organizeServerInfo() (sis []*serverInfo, err error) {
-	var m = make(map[string]*serverInfo, len(dataRefNames))
+	var m = make(map[string]*serverInfo, len(serveFlags.dataRefNames))
 
 	defer func() {
 		if err == nil {
@@ -146,7 +134,7 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 		}
 	}()
 
-	for k, v := range dataRefNames {
+	for k, v := range serveFlags.dataRefNames {
 		var (
 			si = &serverInfo{dataRefName: git.ReferenceName(v)}
 			ok bool
@@ -155,11 +143,11 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 			i  int64
 		)
 
-		if si.keyPrefix, ok = keyPrefix[k]; !ok {
+		if si.keyPrefix, ok = serveFlags.keyPrefix[k]; !ok {
 			si.keyPrefix = defaultKeyPrefix
 		}
 
-		if s, ok = listenURL[k]; !ok {
+		if s, ok = serveFlags.listenURL[k]; !ok {
 			s = defaultListenURL
 		}
 
@@ -167,7 +155,7 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 			return
 		}
 
-		if s, ok = clientURLs[k]; ok {
+		if s, ok = serveFlags.clientURLs[k]; ok {
 			ss = strings.Split(s, ",")
 		} else {
 			ss = defaultClientURLs
@@ -183,13 +171,13 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 			si.clientURLs = append(si.clientURLs, u)
 		}
 
-		if i, ok = clusterId[k]; !ok {
+		if i, ok = serveFlags.clusterId[k]; !ok {
 			i = int64(defaultClusterId)
 		}
 
 		si.clusterId = uint64(i)
 
-		if i, ok = memberId[k]; !ok {
+		if i, ok = serveFlags.memberId[k]; !ok {
 			i = int64(defaultMemberId)
 		}
 
@@ -227,7 +215,7 @@ func registerGRPCServers(sis []*serverInfo, ctx context.Context, repo git.Reposi
 			return
 		}
 
-		if kvs, err = registerKVServer(si, ctx, repo, errs, git.ReferenceName(metadataRefNamePrefix), log, grpcSrv); err != nil {
+		if kvs, err = registerKVServer(si, ctx, repo, errs, git.ReferenceName(serveFlags.metadataRefNamePrefix), log, grpcSrv); err != nil {
 			return
 		}
 
@@ -272,6 +260,7 @@ func startServers(sis []*serverInfo, ctx context.Context, grpcServers map[git.Re
 			u       = si.listenURL
 			l       net.Listener
 			grpcSrv = grpcServers[si.dataRefName]
+			tls     = strings.HasSuffix(u.Scheme, "s")
 		)
 
 		if grpcSrv == nil {
@@ -300,7 +289,11 @@ func startServers(sis []*serverInfo, ctx context.Context, grpcServers map[git.Re
 			log.Info("Serving")
 			defer func() { log.Error(err, "Stopped.") }()
 
-			err = srv.Serve(l)
+			if tls {
+				err = http.ServeTLS(l, srv, serveFlags.serverCertFile, serveFlags.serverKeyFile)
+			} else {
+				err = srv.Serve(l)
+			}
 		}(l, grpcSrv, log.WithValues("dataRefName", si.dataRefName, "url", u.String()))
 	}
 
@@ -362,8 +355,8 @@ func registerKVServer(si *serverInfo, ctx context.Context, repo git.Repository, 
 		backend.KVOptions.WithMetadataRefNamePrefix(metaRefNamePrefix),
 		backend.KVOptions.WithClusterId(si.clusterId),
 		backend.KVOptions.WithMemberId(si.memberId),
-		backend.KVOptions.WithCommitterName(committerName),
-		backend.KVOptions.WithCommitterEmail(committerEmail),
+		backend.KVOptions.WithCommitterName(serveFlags.committerName),
+		backend.KVOptions.WithCommitterEmail(serveFlags.committerEmail),
 		backend.KVOptions.WithLogger(log),
 		backend.KVOptions.WithRepoAndErrors(repo, errs),
 	); err != nil {
@@ -442,96 +435,121 @@ func registerHealthServer(grpcSrv *grpc.Server) (err error) {
 }
 
 const (
-	defaultClusterId = uint64(0)
-	defaultMemberId  = uint64(0)
-	defaultKeyPrefix = "/"
-	defaultListenURL = "http://0.0.0.0:2379/"
+	defaultRepoPath       = "/tmp/trishanku/gitcd"
+	defaultCommitterName  = "trishanku"
+	defaultCommitterEmail = "trishanku@heaven.com"
+	defaultClusterId      = uint64(0)
+	defaultMemberId       = uint64(0)
+	defaultKeyPrefix      = "/"
+	defaultListenURL      = "http://0.0.0.0:2379/"
 )
 
 var (
 	defaultClientURLs = []string{"http://127.0.0.1:2379/"}
 )
 
-var (
+var serveFlags = struct {
 	repoPath              string
-	keyPrefix             = map[string]string{}
-	dataRefNames          = map[string]string{}
+	keyPrefix             map[string]string
+	dataRefNames          map[string]string
 	metadataRefNamePrefix string
-	clusterId             = map[string]int64{}
-	memberId              = map[string]int64{}
+	clusterId             map[string]int64
+	memberId              map[string]int64
 	committerName         string
 	committerEmail        string
-	listenURL             = map[string]string{}
-	clientURLs            = map[string]string{}
+	listenURL             map[string]string
+	clientURLs            map[string]string
 	watchTickerDuration   time.Duration
-)
+	serverCertFile        string
+	serverKeyFile         string
+}{
+	keyPrefix:    map[string]string{},
+	dataRefNames: map[string]string{},
+	clusterId:    map[string]int64{},
+	memberId:     map[string]int64{},
+	listenURL:    map[string]string{},
+	clientURLs:   map[string]string{},
+}
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().StringVar(&repoPath, "repo", "/tmp/trishanku/gitcd", "Path to the Git repo to be used as the backend.")
+	serveCmd.Flags().StringVar(&serveFlags.repoPath, "repo", defaultRepoPath, "Path to the Git repo to be used as the backend.")
 	serveCmd.Flags().StringVar(
-		&committerName,
+		&serveFlags.committerName,
 		"committer-name",
-		"trishanku",
+		defaultCommitterName,
 		"Name of the committer to use while making changes to the Git repo backend.",
 	)
 	serveCmd.Flags().StringVar(
-		&committerEmail,
+		&serveFlags.committerEmail,
 		"committer-email",
-		"trishanku@heaven.com",
+		defaultCommitterEmail,
 		"Email of the committer to use while making changes to the Git repo backend.",
 	)
 	serveCmd.Flags().StringVar(
-		&metadataRefNamePrefix,
+		&serveFlags.metadataRefNamePrefix,
 		"metadata-reference-name-prefix",
 		backend.DefaultMetadataReferencePrefix,
 		`Prefix for the Git reference name to be used as the metadata backend.
 The full metadata Git referene name will be the path concatenation of the prefix and the data Git reference name.`)
 
 	serveCmd.Flags().StringToStringVar(
-		&dataRefNames,
+		&serveFlags.dataRefNames,
 		"data-reference-names",
 		map[string]string{"default": "refs/heads/main"},
 		"Git reference names to be used as the data backend.",
 	)
 
 	serveCmd.Flags().StringToStringVar(
-		&keyPrefix,
-		"key-prefix",
+		&serveFlags.keyPrefix,
+		"key-prefixes",
 		map[string]string{"default": "/"},
 		"Prefix for all the keys stored in the backend.",
 	)
 
 	serveCmd.Flags().StringToInt64Var(
-		&clusterId,
-		"cluster-id",
+		&serveFlags.clusterId,
+		"cluster-ids",
 		map[string]int64{"default": int64(defaultClusterId)},
 		"Id for the ETCD cluster to serve as.",
 	)
 	serveCmd.Flags().StringToInt64Var(
-		&memberId,
-		"member-id",
+		&serveFlags.memberId,
+		"member-ids",
 		map[string]int64{"default": int64(defaultMemberId)},
 		"Id for the ETCD member to serve as.",
 	)
 	serveCmd.Flags().StringToStringVar(
-		&listenURL,
-		"listen-url",
+		&serveFlags.listenURL,
+		"listen-urls",
 		map[string]string{"default": defaultListenURL},
 		"URL to listen for client requests to serve.",
 	)
 	serveCmd.Flags().StringToStringVar(
-		&clientURLs,
+		&serveFlags.clientURLs,
 		"advertise-client-urls",
 		map[string]string{"default": strings.Join(defaultClientURLs, ";")},
 		`URLs to advertise for clients to make requests to. Multiple URLs separated by ";" can be specified per backend.`,
 	)
 
 	serveCmd.Flags().DurationVar(
-		&watchTickerDuration,
+		&serveFlags.watchTickerDuration,
 		"watch-ticker-duration",
 		time.Second,
 		"Interval duration to poll and dispatch any pending events to watches.",
+	)
+
+	serveCmd.Flags().StringVar(
+		&serveFlags.serverCertFile,
+		"server-cert-file",
+		"",
+		"Path to the server certificate file to serve TLS.",
+	)
+	serveCmd.Flags().StringVar(
+		&serveFlags.serverKeyFile,
+		"server-key-file",
+		"",
+		"Path to the server private key file to serve TLS.",
 	)
 }
