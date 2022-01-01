@@ -1,7 +1,7 @@
 IMAGE_TAG ?= trishanku/gitcd:latest
 BINDIR ?= ./bin
 BACKEND_VERSION = `cat VERSION`
-DOCKER_RUN_OPTS ?= --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd
+DOCKER_RUN_OPTS ?= -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd
 
 ensure-bin-dir:
 	mkdir -p "${BINDIR}"
@@ -55,4 +55,4 @@ docker-build:
 	docker build -t "${IMAGE_TAG}" .
 
 docker-run:
-	docker run -d --rm ${DOCKER_RUN_OPTS} "${IMAGE_TAG}" ${RUN_ARGS}
+	docker run ${DOCKER_RUN_OPTS} "${IMAGE_TAG}" ${RUN_ARGS}
