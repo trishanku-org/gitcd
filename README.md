@@ -43,7 +43,7 @@ docker build -t "trishanku/gitcd:latest" .
 ```sh
 # Print the help text.
 $ DOCKER_RUN_OPTS="--rm --name gitcd" make docker-run
-docker run --rm --name gitcd "trishanku/gitcd:latest"
+docker run --rm --name gitcd "trishanku/gitcd:latest" 
 Gitcd - Git as a distributed key-value store.
 
 Usage:
@@ -73,7 +73,7 @@ Gitcd: v0.0.1-dev
 ```sh
 $ RUN_ARGS=serve make docker-run
 docker run -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd "trishanku/gitcd:latest" serve
-bb5b97a7f88d90fbeac567417ed0fac972f8a6b26703c641f2df0e92239ecb55
+f041f4e4817ba84d49b37287ebbdf296633d298d6d99525daa6e6343f92553cf
 ```
 
 #### Consume
@@ -81,7 +81,7 @@ bb5b97a7f88d90fbeac567417ed0fac972f8a6b26703c641f2df0e92239ecb55
 ```sh
 # Check ETCD endpoint status.
 $ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status
-{"level":"warn","ts":"2022-01-01T19:13:45.558Z","logger":"etcd-client","caller":"v3/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc0000fea80/127.0.0.1:2379","attempt":0,"error":"rpc error: code = Unknown desc = reference 'refs/gitcd/metadata/refs/heads/main' not found"}
+{"level":"warn","ts":"2022-01-02T07:17:43.640Z","logger":"etcd-client","caller":"v3/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc00048a700/127.0.0.1:2379","attempt":0,"error":"rpc error: code = Unknown desc = reference 'refs/gitcd/metadata/refs/heads/main' not found"}
 Failed to get the status of endpoint 127.0.0.1:2379 (rpc error: code = Unknown desc = reference 'refs/gitcd/metadata/refs/heads/main' not found)
 
 # Insert a key and value to create a the main branch that is being used as the backend.
@@ -98,7 +98,7 @@ $ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --
 +----------------+----+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
 |    ENDPOINT    | ID | VERSION | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |
 +----------------+----+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
-| 127.0.0.1:2379 |  0 |         |  2.8 kB |      true |      false |         1 |          1 |                  1 |        |
+| 127.0.0.1:2379 |  0 |         |  2.9 kB |      true |      false |         1 |          1 |                  1 |        |
 +----------------+----+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
 
 # List ETCD members.
@@ -127,7 +127,7 @@ gitcd-backend-repo
 # Serve as ETCD with the backend repo in the volume.
 $ DOCKER_RUN_OPTS="-d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=serve make docker-run
 docker run -d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd "trishanku/gitcd:latest" serve
-40a061e947f40c33da33716d3dda0530cf55026dd8d6cbfddaea70148d8083f7
+0e42852aabec30da59a18de0e8ff53d21ab50da66ad1f85e06219665c1c7bf3e
 ```
 
 #### Consume
@@ -187,18 +187,18 @@ $ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --
 
 # Check that the main branch is now initialized with one commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main
-commit d7e2d6a16b03e0485bd58a7ca9c099e5fd908530
+commit 82156c19420d752d496ac460841e71a68e38f04f
 Author: trishanku <trishanku@heaven.com>
-Date:   Sat Jan 1 19:15:45 2022 +0000
+Date:   Sun Jan 2 07:17:47 2022 +0000
 
     1
 
 # Check the diff for the first commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git show --pretty=raw main
-commit d7e2d6a16b03e0485bd58a7ca9c099e5fd908530
+commit 82156c19420d752d496ac460841e71a68e38f04f
 tree 3f258de18b33904bb291ad94cc7d60e4c197fd50
-author trishanku <trishanku@heaven.com> 1641064545 +0000
-committer trishanku <trishanku@heaven.com> 1641064545 +0000
+author trishanku <trishanku@heaven.com> 1641107867 +0000
+committer trishanku <trishanku@heaven.com> 1641107867 +0000
 
     1
 
@@ -248,25 +248,25 @@ one
 
 # Check that the main branch is now advanced by a commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main
-commit 1d05ec87bb24ac78fa6b9278ac6a68a47681f563
+commit c1bc42c892acdbe3638842913a4b4a7163bb51c4
 Author: trishanku <trishanku@heaven.com>
-Date:   Sat Jan 1 19:15:48 2022 +0000
+Date:   Sun Jan 2 07:17:49 2022 +0000
 
     2
 
-commit d7e2d6a16b03e0485bd58a7ca9c099e5fd908530
+commit 82156c19420d752d496ac460841e71a68e38f04f
 Author: trishanku <trishanku@heaven.com>
-Date:   Sat Jan 1 19:15:45 2022 +0000
+Date:   Sun Jan 2 07:17:47 2022 +0000
 
     1
 
 # Check the diff for the new commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git show --pretty=raw main
-commit 1d05ec87bb24ac78fa6b9278ac6a68a47681f563
+commit c1bc42c892acdbe3638842913a4b4a7163bb51c4
 tree 904b9644b5f7f0bc10a4d52850994bb58ac1591e
-parent d7e2d6a16b03e0485bd58a7ca9c099e5fd908530
-author trishanku <trishanku@heaven.com> 1641064548 +0000
-committer trishanku <trishanku@heaven.com> 1641064548 +0000
+parent 82156c19420d752d496ac460841e71a68e38f04f
+author trishanku <trishanku@heaven.com> 1641107869 +0000
+committer trishanku <trishanku@heaven.com> 1641107869 +0000
 
     2
 
@@ -332,31 +332,31 @@ one
 
 # Check that the main branch is now advanced by a commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main
-commit 21ad56132258c0e12e6dc9cf49669719d5df477c
+commit 61737400b784ecde7e2281f3340f3dda9a4f0113
 Author: trishanku <trishanku@heaven.com>
-Date:   Sat Jan 1 19:15:50 2022 +0000
+Date:   Sun Jan 2 07:17:52 2022 +0000
 
     3
 
-commit 1d05ec87bb24ac78fa6b9278ac6a68a47681f563
+commit c1bc42c892acdbe3638842913a4b4a7163bb51c4
 Author: trishanku <trishanku@heaven.com>
-Date:   Sat Jan 1 19:15:48 2022 +0000
+Date:   Sun Jan 2 07:17:49 2022 +0000
 
     2
 
-commit d7e2d6a16b03e0485bd58a7ca9c099e5fd908530
+commit 82156c19420d752d496ac460841e71a68e38f04f
 Author: trishanku <trishanku@heaven.com>
-Date:   Sat Jan 1 19:15:45 2022 +0000
+Date:   Sun Jan 2 07:17:47 2022 +0000
 
     1
 
 # Check the diff for the new commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git show --pretty=raw main
-commit 21ad56132258c0e12e6dc9cf49669719d5df477c
+commit 61737400b784ecde7e2281f3340f3dda9a4f0113
 tree be974b5190bf4ca3f70d8474e2b5bbcbfda5156b
-parent 1d05ec87bb24ac78fa6b9278ac6a68a47681f563
-author trishanku <trishanku@heaven.com> 1641064550 +0000
-committer trishanku <trishanku@heaven.com> 1641064550 +0000
+parent c1bc42c892acdbe3638842913a4b4a7163bb51c4
+author trishanku <trishanku@heaven.com> 1641107872 +0000
+committer trishanku <trishanku@heaven.com> 1641107872 +0000
 
     3
 
