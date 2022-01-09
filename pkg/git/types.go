@@ -257,6 +257,33 @@ type CommitBuilder interface {
 // ReferenceNameReceiverFunc defines the signature for the receiver function while walking reference names.
 type ReferenceNameReceiverFunc func(context.Context, ReferenceName) (done bool, err error)
 
+// DiffChangeType defines the possible types of individual changes in a diff of a tree.
+type DiffChangeType int
+
+const (
+	DiffChangeTypeAdded DiffChangeType = iota + 1
+	DiffChangeTypeDeleted
+	DiffChangeTypeModified
+)
+
+// DiffChange defines the interface to access individual blob changes while walking a diff for a tree.
+type DiffChange interface {
+	Path() string
+	Type() DiffChangeType
+	OldBlobID() ObjectID
+	NewBlobID() ObjectID
+}
+
+// DiffChangeReceiverFunc defines the signature for the receiver function while walking a diff for a tree.
+type DiffChangeReceiverFunc func(context.Context, DiffChange) (done bool, err error)
+
+// Diff defines the interface to interact with the diff between two trees.
+type Diff interface {
+	io.Closer
+
+	ForEachDiffChange(context.Context, DiffChangeReceiverFunc) error
+}
+
 // Repository defines access to a Git repository.
 type Repository interface {
 	io.Closer
@@ -273,6 +300,8 @@ type Repository interface {
 	TreeBuilder(context.Context) (TreeBuilder, error)
 	TreeBuilderFromTree(context.Context, Tree) (TreeBuilder, error)
 	CommitBuilder(context.Context) (CommitBuilder, error)
+
+	TreeDiff(ctx context.Context, oldT, newT Tree) (Diff, error)
 
 	Size() (int64, error)
 }

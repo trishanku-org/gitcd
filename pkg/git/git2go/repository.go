@@ -374,6 +374,43 @@ func (repo *repository) CommitBuilder(ctx context.Context) (b git.CommitBuilder,
 	return
 }
 
+func (repo *repository) TreeDiff(ctx context.Context, oldT, newT git.Tree) (d git.Diff, err error) {
+	var (
+		implOT, implNT *tree = nil, nil
+		implDiff       *impl.Diff
+	)
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	for _, s := range []struct {
+		gitT     git.Tree
+		implTPtr **tree
+	}{
+		{gitT: oldT, implTPtr: &implOT},
+		{gitT: newT, implTPtr: &implNT},
+	} {
+		if s.gitT != nil {
+			var ok bool
+
+			if *s.implTPtr, ok = (s.gitT).(*tree); !ok {
+				err = NewUnsupportedImplementationError(s.gitT)
+				return
+			}
+		}
+	}
+
+	if implDiff, err = repo.impl.DiffTreeToTree((*impl.Tree)(implOT), (*impl.Tree)(implNT), &impl.DiffOptions{
+		Flags: impl.DiffNormal | impl.DiffForceBinary | impl.DiffSkipBinaryCheck,
+	}); err != nil {
+		return
+	}
+
+	d = (*diff)(implDiff)
+	return
+}
+
 func (repo *repository) Size() (size int64, err error) {
 	if repo == nil {
 		return
