@@ -251,14 +251,7 @@ func (b *backend) doPut(
 	if metaTM, err = addMutation(
 		metaTM,
 		path.Join(p, etcdserverpb.Compare_CREATE.String()),
-		func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-			if te != nil && te.EntryType() == git.ObjectTypeBlob {
-				return
-			}
-
-			mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newRevision)), te)
-			return
-		},
+		b.mutateRevisionIfNotExistsTo(newRevision),
 	); err != nil {
 		return
 	}

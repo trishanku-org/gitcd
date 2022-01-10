@@ -132,10 +132,7 @@ func (b *backend) doDeleteRange(
 	if metaTM, err = addMutation(
 		metaTM,
 		metadataPathRevision,
-		func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-			mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newRevision)), te)
-			return
-		},
+		b.mutateRevisionTo(newRevision),
 	); err != nil {
 		return
 	}

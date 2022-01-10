@@ -15,8 +15,6 @@ RUN go build -mod=vendor \
 		-ldflags "-X github.com/trishanku/gitcd/pkg/backend.Version=$(cat VERSION)" \
 		main.go
 
-RUN cat /gitcd
-
 FROM alpine:3.14 AS runner
 
 RUN apk update && apk add libgit2

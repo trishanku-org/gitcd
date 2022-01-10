@@ -373,7 +373,12 @@ func (b *backend) newCommitBuilder(ctx context.Context) (cb git.CommitBuilder, e
 	return
 }
 
-func (b *backend) replaceCurrentCommit(ctx context.Context, message string, newTreeID git.ObjectID, currentCommit git.Commit) (newCommitID git.ObjectID, err error) {
+func (b *backend) createCommit(
+	ctx context.Context,
+	message string,
+	newTreeID git.ObjectID,
+	decorateFn func(context.Context, git.CommitBuilder) error,
+) (newCommitID git.ObjectID, err error) {
 	var cb git.CommitBuilder
 
 	if cb, err = b.newCommitBuilder(ctx); err != nil {
@@ -390,46 +395,40 @@ func (b *backend) replaceCurrentCommit(ctx context.Context, message string, newT
 		return
 	}
 
-	if currentCommit != nil {
-		if err = currentCommit.ForEachParentID(ctx, func(_ context.Context, id git.ObjectID) (done bool, err error) {
-			err = cb.AddParentIDs(id)
-			return
-		}); err != nil {
+	if decorateFn != nil {
+		if err = decorateFn(ctx, cb); err != nil {
 			return
 		}
 	}
 
 	newCommitID, err = cb.Build(ctx)
-
 	return
 }
 
-func (b *backend) inheritCurrentCommit(ctx context.Context, message string, newTreeID git.ObjectID, currentCommit git.Commit) (newCommitID git.ObjectID, err error) {
-	var cb git.CommitBuilder
-
-	if cb, err = b.newCommitBuilder(ctx); err != nil {
-		return
-	}
-
-	defer cb.Close()
-
-	if err = cb.SetMessage(message); err != nil {
-		return
-	}
-
-	if err = cb.SetTreeID(newTreeID); err != nil {
-		return
-	}
-
-	if currentCommit != nil {
-		if err = cb.AddParentIDs(currentCommit.ID()); err != nil {
+func (b *backend) replaceCurrentCommit(ctx context.Context, message string, newTreeID git.ObjectID, currentCommit git.Commit) (newCommitID git.ObjectID, err error) {
+	return b.createCommit(ctx, message, newTreeID, func(ctx context.Context, cb git.CommitBuilder) (err error) {
+		if currentCommit == nil {
 			return
 		}
-	}
 
-	newCommitID, err = cb.Build(ctx)
+		err = currentCommit.ForEachParentID(ctx, func(_ context.Context, id git.ObjectID) (done bool, err error) {
+			err = cb.AddParentIDs(id)
+			return
+		})
 
-	return
+		return
+	})
+}
+
+func (b *backend) inheritCurrentCommit(ctx context.Context, message string, newTreeID git.ObjectID, currentCommit git.Commit) (newCommitID git.ObjectID, err error) {
+	return b.createCommit(ctx, message, newTreeID, func(ctx context.Context, cb git.CommitBuilder) (err error) {
+		if currentCommit == nil {
+			return
+		}
+
+		err = cb.AddParentIDs(currentCommit.ID())
+		return
+	})
 }
 
 // mutateFunc defines the contract to mutate a tree entry.
@@ -616,23 +615,64 @@ func (b *backend) mutateTree(ctx context.Context, currentT git.Tree, tm *treeMut
 	return
 }
 
-func (b *backend) mutateRevisionTo(newRevision int64) mutateTreeEntryFunc {
+func (b *backend) mutateRevisionConditionallyTo(
+	conditionFn func(context.Context, git.TreeEntry) (check bool, revision int64, err error),
+) mutateTreeEntryFunc {
 	return func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-		if te != nil && te.EntryType() == git.ObjectTypeBlob {
-			var currentRevision int64
+		var (
+			check    bool
+			revision int64
+		)
 
-			if currentRevision, err = b.readRevisionFromTreeEntry(ctx, te); b.errors.IgnoreNotFound(err) != nil {
-				return
-			}
-
-			if err == nil && currentRevision == newRevision {
-				return
-			}
+		if check, revision, err = conditionFn(ctx, te); err != nil || !check {
+			return
 		}
 
-		mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(newRevision)), te)
+		mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(revisionToString(revision)), te)
 		return
 	}
+}
+
+func (b *backend) mutateRevisionTo(newRevision int64) mutateTreeEntryFunc {
+	return b.mutateRevisionConditionallyTo(func(ctx context.Context, te git.TreeEntry) (check bool, revision int64, err error) {
+		var currentRevision int64
+
+		revision = newRevision
+
+		if check = te == nil || te.EntryType() != git.ObjectTypeBlob; check {
+			return
+		}
+
+		if currentRevision, err = b.readRevisionFromTreeEntry(ctx, te); b.errors.IgnoreNotFound(err) != nil {
+			return
+		}
+
+		check, err = currentRevision != newRevision, nil
+		return
+	})
+}
+
+func (b *backend) mutateRevisionIfNotExistsTo(newRevision int64) mutateTreeEntryFunc {
+	return b.mutateRevisionConditionallyTo(func(_ context.Context, te git.TreeEntry) (bool, int64, error) {
+		return te == nil || te.EntryType() != git.ObjectTypeBlob, newRevision, nil
+	})
+}
+
+func (b *backend) incrementRevision() mutateTreeEntryFunc {
+	return b.mutateRevisionConditionallyTo(func(ctx context.Context, te git.TreeEntry) (check bool, revision int64, err error) {
+		defer func() { revision++ }()
+
+		if check = te == nil || te.EntryType() != git.ObjectTypeBlob; check {
+			return
+		}
+
+		if revision, err = b.readRevisionFromTreeEntry(ctx, te); b.errors.IgnoreNotFound(err) != nil {
+			return
+		}
+
+		check, err = true, nil
+		return
+	})
 }
 
 func (b *backend) createBlob(ctx context.Context, content []byte) (blobID git.ObjectID, err error) {
