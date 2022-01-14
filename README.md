@@ -15,6 +15,9 @@ Gitcd - Git as a distributed key-value store.
   - [Serve ETCD with the backend repo in a separate volume](#serve-etcd-with-the-backend-repo-in-a-separate-volume)
     - [Consume](#consume-1)
     - [Cleanup](#cleanup-1)
+- [Serve ETCD from an existing Git repo](#serve-etcd-from-an-existing-git-repo)
+    - [Consume](#consume-2)
+    - [Cleanup](#cleanup-2)
 
 ## Take it for a spin
 
@@ -73,16 +76,20 @@ Gitcd: v0.0.1-dev
 ```sh
 $ RUN_ARGS=serve make docker-run
 docker run -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd "trishanku/gitcd:latest" serve
-f041f4e4817ba84d49b37287ebbdf296633d298d6d99525daa6e6343f92553cf
+3986f63eda63ab685e061910ed8d4d47963e10286ca9af09c53b1bde2907ed84
 ```
 
 #### Consume
 
 ```sh
 # Check ETCD endpoint status.
-$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status
-{"level":"warn","ts":"2022-01-02T07:17:43.640Z","logger":"etcd-client","caller":"v3/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc00048a700/127.0.0.1:2379","attempt":0,"error":"rpc error: code = Unknown desc = reference 'refs/gitcd/metadata/refs/heads/main' not found"}
+$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status -w table
+{"level":"warn","ts":"2022-01-14T15:00:10.482Z","logger":"etcd-client","caller":"v3/retry_interceptor.go:62","msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc0001a2000/127.0.0.1:2379","attempt":0,"error":"rpc error: code = Unknown desc = reference 'refs/gitcd/metadata/refs/heads/main' not found"}
 Failed to get the status of endpoint 127.0.0.1:2379 (rpc error: code = Unknown desc = reference 'refs/gitcd/metadata/refs/heads/main' not found)
++----------+----+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
+| ENDPOINT | ID | VERSION | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |
++----------+----+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
++----------+----+---------+---------+-----------+------------+-----------+------------+--------------------+--------+
 
 # Insert a key and value to create a the main branch that is being used as the backend.
 $ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport put /a a
@@ -127,7 +134,7 @@ gitcd-backend-repo
 # Serve as ETCD with the backend repo in the volume.
 $ DOCKER_RUN_OPTS="-d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=serve make docker-run
 docker run -d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd "trishanku/gitcd:latest" serve
-0e42852aabec30da59a18de0e8ff53d21ab50da66ad1f85e06219665c1c7bf3e
+d794859d09d38c37048d9bf9db350cb8fa1fff0cccc56230d76e4f02b16305a1
 ```
 
 #### Consume
@@ -187,18 +194,18 @@ $ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --
 
 # Check that the main branch is now initialized with one commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main
-commit 82156c19420d752d496ac460841e71a68e38f04f
+commit 8311d7cb8e89147dd89e67dba8832d5b7bd11721
 Author: trishanku <trishanku@heaven.com>
-Date:   Sun Jan 2 07:17:47 2022 +0000
+Date:   Fri Jan 14 15:00:14 2022 +0000
 
     1
 
 # Check the diff for the first commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git show --pretty=raw main
-commit 82156c19420d752d496ac460841e71a68e38f04f
+commit 8311d7cb8e89147dd89e67dba8832d5b7bd11721
 tree 3f258de18b33904bb291ad94cc7d60e4c197fd50
-author trishanku <trishanku@heaven.com> 1641107867 +0000
-committer trishanku <trishanku@heaven.com> 1641107867 +0000
+author trishanku <trishanku@heaven.com> 1642172414 +0000
+committer trishanku <trishanku@heaven.com> 1642172414 +0000
 
     1
 
@@ -248,25 +255,25 @@ one
 
 # Check that the main branch is now advanced by a commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main
-commit c1bc42c892acdbe3638842913a4b4a7163bb51c4
+commit 4947374283cfa1a2761f892bb265c2109b6f1f3d
 Author: trishanku <trishanku@heaven.com>
-Date:   Sun Jan 2 07:17:49 2022 +0000
+Date:   Fri Jan 14 15:00:17 2022 +0000
 
     2
 
-commit 82156c19420d752d496ac460841e71a68e38f04f
+commit 8311d7cb8e89147dd89e67dba8832d5b7bd11721
 Author: trishanku <trishanku@heaven.com>
-Date:   Sun Jan 2 07:17:47 2022 +0000
+Date:   Fri Jan 14 15:00:14 2022 +0000
 
     1
 
 # Check the diff for the new commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git show --pretty=raw main
-commit c1bc42c892acdbe3638842913a4b4a7163bb51c4
+commit 4947374283cfa1a2761f892bb265c2109b6f1f3d
 tree 904b9644b5f7f0bc10a4d52850994bb58ac1591e
-parent 82156c19420d752d496ac460841e71a68e38f04f
-author trishanku <trishanku@heaven.com> 1641107869 +0000
-committer trishanku <trishanku@heaven.com> 1641107869 +0000
+parent 8311d7cb8e89147dd89e67dba8832d5b7bd11721
+author trishanku <trishanku@heaven.com> 1642172417 +0000
+committer trishanku <trishanku@heaven.com> 1642172417 +0000
 
     2
 
@@ -332,31 +339,31 @@ one
 
 # Check that the main branch is now advanced by a commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main
-commit 61737400b784ecde7e2281f3340f3dda9a4f0113
+commit 7c6378f63162f5c848269506c212113f9f2e7afc
 Author: trishanku <trishanku@heaven.com>
-Date:   Sun Jan 2 07:17:52 2022 +0000
+Date:   Fri Jan 14 15:00:20 2022 +0000
 
     3
 
-commit c1bc42c892acdbe3638842913a4b4a7163bb51c4
+commit 4947374283cfa1a2761f892bb265c2109b6f1f3d
 Author: trishanku <trishanku@heaven.com>
-Date:   Sun Jan 2 07:17:49 2022 +0000
+Date:   Fri Jan 14 15:00:17 2022 +0000
 
     2
 
-commit 82156c19420d752d496ac460841e71a68e38f04f
+commit 8311d7cb8e89147dd89e67dba8832d5b7bd11721
 Author: trishanku <trishanku@heaven.com>
-Date:   Sun Jan 2 07:17:47 2022 +0000
+Date:   Fri Jan 14 15:00:14 2022 +0000
 
     1
 
 # Check the diff for the new commit.
 $ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git show --pretty=raw main
-commit 61737400b784ecde7e2281f3340f3dda9a4f0113
+commit 7c6378f63162f5c848269506c212113f9f2e7afc
 tree be974b5190bf4ca3f70d8474e2b5bbcbfda5156b
-parent c1bc42c892acdbe3638842913a4b4a7163bb51c4
-author trishanku <trishanku@heaven.com> 1641107872 +0000
-committer trishanku <trishanku@heaven.com> 1641107872 +0000
+parent 4947374283cfa1a2761f892bb265c2109b6f1f3d
+author trishanku <trishanku@heaven.com> 1642172420 +0000
+committer trishanku <trishanku@heaven.com> 1642172420 +0000
 
     3
 
@@ -388,6 +395,166 @@ one
 $ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --rev=1 --prefix /
 /1
 1
+```
+
+#### Cleanup
+
+```sh
+# Stop the Gitcd container.
+$ docker stop gitcd
+gitcd
+
+# Remove the volume backing the backend Git repo.
+$ docker volume rm gitcd-backend-repo
+gitcd-backend-repo
+```
+
+# Serve ETCD from an existing Git repo
+
+```sh
+# Create a volume to store the backend repo.
+$ docker volume create gitcd-backend-repo
+gitcd-backend-repo
+
+# Clone a Git repo into the volume to prepare it to be served.
+# NOTE: This might take a while.
+$ docker run --rm -v gitcd-backend-repo:/backend bitnami/git git clone https://github.com/etcd-io/etcd /backend
+Cloning into '/backend'...
+
+# Check that the repo got cloned properly.
+$ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main -n 2
+commit f75549d53b93f44ff43dbd4c9279612c974edcd3
+Merge: f70c14128 77bf0a5a9
+Author: Piotr Tabor <ptab@google.com>
+Date:   Fri Jan 14 14:54:28 2022 +0100
+
+    Merge pull request #13571 from yank1/update-cobra-version
+    
+    Update Cobra version to 1.2.1
+
+commit f70c14128dbea3e87bd95794abd2c4752c9776c8
+Merge: 68fa5dcf9 357006172
+Author: Piotr Tabor <ptab@google.com>
+Date:   Fri Jan 14 14:54:00 2022 +0100
+
+    Merge pull request #13597 from mhoffm-aiven/mhoffm-add-forgotten-method-to-printerrpc
+    
+    ctlv3: add forgotten member promote method to printerRPC
+
+# Init the ETCD metadata for the main branch to prepare it to be served.
+# NOTE: This might take a while because the whole commit history of the main branch is traversed to generate the corresponding metadata.
+$ DOCKER_RUN_OPTS="--rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=init make docker-run
+docker run --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd "trishanku/gitcd:latest" init
+{"level":"info","ts":1642172466.191522,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1642172631.6238172,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+
+# Check that the metadata has been prepared.
+$ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log refs/gitcd/metadata/refs/heads/main -n 2
+commit c80d85d73a42cd61326835dedafbecec2f33461c
+Merge: a4e7e3863 d55814a50
+Author: trishanku <trishanku@heaven.com>
+Date:   Fri Jan 14 15:03:51 2022 +0000
+
+    6847
+
+commit a4e7e38630efe4a3debc20fe68f3b408cf7905a1
+Merge: 8fbae53e1 643d67c16
+Author: trishanku <trishanku@heaven.com>
+Date:   Fri Jan 14 15:03:51 2022 +0000
+
+    6846
+
+# Check that the main branch is unmodified.
+$ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main -n 2
+commit f75549d53b93f44ff43dbd4c9279612c974edcd3
+Merge: f70c14128 77bf0a5a9
+Author: Piotr Tabor <ptab@google.com>
+Date:   Fri Jan 14 14:54:28 2022 +0100
+
+    Merge pull request #13571 from yank1/update-cobra-version
+    
+    Update Cobra version to 1.2.1
+
+commit f70c14128dbea3e87bd95794abd2c4752c9776c8
+Merge: 68fa5dcf9 357006172
+Author: Piotr Tabor <ptab@google.com>
+Date:   Fri Jan 14 14:54:00 2022 +0100
+
+    Merge pull request #13597 from mhoffm-aiven/mhoffm-add-forgotten-method-to-printerrpc
+    
+    ctlv3: add forgotten member promote method to printerRPC
+
+# Serve the prepared repo as ETCD.
+$ DOCKER_RUN_OPTS="-d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=serve make docker-run
+docker run -d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd "trishanku/gitcd:latest" serve
+06eff15a6aa9b323854086047f4ebdc69387132047b1a6d7ede1e13b967095ac
+```
+
+#### Consume
+
+```sh
+# Check ETCD endpoint status.
+$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status -w table
++----------------+----+------------+---------+-----------+------------+-----------+------------+--------------------+--------+
+|    ENDPOINT    | ID |  VERSION   | DB SIZE | IS LEADER | IS LEARNER | RAFT TERM | RAFT INDEX | RAFT APPLIED INDEX | ERRORS |
++----------------+----+------------+---------+-----------+------------+-----------+------------+--------------------+--------+
+| 127.0.0.1:2379 |  0 | v0.0.1-dev |  145 MB |      true |      false |      6847 |       6847 |               6847 |        |
++----------------+----+------------+---------+-----------+------------+-----------+------------+--------------------+--------+
+
+# List main.go keys.
+$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --keys-only --prefix / | grep main.go
+/contrib/raftexample/main.go
+/etcdctl/main.go
+/etcdutl/main.go
+/server/etcdmain/main.go
+/server/main.go
+/tests/functional/cmd/etcd-agent/main.go
+/tests/functional/cmd/etcd-proxy/main.go
+/tests/functional/cmd/etcd-runner/main.go
+/tools/benchmark/main.go
+/tools/etcd-dump-db/main.go
+/tools/etcd-dump-logs/main.go
+/tools/etcd-dump-metrics/main.go
+
+# Read /etcdctl/main.go key.
+$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go | tail -n 20
+
+func main() {
+	apiv := os.Getenv(apiEnv)
+
+	// unset apiEnv to avoid side-effect for future env and flag parsing.
+	os.Unsetenv(apiEnv)
+	if len(apiv) == 0 || apiv == "3" {
+		ctlv3.MustStart()
+		return
+	}
+
+	if apiv == "2" {
+		ctlv2.MustStart()
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "unsupported API version: %v\n", apiv)
+	os.Exit(1)
+}
+
+
+# Read metadata for /etcdctl/main.go key.
+$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go -w fields | grep -e Key -e Revision -e Version | grep -v Value
+"Revision" : 6847
+"Key" : "/etcdctl/main.go"
+"CreateRevision" : 818
+"ModRevision" : 6426
+"Version" : 36
+
+# Check the difference between the current and previous versions of the value for /etcdctl/main.go key.
+$ diff <( docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go ) <( docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --rev=6425 /etcdctl/main.go )
+23,24c23,24
+< 	"go.etcd.io/etcd/etcdctl/v3/ctlv2"
+< 	"go.etcd.io/etcd/etcdctl/v3/ctlv3"
+---
+> 	"go.etcd.io/etcd/v3/etcdctl/ctlv2"
+> 	"go.etcd.io/etcd/v3/etcdctl/ctlv3"
 ```
 
 #### Cleanup

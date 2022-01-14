@@ -135,6 +135,10 @@ func (b *backend) createStartingMetadata(ctx context.Context, revision int64, ve
 		dID, mtID git.ObjectID
 	)
 
+	// defer func() {
+	// 	b.log.V(-1).Info("Initialized", "revision", revision, "data commit", dID, "metadata commit", mID, "error", err)
+	// }()
+
 	if dID, err = b.createEmptyCommit(ctx, revision); err != nil {
 		return
 	}
@@ -291,10 +295,6 @@ func (b *backend) initMetadataForData(
 	}
 
 	dataT.Close()
-
-	if mID, ok = dmMapping[data.ID()]; ok {
-		return
-	}
 
 	if metaParentIDs, err = b.initMetadataForDataParents(ctx, data, startRevision, version, dmMapping); err != nil {
 		return

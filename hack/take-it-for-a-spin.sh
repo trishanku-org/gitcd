@@ -22,8 +22,8 @@ echo '#### Consume'
 echo
 echo '```sh'
 echo '# Check ETCD endpoint status.'
-echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status'
-docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status
+echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status -w table'
+docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status -w table
 echo
 echo '# Insert a key and value to create a the main branch that is being used as the backend.'
 echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport put /a a'
@@ -157,6 +157,76 @@ echo
 echo '# Read all keys at the first revision.'
 echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --rev=1 --prefix /'
 docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --rev=1 --prefix /
+echo '```'
+echo
+echo '#### Cleanup'
+echo
+echo '```sh'
+echo '# Stop the Gitcd container.'
+echo '$ docker stop gitcd'
+docker stop gitcd
+echo
+echo '# Remove the volume backing the backend Git repo.'
+echo '$ docker volume rm gitcd-backend-repo'
+docker volume rm gitcd-backend-repo
+echo '```'
+echo
+echo '# Serve ETCD from an existing Git repo'
+echo
+echo '```sh'
+echo '# Create a volume to store the backend repo.'
+echo '$ docker volume create gitcd-backend-repo'
+docker volume create gitcd-backend-repo
+echo
+echo '# Clone a Git repo into the volume to prepare it to be served.'
+echo '# NOTE: This might take a while.'
+echo '$ docker run --rm -v gitcd-backend-repo:/backend bitnami/git git clone https://github.com/etcd-io/etcd /backend'
+docker run --rm -v gitcd-backend-repo:/backend bitnami/git git clone https://github.com/etcd-io/etcd /backend
+echo
+echo '# Check that the repo got cloned properly.'
+echo '$ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main -n 2'
+docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main -n 2
+echo
+echo '# Init the ETCD metadata for the main branch to prepare it to be served.'
+echo '# NOTE: This might take a while because the whole commit history of the main branch is traversed to generate the corresponding metadata.'
+echo '$ DOCKER_RUN_OPTS="--rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=init make docker-run'
+DOCKER_RUN_OPTS="--rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=init make docker-run
+echo
+echo '# Check that the metadata has been prepared.'
+echo '$ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log refs/gitcd/metadata/refs/heads/main -n 2'
+docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log refs/gitcd/metadata/refs/heads/main -n 2
+echo
+echo '# Check that the main branch is unmodified.'
+echo '$ docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main -n 2'
+docker run --rm -v gitcd-backend-repo:/backend -w /backend bitnami/git git log main -n 2
+echo
+echo '# Serve the prepared repo as ETCD.'
+echo '$ DOCKER_RUN_OPTS="-d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=serve make docker-run'
+DOCKER_RUN_OPTS="-d --rm -v gitcd-backend-repo:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=serve make docker-run
+echo '```'
+echo
+echo '#### Consume'
+echo
+echo '```sh'
+echo '# Check ETCD endpoint status.'
+echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status -w table'
+docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport endpoint status -w table
+echo
+echo '# List main.go keys.'
+echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --keys-only --prefix / | grep main.go'
+docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --keys-only --prefix / | grep main.go
+echo
+echo '# Read /etcdctl/main.go key.'
+echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go | tail -n 20'
+docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go | tail -n 20
+echo
+echo '# Read metadata for /etcdctl/main.go key.'
+echo '$ docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go -w fields | grep -e Key -e Revision -e Version | grep -v Value'
+docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go -w fields | grep -e Key -e Revision -e Version | grep -v Value
+echo
+echo '# Check the difference between the current and previous versions of the value for /etcdctl/main.go key.'
+echo '$ diff <( docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go ) <( docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --rev=6425 /etcdctl/main.go )'
+diff <( docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get /etcdctl/main.go ) <( docker run --rm --entrypoint etcdctl --network=container:gitcd bitnami/etcd --insecure-transport get --rev=6425 /etcdctl/main.go )
 echo '```'
 echo
 echo '#### Cleanup'
