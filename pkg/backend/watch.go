@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -121,9 +120,8 @@ type revisionWatcher struct {
 	watches     []watch
 
 	// These are computed automatically based on the interval and changes.
-	nrun           int
-	startPathSlice pathSlice
-	events         []*mvccpb.Event
+	nrun   int
+	events []*mvccpb.Event
 }
 
 func (rw *revisionWatcher) next() (n *revisionWatcher) {
@@ -162,18 +160,6 @@ func (rw *revisionWatcher) cancelAllWatches(ctx context.Context, err error) *rev
 	}
 
 	return rw
-}
-
-func (rw *revisionWatcher) getStartPathSlice() pathSlice {
-	if rw == nil {
-		return nil
-	}
-
-	if rw.startPathSlice == nil {
-		rw.startPathSlice = pathSlice(splitPath(rw.backend.getPathForKey(rw.interval.GetStartInclusive().String())))
-	}
-
-	return rw.startPathSlice
 }
 
 func (rw *revisionWatcher) getRevisionAndPredecessorMetadata(ctx context.Context) (metaRoot, metaPredecessorRoot git.Tree, err error) {
@@ -315,316 +301,45 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 	return
 }
 
-func (rw *revisionWatcher) checkMetadataEntryRelevance(parentPath string, mte git.TreeEntry) (relevant, done bool) {
-	var (
-		b               = rw.backend
-		ie              = &intervalExplorer{keyPrefix: b.keyPrefix, repo: b.repo, errors: b.errors, tree: nil, interval: rw.interval}
-		p               = parentPath
-		k               = key(b.getKeyForPath(p))
-		startKeyForPath = key(ie.getKeyForPath(rw.getStartPathSlice().getRelevantPathForDepthOf(p)))
-	)
+type kvLoaderFunc func() (kv *mvccpb.KeyValue, err error)
 
-	if k.Cmp(startKeyForPath) == cmpResultLess {
-		return
-	}
+func buildEvent(typ mvccpb.Event_EventType, kvFn, prevKVFn kvLoaderFunc) (ev *mvccpb.Event, err error) {
+	var kv, prevKV *mvccpb.KeyValue
 
-	if done = rw.interval.Check(k) == checkResultOutOfRangeRight; done {
-		relevant = false
-		return
-	}
-
-	if mte == nil {
-		return
-	}
-
-	if mte.EntryType() != git.ObjectTypeTree { // Non-tree entries are only metadata and are not keys.
-		return
-	}
-
-	p = path.Join(parentPath, mte.EntryName())
-	k = key(b.getKeyForPath(p))
-	startKeyForPath = key(ie.getKeyForPath(rw.getStartPathSlice().getRelevantPathForDepthOf(p)))
-
-	if k.Cmp(startKeyForPath) == cmpResultLess {
-		return
-	}
-
-	done = rw.interval.Check(k) == checkResultOutOfRangeRight
-	relevant = !done
-	return
-}
-
-func (rw *revisionWatcher) forEachRelevantEntryInMetadata(ctx context.Context, parentPath string, mt git.Tree, fn git.TreeEntryReceiverFunc) (err error) {
-	var relevant bool
-
-	if relevant, _ = rw.checkMetadataEntryRelevance(parentPath, nil); !relevant {
-		return
-	}
-
-	err = mt.ForEachEntry(ctx, func(ctx context.Context, mte git.TreeEntry) (done bool, err error) {
-		if relevant, done = rw.checkMetadataEntryRelevance(parentPath, mte); !relevant || done {
+	if kvFn != nil {
+		if kv, err = kvFn(); err != nil {
 			return
 		}
+	}
 
-		done, err = fn(ctx, mte)
-		return
-	})
+	if prevKVFn != nil {
+		if prevKV, err = prevKVFn(); err != nil {
+			return
+		}
+	}
 
+	ev = &mvccpb.Event{Type: typ, Kv: kv, PrevKv: prevKV}
 	return
 }
 
-func (rw *revisionWatcher) loaderOfEventsForRelevantMetadataEntry(
-	parentPath string,
-	ndt, odt git.Tree,
-	metaTreeEntriesFn func(ctx context.Context, mte git.TreeEntry) (nmte, omte git.TreeEntry, err error),
-) git.TreeEntryReceiverFunc {
-	var b = rw.backend
-
-	return func(ctx context.Context, mte git.TreeEntry) (done bool, err error) {
+func (b *backend) getKeyValueLoader(ctx context.Context, k string, metaRoot, dataRoot git.Tree) kvLoaderFunc {
+	return func() (kv *mvccpb.KeyValue, err error) {
 		var (
-			entryName              = mte.EntryName()
-			nmte, omte, ndte, odte git.TreeEntry
-			ndteType, odteType     git.ObjectType
-			ignorableErr           error
-			nmt, omt               git.Tree
-			p                      string
+			p = b.getPathForKey(k)
+			v []byte
 		)
 
-		if nmte, omte, ignorableErr = metaTreeEntriesFn(ctx, mte); ignorableErr != nil {
+		if v, err = b.getContent(ctx, dataRoot, p); err != nil {
 			return
 		}
 
-		for _, s := range []struct {
-			check     bool
-			fn        func(context.Context, string) (git.TreeEntry, error)
-			tePtr     *git.TreeEntry
-			teTypePtr *git.ObjectType
-		}{
-			{check: ndt != nil, tePtr: &ndte, fn: ndt.GetEntryByPath},
-			{check: odt != nil, tePtr: &odte, fn: odt.GetEntryByPath},
-		} {
-			if s.check {
-				var ignorableErr error
-				if *s.tePtr, ignorableErr = s.fn(ctx, entryName); ignorableErr != nil {
-					continue
-				}
-
-				if s.teTypePtr != nil {
-					*s.teTypePtr = (*s.tePtr).EntryType()
-				}
-			}
-		}
-
-		for _, s := range []struct {
-			mte   git.TreeEntry
-			mtPtr *git.Tree
-		}{
-			{mte: nmte, mtPtr: &nmt},
-			{mte: omte, mtPtr: &omt},
-		} {
-			if s.mte != nil && s.mte.EntryType() == git.ObjectTypeTree {
-				if *s.mtPtr, err = b.repo.ObjectGetter().GetTree(ctx, s.mte.EntryID()); err != nil {
-					return
-				}
-
-				defer (*s.mtPtr).Close()
-			}
-		}
-
-		p = path.Join(parentPath, entryName)
-
-		// load blob key events
-		for _, s := range []struct {
-			check     bool
-			eventType mvccpb.Event_EventType
-			dte, odte git.TreeEntry
-			mt, omt   git.Tree
-			quit      bool
-		}{
-			{
-				check:     (ndte == nil || ndteType == git.ObjectTypeTree) && odte != nil && odteType == git.ObjectTypeBlob,
-				eventType: mvccpb.DELETE,
-				dte:       odte,
-				mt:        omt,
-				quit:      ndte == nil,
-			},
-			{
-				check:     (odte == nil || odteType == git.ObjectTypeTree) && ndte != nil && ndteType == git.ObjectTypeBlob,
-				eventType: mvccpb.PUT,
-				dte:       ndte,
-				mt:        nmt,
-				quit:      odte == nil,
-			},
-			{
-				check:     ndte != nil && ndteType == git.ObjectTypeBlob && odte != nil && odteType == git.ObjectTypeBlob,
-				eventType: mvccpb.PUT,
-				dte:       ndte,
-				odte:      odte,
-				mt:        nmt,
-				omt:       omt,
-				quit:      true,
-			},
-		} {
-			if !s.check {
-				continue
-			}
-
-			var (
-				k     = key(b.getKeyForPath(p))
-				ev    *mvccpb.Event
-				v, ov []byte
-			)
-
-			switch rw.interval.Check(k) {
-			case checkResultOutOfRangeRight:
-				done = true
-				fallthrough
-			case checkResultOutOfRangeLeft:
-				return
-			}
-
-			if s.mt == nil {
-				return // Skip if there is no metadata.
-			}
-
-			ev = &mvccpb.Event{Type: s.eventType}
-
-			for _, s := range []struct {
-				dte  git.TreeEntry
-				vPtr *[]byte
-			}{
-				{dte: s.dte, vPtr: &v},
-				{dte: s.odte, vPtr: &ov},
-			} {
-				if s.dte != nil {
-					if *s.vPtr, err = b.getContentForTreeEntry(ctx, s.dte); err != nil {
-						return
-					}
-				}
-			}
-
-			for _, s := range []struct {
-				mt     git.Tree
-				v      []byte
-				kvPPtr **mvccpb.KeyValue
-			}{
-				{mt: s.mt, v: v, kvPPtr: &ev.Kv},
-				{mt: s.omt, v: ov, kvPPtr: &ev.PrevKv},
-			} {
-				if s.mt != nil {
-					if *s.kvPPtr, err = b.loadKeyValue(ctx, s.mt, k, s.v); err != nil {
-						return
-					}
-				}
-			}
-
-			rw.events = append(rw.events, ev)
-
-			if s.quit {
-				return
-			}
-		}
-
-		for _, s := range []struct {
-			check      bool
-			ndte, odte git.TreeEntry
-			nmt, omt   git.Tree
-		}{
-			{ // DELETE
-				check: (ndte == nil || ndteType == git.ObjectTypeBlob) && odte != nil && odteType == git.ObjectTypeTree,
-				odte:  odte,
-				omt:   omt,
-			},
-			{ // PUT
-				check: (odte == nil || odteType == git.ObjectTypeBlob) && ndte != nil && ndteType == git.ObjectTypeTree,
-				ndte:  ndte,
-				nmt:   nmt,
-			},
-			{ // PUT and/or DELETE
-				check: ndte != nil && ndteType == git.ObjectTypeTree && odte != nil && odteType == git.ObjectTypeTree,
-				ndte:  ndte,
-				odte:  odte,
-				nmt:   nmt,
-				omt:   omt,
-			},
-		} {
-			if !s.check {
-				continue
-			}
-
-			var ndt, odt git.Tree
-
-			for _, s := range []struct {
-				dte   git.TreeEntry
-				dtPtr *git.Tree
-			}{
-				{dte: s.ndte, dtPtr: &ndt},
-				{dte: s.odte, dtPtr: &odt},
-			} {
-				if s.dte != nil {
-					if *s.dtPtr, err = b.repo.ObjectGetter().GetTree(ctx, s.dte.EntryID()); err != nil {
-						return
-					}
-
-					defer (*s.dtPtr).Close()
-				}
-			}
-
-			err = rw.loadEvents(ctx, p, s.nmt, ndt, s.omt, odt)
+		if kv, err = b.getMetadataFor(ctx, metaRoot, k); err != nil {
 			return
 		}
 
+		kv.Value = v
 		return
 	}
-}
-
-func mergeSortedUniqueEntryNames(a, b []string) (c []string) {
-	var ai, bi int
-
-	if len(a) <= 0 {
-		return b
-	}
-
-	if len(b) <= 0 {
-		return a
-	}
-
-	for ai, bi = 0, 0; ai < len(a) && bi < len(b); {
-		var aName, bName = a[ai], b[bi]
-
-		switch key(aName).Cmp(key(bName)) {
-		case cmpResultLess:
-			c = append(c, aName)
-			ai++
-		case cmpResultEqual:
-			c = append(c, aName)
-			ai++
-			bi++
-		default:
-			c = append(c, bName)
-			bi++
-		}
-	}
-
-	for _, s := range []struct {
-		i int
-		s []string
-	}{
-		{i: ai, s: a},
-		{i: bi, s: b},
-	} {
-		if s.i >= len(s.s) {
-			continue
-		}
-
-		if c[len(c)-1] == s.s[s.i] {
-			s.i++ // Skip an entry in s.s if the same is already present in c.
-		}
-
-		c = append(c, s.s[s.i:]...)
-	}
-
-	return
 }
 
 func (rw *revisionWatcher) loadEvents(
@@ -633,101 +348,56 @@ func (rw *revisionWatcher) loadEvents(
 	nmt, ndt, omt, odt git.Tree,
 ) (err error) {
 	var (
-		nNames, oNames, allNames []string
-		nEntries, oEntries       map[string]git.TreeEntry
+		b    = rw.backend
+		diff git.Diff
 	)
 
 	if nmt == nil && omt == nil {
 		return
 	}
 
-	for _, s := range []struct {
-		check             bool
-		mt                git.Tree
-		metaTreeEntriesFn func(ctx context.Context, mte git.TreeEntry) (nmte, omte git.TreeEntry, err error)
-	}{
-		{ // DELETE
-			check:             nmt == nil && omt != nil,
-			mt:                omt,
-			metaTreeEntriesFn: func(ctx context.Context, mte git.TreeEntry) (nmte, omte git.TreeEntry, err error) { omte = mte; return },
-		},
-		{ // PUT
-			check:             omt == nil && nmt != nil,
-			mt:                nmt,
-			metaTreeEntriesFn: func(ctx context.Context, mte git.TreeEntry) (nmte, omte git.TreeEntry, err error) { nmte = mte; return },
-		},
-	} {
-		if !s.check {
-			continue
-		}
-
-		err = rw.forEachRelevantEntryInMetadata(
-			ctx,
-			parentPath,
-			s.mt,
-			rw.loaderOfEventsForRelevantMetadataEntry(
-				parentPath,
-				ndt, odt,
-				s.metaTreeEntriesFn,
-			),
-		)
+	if diff, err = b.repo.TreeDiff(ctx, omt, nmt); err != nil {
 		return
 	}
 
-	nEntries, oEntries = make(map[string]git.TreeEntry), make(map[string]git.TreeEntry)
+	defer diff.Close()
 
-	for _, s := range []struct {
-		m        git.Tree
-		pnames   *[]string
-		pentries *map[string]git.TreeEntry
-	}{
-		{m: nmt, pnames: &nNames, pentries: &nEntries},
-		{m: omt, pnames: &oNames, pentries: &oEntries},
-	} {
-		if err = rw.forEachRelevantEntryInMetadata(ctx, parentPath, s.m, func(ctx context.Context, mte git.TreeEntry) (done bool, err error) {
-			var entryName = mte.EntryName()
+	err = diff.ForEachDiffChange(ctx, func(ctx context.Context, change git.DiffChange) (done bool, err error) {
+		var (
+			p  = change.Path()
+			k  string
+			ev *mvccpb.Event
+		)
 
-			*s.pnames = append(*s.pnames, entryName)
-			(*s.pentries)[entryName] = mte
-			return
-		}); err != nil {
-			return
-		}
-	}
-
-	allNames = mergeSortedUniqueEntryNames(nNames, oNames)
-
-	for _, entryName := range allNames {
-		var nmte, omte = nEntries[entryName], oEntries[entryName]
-
-		if nmte == nil && omte == nil {
-			continue
+		if path.Base(p) != etcdserverpb.Compare_MOD.String() {
+			return // ModRevision always changes for all events. So, we can ignore other changes in metadata.
 		}
 
-		for _, s := range []struct {
-			check bool
-			mte   git.TreeEntry
-		}{
-			{check: nmte == nil && omte != nil, mte: omte}, // DELETE
-			{check: omte == nil && nmte != nil, mte: nmte}, // PUT
-			{ // PUT and/or DELETE
-				check: nmte != nil && omte != nil && !reflect.DeepEqual(nmte.EntryID(), omte.EntryID()),
-				mte:   nmte,
-			},
-		} {
-			if s.check {
-				_, err = rw.loaderOfEventsForRelevantMetadataEntry(
-					parentPath,
-					ndt, odt,
-					func(ctx context.Context, mte git.TreeEntry) (nmter, omter git.TreeEntry, err error) {
-						nmter, omter = nmte, omte
-						return
-					},
-				)(ctx, s.mte)
-				return
+		p = path.Dir(p) // Discard the trailing ModRevision key.
+		k = b.getKeyForPath(p)
+
+		defer func() {
+			if ev != nil && err == nil {
+				rw.events = append(rw.events, ev)
 			}
+		}()
+
+		switch change.Type() {
+		case git.DiffChangeTypeAdded:
+			ev, err = buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), nil)
+		case git.DiffChangeTypeDeleted:
+			ev, err = buildEvent(mvccpb.PUT, nil, b.getKeyValueLoader(ctx, k, omt, odt))
+		default:
+			ev, err = buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), b.getKeyValueLoader(ctx, k, omt, odt))
 		}
-	}
+
+		if err != nil {
+			return
+		}
+
+		rw.events = append(rw.events, ev)
+		return
+	})
 
 	return
 }
@@ -793,10 +463,16 @@ func (wm *watchManager) enqueue(rw ...*revisionWatcher) {
 	wm.Lock()
 	defer wm.Unlock()
 
+	wm.log.V(-1).Info("Enqueuing", "queue", rw)
+	defer func() { wm.log.V(-1).Info("Enqueued", "queue", wm.queue) }()
+
 	wm.queue = append(wm.queue, rw...)
 }
 
 func (wm *watchManager) groupQueue(q []*revisionWatcher) (groupedQ []*revisionWatcher) {
+	wm.log.V(-1).Info("Grouping queue", "queue", q)
+	defer func() { wm.log.V(-1).Info("Grouped queue", "queue", groupedQ) }()
+
 	if q == nil {
 		return
 	}
@@ -847,6 +523,9 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 	defer close(ch)
 	defer cancelFn()
 
+	wm.log.V(-1).Info("dispatching queue", "queue", q)
+	defer func() { wm.log.V(-1).Info("dispatched queue", "next queue", nextQ, "error", err) }()
+
 	q = wm.groupQueue(q)
 
 	for _, rw := range q {
@@ -883,7 +562,7 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 	return
 }
 
-func (wm *watchManager) Run(ctx context.Context) error {
+func (wm *watchManager) Run(ctx context.Context) (err error) {
 	func() {
 		wm.Lock()
 		defer wm.Unlock()
@@ -896,13 +575,23 @@ func (wm *watchManager) Run(ctx context.Context) error {
 		ctx = wm.ctx
 	}()
 
+	defer func() {
+		if wm.cancelFn != nil {
+			wm.cancelFn()
+			wm.ctx, wm.cancelFn = nil, nil
+		}
+	}()
+
+	wm.log.V(-1).Info("Running")
+	defer func() { wm.log.V(-1).Info("Stopping", "error", err) }()
+
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case _, ok := <-wm.ticker:
 			if !ok {
-				return nil
+				return
 			}
 
 			var q []*revisionWatcher
@@ -939,12 +628,17 @@ func (wm *watchManager) Watch(stream etcdserverpb.Watch_WatchServer) (err error)
 
 	defer cancelFn()
 
-	for err != nil {
+	wm.log.V(-1).Info("Watching")
+	defer func() { wm.log.V(-1).Info("Stopping watch", "error", err) }()
+
+	for err == nil {
 		var req *etcdserverpb.WatchRequest
 
 		if req, err = stream.Recv(); err != nil {
 			break
 		}
+
+		wm.log.V(-1).Info("Received", "request", req)
 
 		switch {
 		case req.GetCreateRequest() != nil:
@@ -984,6 +678,10 @@ func (ws *watchServer) registerWatch(ctx context.Context, req *etcdserverpb.Watc
 	}
 
 	wi.ctx, wi.cancelFn = context.WithCancel(ctx)
+
+	if ws.watches == nil {
+		ws.watches = make(map[int64]watch)
+	}
 
 	ws.watches[req.WatchId] = wi
 
@@ -1055,8 +753,8 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 		header *etcdserverpb.ResponseHeader
 	)
 
-	log.V(-1).Info("received", "request", req)
-	defer log.V(-1).Info("returned", "error", err)
+	log.V(-1).Info("accepting", "request", req)
+	defer func() { log.V(-1).Info("returned", "error", err) }()
 
 	defer func() {
 		if err != nil {
@@ -1108,8 +806,8 @@ func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) (
 		log = ws.mgr.log.WithName("cancel")
 	)
 
-	log.V(-1).Info("received", "watchId", watchID, "cause", cause)
-	defer log.V(-1).Info("returned", "error", err)
+	log.V(-1).Info("cancelling", "watchId", watchID, "cause", cause)
+	defer func() { log.V(-1).Info("returned", "error", err) }()
 
 	func() {
 		ws.Mutex.Lock()
