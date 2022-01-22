@@ -73,3 +73,15 @@ start-k8s-certmanager:
 
 stop-k8s-certmanager:
 	hack/kubernetes/certmanager/stop.sh
+
+start-k8s-gitcd:
+	kustomize build hack/kubernetes/gitcd/base | kubectl apply -f -
+
+stop-k8s-gitcd:
+	kustomize build hack/kubernetes/gitcd/base | kubectl delete -f -
+
+start-k8s-gitcd-tls-certmanager:
+	kustomize build hack/kubernetes/gitcd/tls/certmanager | kubectl apply -f -
+
+stop-k8s-gitcd-tls-certmanager:
+	kustomize build hack/kubernetes/gitcd/tls/certmanager | kubectl delete -f -
