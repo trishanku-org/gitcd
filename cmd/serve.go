@@ -17,8 +17,11 @@ package cmd
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -254,13 +257,42 @@ func (c noErrorCloser) Close() error {
 	return nil
 }
 
+type serveFunc func(net.Listener) error
+
+func serveTLS(srv *http.Server, certFile, keyFile string) serveFunc {
+	return func(l net.Listener) error {
+		return srv.ServeTLS(l, certFile, keyFile)
+	}
+}
+
+func loadTrustedCACerts(cacertsFile string) (cp *x509.CertPool, err error) {
+	var b []byte
+
+	if b, err = ioutil.ReadFile(cacertsFile); err != nil {
+		return
+	}
+
+	if cp, err = x509.SystemCertPool(); err != nil {
+		return
+	}
+
+	if !cp.AppendCertsFromPEM(b) {
+		err = fmt.Errorf("error loading CA certificates from %q", cacertsFile)
+	}
+
+	return
+}
 func startServers(sis []*serverInfo, ctx context.Context, grpcServers map[git.ReferenceName]*grpc.Server, log logr.Logger) (cs []io.Closer, err error) {
+	var certPool *x509.CertPool
+
 	for _, si := range sis {
 		var (
-			u       = si.listenURL
-			l       net.Listener
-			grpcSrv = grpcServers[si.dataRefName]
-			tls     = strings.HasSuffix(u.Scheme, "s")
+			u          = si.listenURL
+			log        = log.WithValues("dataRefName", si.dataRefName, "url", u.String())
+			l          net.Listener
+			grpcSrv    = grpcServers[si.dataRefName]
+			tlsEnabled = strings.HasSuffix(u.Scheme, "s")
+			serveFn    = grpcSrv.Serve
 		)
 
 		if grpcSrv == nil {
@@ -281,20 +313,35 @@ func startServers(sis []*serverInfo, ctx context.Context, grpcServers map[git.Re
 			return
 		}
 
+		if tlsEnabled {
+			var hsrv = &http.Server{
+				Handler: grpcSrv,
+			}
+
+			if certPool == nil {
+				if certPool, err = loadTrustedCACerts(serveFlags.tlsTrustedCACertFile); err != nil {
+					return
+				}
+			}
+
+			hsrv.TLSConfig = &tls.Config{
+				ClientCAs: certPool,
+			}
+
+			cs = append(cs, hsrv)
+			serveFn = serveTLS(hsrv, serveFlags.tlsCertFile, serveFlags.tlsKeyFile)
+		}
+
 		cs = append(cs, l)
 
-		go func(l net.Listener, srv *grpc.Server, log logr.Logger) {
+		go func(l net.Listener, serveFn serveFunc, log logr.Logger) {
 			var err error
 
 			log.Info("Serving")
+			err = serveFn(l)
 			defer func() { log.Error(err, "Stopped.") }()
 
-			if tls {
-				err = http.ServeTLS(l, srv, serveFlags.serverCertFile, serveFlags.serverKeyFile)
-			} else {
-				err = srv.Serve(l)
-			}
-		}(l, grpcSrv, log.WithValues("dataRefName", si.dataRefName, "url", u.String()))
+		}(l, serveFn, log)
 	}
 
 	return
@@ -460,8 +507,9 @@ var serveFlags = struct {
 	listenURL             map[string]string
 	clientURLs            map[string]string
 	watchTickerDuration   time.Duration
-	serverCertFile        string
-	serverKeyFile         string
+	tlsCertFile           string
+	tlsKeyFile            string
+	tlsTrustedCACertFile  string
 }{
 	keyPrefix:    map[string]string{},
 	dataRefNames: map[string]string{},
@@ -541,15 +589,21 @@ The full metadata Git referene name will be the path concatenation of the prefix
 	)
 
 	serveCmd.Flags().StringVar(
-		&serveFlags.serverCertFile,
-		"server-cert-file",
+		&serveFlags.tlsCertFile,
+		"tls-cert",
 		"",
-		"Path to the server certificate file to serve TLS.",
+		"Path to the certificate file to serve TLS.",
 	)
 	serveCmd.Flags().StringVar(
-		&serveFlags.serverKeyFile,
-		"server-key-file",
+		&serveFlags.tlsKeyFile,
+		"tls-key",
 		"",
-		"Path to the server private key file to serve TLS.",
+		"Path to the private key file to serve TLS.",
+	)
+	serveCmd.Flags().StringVar(
+		&serveFlags.tlsTrustedCACertFile,
+		"tls-trusted-ca-certs",
+		"",
+		"Path to the CA certificates file to use to validate client certificates while serving TLS.",
 	)
 }

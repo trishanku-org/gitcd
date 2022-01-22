@@ -1,6 +1,7 @@
 IMAGE_TAG ?= trishanku/gitcd:latest
 BINDIR ?= ./bin
 BACKEND_VERSION = `cat VERSION`
+TEMP_CERT_DOCKER_VOL_NAME ?= gitcd-certs
 DOCKER_RUN_OPTS ?= -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd
 
 ensure-bin-dir:
@@ -8,6 +9,7 @@ ensure-bin-dir:
 
 cleanup:
 	rm -rf "${BINDIR}"
+	docker volume rm "${TEMP_CERTS_DOCKER_VOL_NAME}"
 
 install-requirements:
 	go install -mod vendor \
@@ -51,8 +53,23 @@ temp-cert: ensure-bin-dir
 		-config hack/temp-cert.conf \
 		-out "${BINDIR}/server.crt" -keyout "${BINDIR}/server.key" \
 
+temp-cert-docker-volume: temp-cert
+	hack/temp-cert-docker-volume.sh "${TEMP_CERT_DOCKER_VOL_NAME}" "${BINDIR}"
+
 docker-build:
 	docker build -t "${IMAGE_TAG}" .
 
 docker-run:
 	docker run ${DOCKER_RUN_OPTS} "${IMAGE_TAG}" ${RUN_ARGS}
+
+start-docker-registry: docker-build
+	hack/registry/start.sh
+
+stop-docker-registry:
+	hack/registry/stop.sh
+
+start-k8s-certmanager:
+	hack/kubernetes/certmanager/start.sh
+
+stop-k8s-certmanager:
+	hack/kubernetes/certmanager/stop.sh

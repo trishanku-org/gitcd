@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gitcd
+spec:
+  serviceName: gitcd
+  template:
+    spec:
+      containers:
+      - name: gitcd
+        args:
+        - serve
+        - --listen-urls=default=https://0.0.0.0:2379/
+        - --advertise-client-urls=default=https://gitcd:2379/
+        - --tls-cert=/tls/tls.crt
+        - --tls-key=/tls/tls.key
+        - --tls-trusted-ca-certs=/tls/ca.crt
+        volumeMounts:
+        - name: tls
+          mountPath: /tls
+      volumes:
+      - name: tls
+        secret:
+          defaultMode: 420
+          secretName: gitcd

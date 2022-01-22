@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gitcd
+spec:
+  serviceName: gitcd
+  template:
+    spec:
+      initContainers:
+      - name: init
+        image: localhost:6000/trishanku/gitcd
+        imagePullPolicy: Always
+        args:
+        - init
+        volumeMounts:
+        - name: repo
+          mountPath: /tmp/trishanku/gitcd
+      containers:
+      - name: gitcd
+        image: localhost:6000/trishanku/gitcd
+        imagePullPolicy: Always
+        args:
+        - serve
+        - --advertise-client-urls=default=http://gitcd:2379/
+        volumeMounts:
+        - name: repo
+          mountPath: /tmp/trishanku/gitcd
+      volumes:
+      - name: repo
+        emptyDir: {}
+
+    
