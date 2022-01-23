@@ -29,7 +29,7 @@ func (l *leaseImpl) LeaseGrant(ctx context.Context, req *etcdserverpb.LeaseGrant
 	var log = l.backend.log.WithName("LeaseGrant")
 
 	log.V(-1).Info("received", "request", req)
-	defer log.V(-1).Info("returned", "response", res, "error", err)
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
 
 	res = &etcdserverpb.LeaseGrantResponse{
 		Header: l.backend.newResponseHeader(ctx),

@@ -738,7 +738,9 @@ func (ws *watchServer) checkRevisionValid(ctx context.Context, revision int64) (
 
 	defer metaHead.Close()
 
-	metaP, err = ws.mgr.backend.getMetadataPeelableForRevision(ctx, metaHead, revision)
+	if metaP, err = ws.mgr.backend.getMetadataPeelableForRevision(ctx, metaHead, revision); err != nil {
+		return
+	}
 
 	metaP.Close()
 
@@ -771,7 +773,7 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 		return
 	}
 
-	if err = ws.checkRevisionValid(ctx, req.StartRevision); err != nil {
+	if err = ws.checkRevisionValid(ctx, req.StartRevision); err != nil && !errors.Is(err, rpctypes.ErrGRPCFutureRev) {
 		return
 	}
 

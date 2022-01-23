@@ -7,7 +7,30 @@ spec:
   template:
     spec:
       initContainers:
-      - name: init
+      - name: git-init
+        image: bitnami/git:2
+        imagePullPolicy: IfNotPresent
+        command:
+        - git
+        - init
+        - --initial-branch=main
+        workingDir: /tmp/trishanku/gitcd
+        volumeMounts:
+        - name: repo
+          mountPath: /tmp/trishanku/gitcd
+      - name: git-commit
+        image: bitnami/git:2
+        imagePullPolicy: IfNotPresent
+        command:
+        - git
+        - commit
+        - --message=Init
+        - --allow-empty
+        workingDir: /tmp/trishanku/gitcd
+        volumeMounts:
+        - name: repo
+          mountPath: /tmp/trishanku/gitcd
+      - name: gitcd-init
         image: localhost:6000/trishanku/gitcd
         imagePullPolicy: Always
         args:
@@ -22,6 +45,7 @@ spec:
         args:
         - serve
         - --advertise-client-urls=default=http://gitcd:2379/
+        - --debug
         volumeMounts:
         - name: repo
           mountPath: /tmp/trishanku/gitcd

@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-apiserver
+spec:
+  dnsNames:
+  - $(APISERVER_SERVICE_NAME)
+  - $(APISERVER_SERVICE_NAME).$(APISERVER_SERVICE_NAMESPACE).svc
+  - $(APISERVER_SERVICE_NAME).$(APISERVER_SERVICE_NAMESPACE).svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: kube-apiserver
+  secretName: kube-apiserver

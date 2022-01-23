@@ -6,28 +6,28 @@ bases:
 namespace: trishanku
 commonLabels:
   app: trishanku
-  component: gitcd
+  component: kube-apiserver
 
 resources:
 - certificate.yaml
 - issuer.yaml
 
 patchesStrategicMerge:
-- statefulset_patch.yaml
+- deployment_patch.yaml
 
 configurations:
 - kustomizeconfig.yaml
 
 vars:
-- name: GITCD_SERVICE_NAMESPACE
+- name: APISERVER_SERVICE_NAMESPACE
   objref:
     kind: Service
     version: v1
-    name: gitcd
+    name: kube-apiserver
   fieldref:
     fieldpath: metadata.namespace
-- name: GITCD_SERVICE_NAME
+- name: APISERVER_SERVICE_NAME
   objref:
     kind: Service
     version: v1
-    name: gitcd
+    name: kube-apiserver

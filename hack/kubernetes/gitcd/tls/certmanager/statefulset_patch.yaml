@@ -3,7 +3,6 @@ kind: StatefulSet
 metadata:
   name: gitcd
 spec:
-  serviceName: gitcd
   template:
     spec:
       containers:
@@ -15,6 +14,7 @@ spec:
         - --tls-cert=/tls/tls.crt
         - --tls-key=/tls/tls.key
         - --tls-trusted-ca-certs=/tls/ca.crt
+        - --debug
         volumeMounts:
         - name: tls
           mountPath: /tls

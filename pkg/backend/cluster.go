@@ -37,7 +37,7 @@ func (c *clusterImpl) MemberList(ctx context.Context, req *etcdserverpb.MemberLi
 	)
 
 	log.V(-1).Info("received", "request", req)
-	defer log.V(-1).Info("returned", "response", res, "error", err)
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
 
 	res = &etcdserverpb.MemberListResponse{
 		Header: h,

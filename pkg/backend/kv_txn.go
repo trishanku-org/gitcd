@@ -101,10 +101,8 @@ func (b *backend) checkTxnCompare(ctx context.Context, metaRoot, dataRoot git.Tr
 		var (
 			receiverFn intervalExplorerReceiverFunc
 			filterFns  []intervalExplorerFilterFunc
-			cmp, found = true, false
+			cmp        = true
 		)
-
-		cmp = true
 
 		if c.GetTarget() == etcdserverpb.Compare_VALUE {
 			var target = c.GetValue()
@@ -121,8 +119,6 @@ func (b *backend) checkTxnCompare(ctx context.Context, metaRoot, dataRoot git.Tr
 				if value, err = b.getContentForTreeEntry(ctx, te); err != nil {
 					return
 				}
-
-				found = true
 
 				if cmp, err = checkCompareResult(c, key(value).Cmp(key(target))); err != nil {
 					return
@@ -157,8 +153,6 @@ func (b *backend) checkTxnCompare(ctx context.Context, metaRoot, dataRoot git.Tr
 					return
 				}
 
-				found = true
-
 				if cmp, err = checkCompareResult(c, int64Cmp(value).Cmp(target)); err != nil {
 					return
 				}
@@ -176,7 +170,7 @@ func (b *backend) checkTxnCompare(ctx context.Context, metaRoot, dataRoot git.Tr
 			return
 		}
 
-		if cmp = found; !cmp {
+		if !cmp {
 			return
 		}
 	}
@@ -404,7 +398,7 @@ func (b *backend) Txn(ctx context.Context, req *etcdserverpb.TxnRequest) (res *e
 	)
 
 	log.V(-1).Info("received", "request", req)
-	defer log.V(-1).Info("returned", "response", res, "error", err)
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
 
 	if metaRef, err = b.getMetadataReference(ctx); err == nil {
 		defer metaRef.Close()

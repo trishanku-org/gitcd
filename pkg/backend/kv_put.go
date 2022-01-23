@@ -287,7 +287,7 @@ func (b *backend) Put(ctx context.Context, req *etcdserverpb.PutRequest) (res *e
 	)
 
 	log.V(-1).Info("received", "request", req)
-	defer log.V(-1).Info("returned", "response", res, "error", err)
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
 		return

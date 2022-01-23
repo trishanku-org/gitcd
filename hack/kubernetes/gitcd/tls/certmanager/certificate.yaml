@@ -4,9 +4,9 @@ metadata:
   name: gitcd
 spec:
   dnsNames:
-  - $(SERVICE_NAME)
-  - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc
-  - $(SERVICE_NAME).$(SERVICE_NAMESPACE).svc.cluster.local
+  - $(GITCD_SERVICE_NAME)
+  - $(GITCD_SERVICE_NAME).$(GITCD_SERVICE_NAMESPACE).svc
+  - $(GITCD_SERVICE_NAME).$(GITCD_SERVICE_NAMESPACE).svc.cluster.local
   issuerRef:
     kind: Issuer
     name: gitcd

@@ -131,7 +131,7 @@ func (b *backend) Range(ctx context.Context, req *etcdserverpb.RangeRequest) (re
 	)
 
 	log.V(-1).Info("received", "request", req)
-	defer log.V(-1).Info("returned", "response", res, "error", err)
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil {
 		return
@@ -145,5 +145,13 @@ func (b *backend) Range(ctx context.Context, req *etcdserverpb.RangeRequest) (re
 
 	defer metaHead.Close()
 
-	return b.doRange(ctx, metaHead, req)
+	if res, err = b.doRange(ctx, metaHead, req); err != nil {
+		return
+	}
+
+	if res == nil {
+		res = &etcdserverpb.RangeResponse{Header: b.newResponseHeader(ctx)}
+	}
+
+	return
 }

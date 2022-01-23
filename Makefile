@@ -65,7 +65,7 @@ docker-run:
 start-docker-registry: docker-build
 	hack/registry/start.sh
 
-stop-docker-registry:
+stop-docker-registry: 
 	hack/registry/stop.sh
 
 start-k8s-certmanager:
@@ -85,3 +85,17 @@ start-k8s-gitcd-tls-certmanager:
 
 stop-k8s-gitcd-tls-certmanager:
 	kustomize build hack/kubernetes/gitcd/tls/certmanager | kubectl delete -f -
+
+start-k8s-kube-apiserver:
+	kustomize build hack/kubernetes/kube-apiserver/base | kubectl apply -f -
+
+stop-k8s-kube-apiserver:
+	kustomize build hack/kubernetes/kube-apiserver/base | kubectl delete -f -
+
+start-k8s-kube-apiserver-tls-certmanager:
+	kustomize build hack/kubernetes/kube-apiserver/tls/certmanager | kubectl apply -f -
+
+stop-k8s-kube-apiserver-tls-certmanager:
+	kustomize build hack/kubernetes/kube-apiserver/tls/certmanager | kubectl delete -f -
+
+stop-all: stop-k8s-kube-apiserver-tls-certmanager stop-k8s-gitcd-tls-certmanager stop-docker-registry

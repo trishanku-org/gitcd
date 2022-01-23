@@ -10,7 +10,7 @@ func (b *backend) Compact(ctx context.Context, req *etcdserverpb.CompactionReque
 	var log = b.log.WithName("Compact")
 
 	log.V(-1).Info("received", "request", req)
-	defer log.V(-1).Info("returned", "response", res, "error", err)
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
 
 	res = &etcdserverpb.CompactionResponse{
 		Header: b.newResponseHeader(ctx),

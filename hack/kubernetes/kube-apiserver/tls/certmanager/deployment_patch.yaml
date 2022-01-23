@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-apiserver
+spec:
+  template:
+    spec:
+      containers:
+      - name: kube-apiserver
+        command:
+        - kube-apiserver
+        - --client-ca-file=/tls/kube-apiserver/ca.crt
+        - --etcd-cafile=/tls/gitcd/ca.crt
+        - --etcd-certfile=/tls/gitcd/tls.crt
+        - --etcd-compaction-interval=0
+        - --etcd-keyfile=/tls/gitcd/tls.key
+        - --etcd-servers=https://gitcd:2379
+        - --secure-port=6443
+        - --service-account-issuer=https://kube-apiserver/
+        - --service-account-key-file=/tls/kube-apiserver/tls.key
+        - --service-account-signing-key-file=/tls/kube-apiserver/tls.key
+        - --storage-media-type=application/yaml
+        - --tls-cert-file=/tls/kube-apiserver/tls.crt
+        - --tls-private-key-file=/tls/kube-apiserver/tls.key
+        - --watch-cache=false
+        volumeMounts:
+        - name: tls-kube-apiserver
+          mountPath: /tls/kube-apiserver
+        - name: tls-gitcd
+          mountPath: /tls/gitcd
+      volumes:
+      - name: tls-kube-apiserver
+        secret:
+          defaultMode: 420
+          secretName: kube-apiserver
+      - name: tls-gitcd
+        secret:
+          defaultMode: 420
+          secretName: gitcd
