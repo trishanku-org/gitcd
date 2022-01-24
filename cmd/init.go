@@ -81,7 +81,7 @@ var initCmd = &cobra.Command{
 				}
 			)
 
-			log.Info("Initializing", "options", opts)
+			log.Info("Initializing", "repoPath", initFlags.repoPath, "options", opts)
 
 			if err = backend.InitMetadata(ctx, opts, log); err != nil {
 				log.Error(err, "Initialization failed")

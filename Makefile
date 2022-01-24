@@ -1,7 +1,6 @@
 IMAGE_TAG ?= trishanku/gitcd:latest
 BINDIR ?= ./bin
 BACKEND_VERSION = `cat VERSION`
-TEMP_CERT_DOCKER_VOL_NAME ?= gitcd-certs
 DOCKER_RUN_OPTS ?= -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd
 
 ensure-bin-dir:
@@ -9,7 +8,6 @@ ensure-bin-dir:
 
 cleanup:
 	rm -rf "${BINDIR}"
-	docker volume rm "${TEMP_CERTS_DOCKER_VOL_NAME}"
 
 install-requirements:
 	go install -mod vendor \
@@ -51,16 +49,22 @@ run: check
 temp-cert: ensure-bin-dir
 	openssl req -newkey rsa:4096 -x509 -sha256 -days 1 -nodes -extensions v3_req \
 		-config hack/temp-cert.conf \
-		-out "${BINDIR}/server.crt" -keyout "${BINDIR}/server.key" \
-
-temp-cert-docker-volume: temp-cert
-	hack/temp-cert-docker-volume.sh "${TEMP_CERT_DOCKER_VOL_NAME}" "${BINDIR}"
+		-out "${BINDIR}/tls.crt" -keyout "${BINDIR}/tls.key" \
 
 docker-build:
 	docker build -t "${IMAGE_TAG}" .
 
 docker-run:
 	docker run ${DOCKER_RUN_OPTS} "${IMAGE_TAG}" ${RUN_ARGS}
+
+start-docker-gitcd-kube-apiserver:
+	hack/kube/start.sh
+
+stop-docker-gitcd-kube-apiserver:
+	hack/kube/stop.sh
+
+cleanup-docker-gitcd-kube-apiserver:
+	hack/kube/cleanup.sh
 
 start-docker-registry: docker-build
 	hack/registry/start.sh
@@ -73,29 +77,3 @@ start-k8s-certmanager:
 
 stop-k8s-certmanager:
 	hack/kubernetes/certmanager/stop.sh
-
-start-k8s-gitcd:
-	kustomize build hack/kubernetes/gitcd/base | kubectl apply -f -
-
-stop-k8s-gitcd:
-	kustomize build hack/kubernetes/gitcd/base | kubectl delete -f -
-
-start-k8s-gitcd-tls-certmanager:
-	kustomize build hack/kubernetes/gitcd/tls/certmanager | kubectl apply -f -
-
-stop-k8s-gitcd-tls-certmanager:
-	kustomize build hack/kubernetes/gitcd/tls/certmanager | kubectl delete -f -
-
-start-k8s-kube-apiserver:
-	kustomize build hack/kubernetes/kube-apiserver/base | kubectl apply -f -
-
-stop-k8s-kube-apiserver:
-	kustomize build hack/kubernetes/kube-apiserver/base | kubectl delete -f -
-
-start-k8s-kube-apiserver-tls-certmanager:
-	kustomize build hack/kubernetes/kube-apiserver/tls/certmanager | kubectl apply -f -
-
-stop-k8s-kube-apiserver-tls-certmanager:
-	kustomize build hack/kubernetes/kube-apiserver/tls/certmanager | kubectl delete -f -
-
-stop-all: stop-k8s-kube-apiserver-tls-certmanager stop-k8s-gitcd-tls-certmanager stop-docker-registry

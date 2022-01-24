@@ -31,7 +31,7 @@ spec:
         - name: repo
           mountPath: /tmp/trishanku/gitcd
       - name: gitcd-init
-        image: localhost:6000/trishanku/gitcd
+        image: localhost:6000/trishanku/gitcd:latest
         imagePullPolicy: Always
         args:
         - init
@@ -40,7 +40,7 @@ spec:
           mountPath: /tmp/trishanku/gitcd
       containers:
       - name: gitcd
-        image: localhost:6000/trishanku/gitcd
+        image: localhost:6000/trishanku/gitcd:latest
         imagePullPolicy: Always
         args:
         - serve
