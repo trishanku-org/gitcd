@@ -15,7 +15,7 @@ Gitcd - Git as a distributed key-value store.
   - [Serve ETCD with the backend repo in a separate volume](#serve-etcd-with-the-backend-repo-in-a-separate-volume)
     - [Consume](#consume-1)
     - [Cleanup](#cleanup-1)
-- [Serve ETCD from an existing Git repo](#serve-etcd-from-an-existing-git-repo)
+  - [Serve ETCD from an existing Git repo](#serve-etcd-from-an-existing-git-repo)
     - [Consume](#consume-2)
     - [Cleanup](#cleanup-2)
   - [Run kube-apiserver with Gitcd as the backend](#run-kube-apiserver-with-gitcd-as-the-backend)
@@ -411,7 +411,7 @@ $ docker volume rm gitcd-backend
 gitcd-backend
 ```
 
-# Serve ETCD from an existing Git repo
+### Serve ETCD from an existing Git repo
 
 ```sh
 # Create a volume to store the backend repo.

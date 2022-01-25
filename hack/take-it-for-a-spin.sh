@@ -171,7 +171,7 @@ echo '$ docker volume rm gitcd-backend'
 docker volume rm gitcd-backend
 echo '```'
 echo
-echo '# Serve ETCD from an existing Git repo'
+echo '### Serve ETCD from an existing Git repo'
 echo
 echo '```sh'
 echo '# Create a volume to store the backend repo.'
