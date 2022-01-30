@@ -16,43 +16,33 @@ function start_gitcd {
 function prepare_certs {
     docker volume create kube-certs
 
-    docker run -i --rm -v kube-certs:/tls -w /tls busybox:1 dd of=tls.conf <<EOF
-[req]
-distinguished_name = req_distinguished_name
-x509_extensions = v3_req
-prompt = no
+    docker run -i --rm -v kube-certs:/tls -w /tls nginx:1 sh <<EOF
+set -x
 
-[req_distinguished_name]
-C = IN
-ST = KA
-L = Bengaluru
-O = Trishanku
-OU = Gitcd
-CN = gitcd
+curl -L https://storage.googleapis.com/kubernetes-release/easy-rsa/easy-rsa.tar.gz | tar -xzv
 
-[v3_req]
-keyUsage = keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
+cd easy-rsa-master/easyrsa3
 
-[alt_names]
-DNS.1 = localhost
-DNS.2 = gitcd
-DNS.3 = gitcd.trishanku
-DNS.4 = gitcd.trishanku.svc
-DNS.5 = kube-apiserver
-DNS.6 = kube-apiserver.trishanku
-DNS.7 = kube-apiserver.trishanku.svc
+./easyrsa init-pki
 
+./easyrsa --batch "--req-cn=ca@trishanku.heaven.com" build-ca nopass
+
+./easyrsa --subject-alt-name="IP:192.168.1.16,\
+DNS:localhost,\
+DNS:kubernetes,\
+DNS:kubernetes.default,\
+DNS:kubernetes.default.svc,\
+DNS:kubernetes.default.svc.cluster,\
+DNS:kubernetes.default.svc.cluster.local" \
+    --days=10000 \
+    build-server-full kubernetes nopass
+
+cd /tls
+ln -s /tls/easy-rsa-master/easyrsa3/pki/ca.crt ca.crt
+ln -s /tls/easy-rsa-master/easyrsa3/pki/issued/kubernetes.crt tls.crt
+ln -s /tls/easy-rsa-master/easyrsa3/pki/private/kubernetes.key tls.key
 EOF
 
-    docker run --rm -v kube-certs:/tls -w /tls --entrypoint openssl nginx:1 req -newkey rsa:4096 -x509 -sha256 -days 365 \
-        -nodes -extensions v3_req \
-		-config tls.conf \
-		-out tls.crt \
-        -keyout tls.key
-
-    docker run --rm -v kube-certs:/tls -w /tls busybox:1 ln -s tls.crt ca.crt
 }
 
 function start_kube_apiserver {
