@@ -60,11 +60,10 @@ var serveCmd = &cobra.Command{
 			sis         []*serverInfo
 			closers     []io.Closer
 			grpcServers map[git.ReferenceName]*grpc.Server
-			watchTicker *time.Ticker
 			err         error
 		)
 
-		log.Info(fmt.Sprintf("Found %#v", serveFlags))
+		log.Info(fmt.Sprintf("Found %#v", serveFlags), "version", backend.Version)
 
 		defer log.Info("Stopped.")
 
@@ -101,14 +100,11 @@ var serveCmd = &cobra.Command{
 			return
 		}
 
-		watchTicker = time.NewTicker(serveFlags.watchTickerDuration)
-		defer watchTicker.Stop()
-
-		if grpcServers, err = registerGRPCServers(sis, ctx, repo, gitImpl.Errors(), watchTicker, log); err != nil {
+		if grpcServers, closers, err = registerGRPCServers(sis, ctx, repo, gitImpl.Errors(), log, closers); err != nil {
 			return
 		}
 
-		if closers, err = startServers(sis, ctx, grpcServers, log); err != nil {
+		if closers, err = startServers(sis, ctx, grpcServers, log, closers); err != nil {
 			return
 		}
 
@@ -192,12 +188,61 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 	return
 }
 
-func registerGRPCServers(sis []*serverInfo, ctx context.Context, repo git.Repository, errs git.Errors, watchTicker *time.Ticker, log logr.Logger) (servers map[git.ReferenceName]*grpc.Server, err error) {
+func newSemiAutomaticTicker(d time.Duration, closers []io.Closer) (sat semiAutomaticTicker, cs []io.Closer) {
+	var ticker = time.NewTicker(d)
+
+	sat = make(semiAutomaticTicker, 1)
+
+	closers = append(closers, funcCloser(sat.Stop), funcCloser(ticker.Stop))
+	cs = closers
+
+	sat.Start(ticker)
+
+	return
+}
+
+type semiAutomaticTicker chan time.Time
+
+func (sat semiAutomaticTicker) Stop() {
+	close(sat)
+}
+
+func (sat semiAutomaticTicker) Start(ticker *time.Ticker) {
+	go func() {
+		for t := range ticker.C {
+			sat <- t
+		}
+	}()
+}
+
+type funcCloser func()
+
+func (fn funcCloser) Close() error {
+	if fn != nil {
+		fn()
+	}
+	return nil
+}
+
+func registerGRPCServers(
+	sis []*serverInfo,
+	ctx context.Context,
+	repo git.Repository,
+	errs git.Errors,
+	log logr.Logger,
+	closers []io.Closer,
+) (
+	servers map[git.ReferenceName]*grpc.Server,
+	cs []io.Closer,
+	err error,
+) {
 	if len(sis) > 0 {
 		servers = make(map[git.ReferenceName]*grpc.Server, len(sis))
 	}
 
 	defer func() {
+		cs = closers
+
 		if err != nil {
 			for _, grpcSrv := range servers {
 				grpcSrv.Stop()
@@ -212,13 +257,16 @@ func registerGRPCServers(sis []*serverInfo, ctx context.Context, repo git.Reposi
 			grpcSrv *grpc.Server
 			kvs     etcdserverpb.KVServer
 			log     = log.WithName(string(si.dataRefName))
+			sat     semiAutomaticTicker
 		)
 
 		if grpcSrv, err = newGRPCServer(); err != nil {
 			return
 		}
 
-		if kvs, err = registerKVServer(si, ctx, repo, errs, git.ReferenceName(serveFlags.metadataRefNamePrefix), log, grpcSrv); err != nil {
+		sat, closers = newSemiAutomaticTicker(serveFlags.watchDispatchTickerDuration, closers)
+
+		if kvs, err = registerKVServer(si, ctx, repo, errs, git.ReferenceName(serveFlags.metadataRefNamePrefix), log, sat, grpcSrv); err != nil {
 			return
 		}
 
@@ -234,7 +282,7 @@ func registerGRPCServers(sis []*serverInfo, ctx context.Context, repo git.Reposi
 			return
 		}
 
-		if err = registerWatchServer(ctx, kvs, watchTicker, log.WithName("watch"), grpcSrv); err != nil {
+		if err = registerWatchServer(ctx, kvs, sat, log.WithName("watch"), grpcSrv); err != nil {
 			return
 		}
 
@@ -282,8 +330,10 @@ func loadTrustedCACerts(cacertsFile string) (cp *x509.CertPool, err error) {
 
 	return
 }
-func startServers(sis []*serverInfo, ctx context.Context, grpcServers map[git.ReferenceName]*grpc.Server, log logr.Logger) (cs []io.Closer, err error) {
+func startServers(sis []*serverInfo, ctx context.Context, grpcServers map[git.ReferenceName]*grpc.Server, log logr.Logger, closers []io.Closer) (cs []io.Closer, err error) {
 	var certPool *x509.CertPool
+
+	defer func() { cs = closers }()
 
 	for _, si := range sis {
 		var (
@@ -328,11 +378,11 @@ func startServers(sis []*serverInfo, ctx context.Context, grpcServers map[git.Re
 				ClientCAs: certPool,
 			}
 
-			cs = append(cs, hsrv)
+			closers = append(closers, hsrv)
 			serveFn = serveTLS(hsrv, serveFlags.tlsCertFile, serveFlags.tlsKeyFile)
 		}
 
-		cs = append(cs, l)
+		closers = append(closers, l)
 
 		go func(l net.Listener, serveFn serveFunc, log logr.Logger) {
 			var err error
@@ -395,7 +445,19 @@ func newGRPCServer() (grpcSrv *grpc.Server, err error) {
 	), nil
 }
 
-func registerKVServer(si *serverInfo, ctx context.Context, repo git.Repository, errs git.Errors, metaRefNamePrefix git.ReferenceName, log logr.Logger, grpcSrv *grpc.Server) (kvs etcdserverpb.KVServer, err error) {
+func registerKVServer(
+	si *serverInfo,
+	ctx context.Context,
+	repo git.Repository,
+	errs git.Errors,
+	metaRefNamePrefix git.ReferenceName,
+	log logr.Logger,
+	watchDispatchTicker chan<- time.Time,
+	grpcSrv *grpc.Server,
+) (
+	kvs etcdserverpb.KVServer,
+	err error,
+) {
 	if kvs, err = backend.NewKVServer(
 		backend.KVOptions.WithKeyPrefix(si.keyPrefix),
 		backend.KVOptions.WithRefName(si.dataRefName),
@@ -405,6 +467,7 @@ func registerKVServer(si *serverInfo, ctx context.Context, repo git.Repository, 
 		backend.KVOptions.WithCommitterName(serveFlags.committerName),
 		backend.KVOptions.WithCommitterEmail(serveFlags.committerEmail),
 		backend.KVOptions.WithLogger(log),
+		backend.KVOptions.WithWatchDispatchTicker(watchDispatchTicker),
 		backend.KVOptions.WithRepoAndErrors(repo, errs),
 	); err != nil {
 		return
@@ -454,7 +517,7 @@ func registerMaintenanceServer(kvs etcdserverpb.KVServer, grpcSrv *grpc.Server) 
 	return
 }
 
-func registerWatchServer(ctx context.Context, kvs etcdserverpb.KVServer, ticker *time.Ticker, log logr.Logger, grpcSrv *grpc.Server) (err error) {
+func registerWatchServer(ctx context.Context, kvs etcdserverpb.KVServer, ticker <-chan time.Time, log logr.Logger, grpcSrv *grpc.Server) (err error) {
 	var (
 		ws etcdserverpb.WatchServer
 	)
@@ -462,7 +525,7 @@ func registerWatchServer(ctx context.Context, kvs etcdserverpb.KVServer, ticker 
 	if ws, err = backend.NewWatchServer(
 		backend.WatchOptions.WithBackend(kvs),
 		backend.WatchOptions.WithLogger(log),
-		backend.WatchOptions.WithTicker(ticker.C),
+		backend.WatchOptions.WithTicker(ticker),
 		backend.WatchOptions.WithContext(ctx),
 	); err != nil {
 		return
@@ -496,20 +559,20 @@ var (
 )
 
 var serveFlags = struct {
-	repoPath              string
-	keyPrefix             map[string]string
-	dataRefNames          map[string]string
-	metadataRefNamePrefix string
-	clusterId             map[string]int64
-	memberId              map[string]int64
-	committerName         string
-	committerEmail        string
-	listenURL             map[string]string
-	clientURLs            map[string]string
-	watchTickerDuration   time.Duration
-	tlsCertFile           string
-	tlsKeyFile            string
-	tlsTrustedCACertFile  string
+	repoPath                    string
+	keyPrefix                   map[string]string
+	dataRefNames                map[string]string
+	metadataRefNamePrefix       string
+	clusterId                   map[string]int64
+	memberId                    map[string]int64
+	committerName               string
+	committerEmail              string
+	listenURL                   map[string]string
+	clientURLs                  map[string]string
+	watchDispatchTickerDuration time.Duration
+	tlsCertFile                 string
+	tlsKeyFile                  string
+	tlsTrustedCACertFile        string
 }{
 	keyPrefix:    map[string]string{},
 	dataRefNames: map[string]string{},
@@ -582,9 +645,9 @@ The full metadata Git referene name will be the path concatenation of the prefix
 	)
 
 	serveCmd.Flags().DurationVar(
-		&serveFlags.watchTickerDuration,
-		"watch-ticker-duration",
-		time.Second,
+		&serveFlags.watchDispatchTickerDuration,
+		"watch-dispatch-ticker-duration",
+		10*time.Second,
 		"Interval duration to poll and dispatch any pending events to watches.",
 	)
 

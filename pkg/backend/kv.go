@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/trishanku/gitcd/pkg/git"
@@ -108,6 +109,13 @@ func (opts kvOpts) WithCommitterEmail(email string) KVOptionFunc {
 func (opts kvOpts) WithLogger(log logr.Logger) KVOptionFunc {
 	return opts.doIt(func(b *backend) error {
 		b.log = log
+		return nil
+	})
+}
+
+func (opts kvOpts) WithWatchDispatchTicker(ch chan<- time.Time) KVOptionFunc {
+	return opts.doIt(func(b *backend) error {
+		b.watchDispatchTicker = ch
 		return nil
 	})
 }

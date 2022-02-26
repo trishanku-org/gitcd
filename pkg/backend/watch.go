@@ -463,15 +463,15 @@ func (wm *watchManager) enqueue(rw ...*revisionWatcher) {
 	wm.Lock()
 	defer wm.Unlock()
 
-	wm.log.V(-1).Info("Enqueuing", "queue", rw)
-	defer func() { wm.log.V(-1).Info("Enqueued", "queue", wm.queue) }()
+	wm.log.V(-1).Info("Enqueuing", "queue", len(rw))
+	defer func() { wm.log.V(-1).Info("Enqueued", "queue", len(wm.queue)) }()
 
 	wm.queue = append(wm.queue, rw...)
 }
 
 func (wm *watchManager) groupQueue(q []*revisionWatcher) (groupedQ []*revisionWatcher) {
-	wm.log.V(-1).Info("Grouping queue", "queue", q)
-	defer func() { wm.log.V(-1).Info("Grouped queue", "queue", groupedQ) }()
+	wm.log.V(-1).Info("Grouping queue", "queue", len(q))
+	defer func() { wm.log.V(-1).Info("Grouped queue", "queue", len(groupedQ)) }()
 
 	if q == nil {
 		return
@@ -523,21 +523,26 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 	defer close(ch)
 	defer cancelFn()
 
-	wm.log.V(-1).Info("dispatching queue", "queue", q)
-	defer func() { wm.log.V(-1).Info("dispatched queue", "next queue", nextQ, "error", err) }()
+	wm.log.V(-1).Info("dispatching queue", "queue", len(q))
+	defer func() { wm.log.V(-1).Info("dispatched queue", "next queue", len(nextQ), "error", err) }()
 
 	q = wm.groupQueue(q)
 
 	for _, rw := range q {
 		go func(rw *revisionWatcher) {
 			var (
+				log  = wm.log.WithValues("revision", rw.revision, "interval", rw.interval, "changesOnly", rw.changesOnly)
 				next *revisionWatcher
 				err  error
 			)
 
-			defer func() { ch <- &message{next: next, err: err} }()
+			log.V(-1).Info("Running revision watcher")
+			defer func() {
+				log.V(-1).Info("Ran revision watcher", "error", err)
+				ch <- &message{next: next, err: err}
+			}()
 
-			if err := rw.Run(ctx); err == nil {
+			if err = rw.Run(ctx); err == nil {
 				next = rw.next()
 			} else if errors.Is(err, rpctypes.ErrGRPCFutureRev) {
 				next = rw // Retry later
@@ -604,14 +609,22 @@ func (wm *watchManager) Run(ctx context.Context) (err error) {
 				wm.queue = nil
 			}()
 
-			if q == nil {
+			if len(q) <= 0 {
 				continue
 			}
 
-			q, _ = wm.dispatchQueue(ctx, q)
-			// TODO Log err
+			if q, err = wm.dispatchQueue(ctx, q); err != nil {
+				wm.log.Error(err, "Error dispatching watch queue")
+			}
+
 			if len(q) > 0 {
 				wm.enqueue(q...)
+
+				if err == nil {
+					if err = wm.backend.tickWatchDispatchTicker(ctx); err != nil {
+						wm.log.Error(err, "Error ticking watch dispatcher ticker")
+					}
+				}
 			}
 		}
 	}
@@ -799,6 +812,7 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 		watches:     []watch{w},
 	})
 
+	err = b.tickWatchDispatchTicker(ctx)
 	return
 }
 

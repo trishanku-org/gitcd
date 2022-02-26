@@ -6,6 +6,7 @@ import (
 	"path"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/trishanku/gitcd/pkg/git"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
@@ -32,6 +33,7 @@ type backend struct {
 	clusterID, memberID            uint64
 	commitConfig                   commitConfig
 	log                            logr.Logger
+	watchDispatchTicker            chan<- time.Time
 }
 
 var _ etcdserverpb.KVServer = (*backend)(nil)
@@ -823,7 +825,40 @@ func (b *backend) advanceReferences(
 		}
 	}
 
+	if err = b.tickWatchDispatchTicker(ctx); err != nil {
+		b.log.Error(err, "Error ticking watch dispatch ticker")
+	}
+
 	return
+}
+
+const watchDispatchTickTimeout = 10 * time.Millisecond
+
+// TODO test
+func (b *backend) tickWatchDispatchTicker(ctx context.Context) error {
+	var (
+		now      time.Time
+		cancelFn context.CancelFunc
+	)
+
+	if b.watchDispatchTicker == nil {
+		return nil
+	}
+
+	now = time.Now()
+	ctx, cancelFn = context.WithTimeout(ctx, watchDispatchTickTimeout)
+
+	defer cancelFn()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case b.watchDispatchTicker <- now:
+			b.log.V(-1).Info("Ticked watch dispatcher ticker", "time", now)
+			return nil
+		}
+	}
 }
 
 func setHeaderRevision(h *etcdserverpb.ResponseHeader, mutated bool, newRevision int64) {
