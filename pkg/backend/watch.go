@@ -130,19 +130,23 @@ func (rw *revisionWatcher) next() (n *revisionWatcher) {
 	}
 
 	n = &revisionWatcher{backend: rw.backend, revision: rw.revision + 1, changesOnly: true, interval: rw.interval}
-	n.addWatches(rw.watches...)
+	n.watches = getActiveWatches(rw.watches)
 
 	return
 }
 
-func (rw *revisionWatcher) addWatches(watches ...watch) *revisionWatcher {
+func getActiveWatches(watches []watch) (r []watch) {
+	if len(watches) <= 0 {
+		return
+	}
+
 	for _, w := range watches {
 		if ctx := w.Context(); ctx.Err() == nil {
-			rw.watches = append(rw.watches, w)
+			r = append(r, w)
 		}
 	}
 
-	return rw
+	return
 }
 
 func (rw *revisionWatcher) cancelAllWatches(ctx context.Context, err error) *revisionWatcher {
@@ -265,6 +269,12 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 		}
 	}()
 
+	rw.watches = getActiveWatches(rw.watches)
+
+	if len(rw.watches) == 0 {
+		return // No active watches. Nothing to do.
+	}
+
 	rw.nrun++
 
 	if nmt, omt, err = rw.getRevisionAndPredecessorMetadata(ctx); err != nil {
@@ -292,6 +302,8 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 
 		defer (*s.dPtr).Close()
 	}
+
+	rw.events = nil
 
 	if err = rw.loadEvents(ctx, "", nmt, ndt, omt, odt); err != nil {
 		return
@@ -342,6 +354,22 @@ func (b *backend) getKeyValueLoader(ctx context.Context, k string, metaRoot, dat
 	}
 }
 
+func (rw *revisionWatcher) getDeletionKeyValueLoader(prevKvFn kvLoaderFunc) kvLoaderFunc {
+	return func() (kv *mvccpb.KeyValue, err error) {
+		kv, err = prevKvFn()
+
+		if kv == nil {
+			return
+		}
+
+		kv.ModRevision = rw.revision
+		kv.Value = nil
+		kv.Lease = 0
+		kv.Version = 0
+		return
+	}
+}
+
 func (rw *revisionWatcher) loadEvents(
 	ctx context.Context,
 	parentPath string,
@@ -376,17 +404,14 @@ func (rw *revisionWatcher) loadEvents(
 		p = path.Dir(p) // Discard the trailing ModRevision key.
 		k = b.getKeyForPath(p)
 
-		defer func() {
-			if ev != nil && err == nil {
-				rw.events = append(rw.events, ev)
-			}
-		}()
-
 		switch change.Type() {
 		case git.DiffChangeTypeAdded:
 			ev, err = buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), nil)
 		case git.DiffChangeTypeDeleted:
-			ev, err = buildEvent(mvccpb.PUT, nil, b.getKeyValueLoader(ctx, k, omt, odt))
+			{
+				var prevKvFn = b.getKeyValueLoader(ctx, k, omt, odt)
+				ev, err = buildEvent(mvccpb.DELETE, rw.getDeletionKeyValueLoader(prevKvFn), prevKvFn)
+			}
 		default:
 			ev, err = buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), b.getKeyValueLoader(ctx, k, omt, odt))
 		}
@@ -395,7 +420,10 @@ func (rw *revisionWatcher) loadEvents(
 			return
 		}
 
-		rw.events = append(rw.events, ev)
+		if ev != nil {
+			rw.events = append(rw.events, ev)
+		}
+
 		return
 	})
 
@@ -495,7 +523,7 @@ func (wm *watchManager) groupQueue(q []*revisionWatcher) (groupedQ []*revisionWa
 			mr[rw.changesOnly] = rw
 		} else {
 			mrw.interval.merge(rw.interval)
-			mrw.addWatches(rw.watches...)
+			mrw.watches = getActiveWatches(rw.watches)
 		}
 	}
 
@@ -531,7 +559,7 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 	for _, rw := range q {
 		go func(rw *revisionWatcher) {
 			var (
-				log  = wm.log.WithValues("revision", rw.revision, "interval", rw.interval, "changesOnly", rw.changesOnly)
+				log  = wm.log.WithValues("revision", rw.revision, "interval", rw.interval, "changesOnly", rw.changesOnly, "watches", len(rw.watches))
 				next *revisionWatcher
 				err  error
 			)
@@ -555,7 +583,7 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 		case <-ctx.Done():
 			return
 		case msg := <-ch:
-			if msg.next != nil {
+			if msg.next != nil && len(msg.next.watches) > 0 {
 				nextQ = append(nextQ, msg.next)
 			}
 
@@ -807,7 +835,7 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 	ws.mgr.enqueue(&revisionWatcher{
 		backend:     b,
 		revision:    header.Revision,
-		changesOnly: true,
+		changesOnly: false,
 		interval:    &closedOpenInterval{start: req.GetKey(), end: req.GetRangeEnd()},
 		watches:     []watch{w},
 	})
