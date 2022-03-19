@@ -9,7 +9,7 @@ function start_gitcd {
     echo 'touch init && git add init && git commit -m init' | \
         docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
     docker run --rm -v gitcd-backend:/backend trishanku/gitcd:latest init --repo=/backend
-    docker run --name gitcd -d -v gitcd-backend:/backend trishanku/gitcd:latest serve --repo=/backend --debug
+    docker run --name gitcd -d -v gitcd-backend:/backend -p 2379:2379 trishanku/gitcd:latest serve --repo=/backend --debug
     docker run --rm --network=container:gitcd --entrypoint etcdctl bitnami/etcd:3 --insecure-transport endpoint status
 }
 
@@ -62,6 +62,9 @@ function start_kube_apiserver {
             --watch-cache=false
 }
 
+function kind_create_cluster {
+    kind create cluster --config ./hack/kube/kind-config.yaml
+}
+
 start_gitcd
-prepare_certs
-start_kube_apiserver
+# kind_create_cluster

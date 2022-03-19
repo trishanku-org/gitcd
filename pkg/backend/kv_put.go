@@ -284,10 +284,11 @@ func (b *backend) Put(ctx context.Context, req *etcdserverpb.PutRequest) (res *e
 		metaMutated, dataMutated     bool
 		newMetaHeadID, newDataHeadID git.ObjectID
 		newRevision                  int64
+		perf                         = perfCounter()
 	)
 
 	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
 		return

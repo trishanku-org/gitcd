@@ -31,13 +31,14 @@ var _ etcdserverpb.ClusterServer = (*clusterImpl)(nil)
 
 func (c *clusterImpl) MemberList(ctx context.Context, req *etcdserverpb.MemberListRequest) (res *etcdserverpb.MemberListResponse, err error) {
 	var (
-		b   = c.backend
-		log = b.log.WithName("MemberList")
-		h   = b.newResponseHeader(ctx)
+		b    = c.backend
+		log  = b.log.WithName("MemberList")
+		h    = b.newResponseHeader(ctx)
+		perf = perfCounter()
 	)
 
 	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	res = &etcdserverpb.MemberListResponse{
 		Header: h,

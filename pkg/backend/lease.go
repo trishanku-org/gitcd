@@ -26,10 +26,13 @@ type leaseImpl struct {
 var _ etcdserverpb.LeaseServer = (*leaseImpl)(nil)
 
 func (l *leaseImpl) LeaseGrant(ctx context.Context, req *etcdserverpb.LeaseGrantRequest) (res *etcdserverpb.LeaseGrantResponse, err error) {
-	var log = l.backend.log.WithName("LeaseGrant")
+	var (
+		log  = l.backend.log.WithName("LeaseGrant")
+		perf = perfCounter()
+	)
 
 	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	res = &etcdserverpb.LeaseGrantResponse{
 		Header: l.backend.newResponseHeader(ctx),

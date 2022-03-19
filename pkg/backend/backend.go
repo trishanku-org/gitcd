@@ -867,3 +867,10 @@ func setHeaderRevision(h *etcdserverpb.ResponseHeader, mutated bool, newRevision
 		h.RaftTerm = uint64(newRevision)
 	}
 }
+
+// TODO test
+func perfCounter() func() time.Duration {
+	var t = time.Now()
+
+	return func() time.Duration { return time.Since(t) }
+}

@@ -46,10 +46,12 @@ func (m *maintenanceImpl) Status(ctx context.Context, req *etcdserverpb.StatusRe
 
 		metaRef git.Reference
 		metaT   git.Tree
+
+		perf = perfCounter()
 	)
 
 	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err) }()
+	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil {
 		return
