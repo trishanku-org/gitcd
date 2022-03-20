@@ -26,7 +26,10 @@ Gitcd - Git as a distributed key-value store.
 ### Prerequisites
 
 1. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-1. [Docker](https://docs.docker.com/engine/install/)
+1. [Docker](https://docs.docker.com/engine/install/) 
+1. [Kind](https://kind.sigs.k8s.io), a tool for running local Kubernetes clusters using Docker container "nodes".
+1. [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/#install-with-homebrew-on-macos), the Kubernetes command-line tool.
+1. [Caffeinate](https://ss64.com/osx/caffeinate.html) to keep the laptop from going to sleep during some long running steps below.
 
 ### Build
 
@@ -570,60 +573,169 @@ $ docker volume rm gitcd-backend
 gitcd-backend
 ```
 
-### Run kube-apiserver with Gitcd as the backend
+### Run a local Kubernetes cluster with Gitcd as the backend
+
+#### Note
+
+The following steps will start a local Kubernetes cluster using [Kind](https://kind.sigs.k8s.io).
+Please make sure that there are no other local Kubernetes clusters running (e.g. docker-desktop).
+These steps also start containers that listen on ports like `2379`, `2479`, `2579`, `2679`, `2779`, `2879`, `2979` and `6443`.
+Please ensure that these ports are available before running these steps.
+
 ```sh
-# Start kube-apiserver and Gitcd containers.
+# Start a local Kind Kubernetes cluster with Gitcd as the backend.
 $ make start-docker-gitcd-kube-apiserver
 hack/kube/start.sh
-+ start_gitcd
-+ docker volume create gitcd-backend
-gitcd-backend
-+ echo 'git init -b main && git config user.email "trishanku@heaven.com" && git config user.name trishanku'
-+ docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
+
+Starting container etcd-events on port 2379.
+etcd-events
+2c1377dbf8e5a1d1ae765c45e0b32e9da37693d11ed6b6fe049ae4d2d7ca2fcd
+127.0.0.1:2379, 8e9e05c52164694d, 3.5.1, 20 kB, true, false, 2, 4, 4,
+
+Starting container gitcd-main on port 2479.
+gitcd-main
 Initialized empty Git repository in /backend/.git/
-+ echo 'touch init && git add init && git commit -m init'
-+ docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
-[main (root-commit) 78306e3] init
+[main (root-commit) a06d42e] init
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 init
-+ docker run --rm -v gitcd-backend:/backend trishanku/gitcd:latest init --repo=/backend
-{"level":"info","ts":1643036214.5228558,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
-{"level":"info","ts":1643036214.5409706,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
-+ docker run --name gitcd -d -v gitcd-backend:/backend trishanku/gitcd:latest serve --repo=/backend --debug
-f1f71deb131321cf4f7e7070f1a7cf4da2f35bec8caadc0eded6948e16d03a3e
-+ docker run --rm --network=container:gitcd --entrypoint etcdctl bitnami/etcd:3 --insecure-transport endpoint status
-127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1, 
-+ prepare_certs
-+ docker volume create kube-certs
-kube-certs
-+ docker run -i --rm -v kube-certs:/tls -w /tls busybox:1 dd of=tls.conf
-0+1 records in
-0+1 records out
-482 bytes (482B) copied, 0.001967 seconds, 239.3KB/s
-+ docker run --rm -v kube-certs:/tls -w /tls --entrypoint openssl nginx:1 req -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -extensions v3_req -config tls.conf -out tls.crt -keyout tls.key
-Generating a RSA private key
-........................++++
-.........................................................++++
-writing new private key to 'tls.key'
------
-+ docker run --rm -v kube-certs:/tls -w /tls busybox:1 ln -s tls.crt ca.crt
-+ start_kube_apiserver
-+ docker run --name kube-apiserver -d -v kube-certs:/tls --network=container:gitcd --entrypoint kube-apiserver k8s.gcr.io/kube-apiserver:v1.23.2 --client-ca-file=/tls/ca.crt --etcd-compaction-interval=0 --etcd-servers=http://localhost:2379 --secure-port=6443 --service-account-issuer=https://kube-apiserver/ --service-account-key-file=/tls/tls.key --service-account-signing-key-file=/tls/tls.key --storage-media-type=application/yaml --tls-cert-file=/tls/tls.crt --tls-private-key-file=/tls/tls.key --watch-cache=false
-77e7851c702efeb714c422b83ff361334d33e73a2a2a9abceba5680c199cd8f0
+{"level":"info","ts":1647778784.2813747,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647778784.288507,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+9af2d1274dabe663af373094da86459ac76a28905cae617e0f3056bed9954b29
+127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
-# Check that kube-apiserver and Gitcd containers are running.
-$ docker ps -n 2
-CONTAINER ID   IMAGE                               COMMAND                  CREATED         STATUS                  PORTS     NAMES
-77e7851c702e   k8s.gcr.io/kube-apiserver:v1.23.2   "kube-apiserver --cl…"   1 second ago    Up Less than a second             kube-apiserver
-f1f71deb1313   trishanku/gitcd:latest              "/gitcd serve --repo…"   5 seconds ago   Up 3 seconds                      gitcd
+Starting container gitcd-nodes on port 2579.
+gitcd-nodes
+Initialized empty Git repository in /backend/.git/
+[main (root-commit) 2cc8fe9] init
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 init
+{"level":"info","ts":1647778787.4042866,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647778787.4113333,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+9b6e02be14b3e5a0c74c7863a5af9f16505d95133cc93146db1d71c4361fcae5
+127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
-# Wait for kube-apiserver to initialize.
-$ sleep 10
+Starting container gitcd-leases on port 2679.
+gitcd-leases
+Initialized empty Git repository in /backend/.git/
+[main (root-commit) ed96c19] init
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 init
+{"level":"info","ts":1647778790.3922682,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647778790.400751,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+480dbbfb1a1ba25b4c964201e85ee1181f014921c7ee9acdc49babbc7989601b
+127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
+
+Starting container gitcd-priorityclasses on port 2779.
+gitcd-priorityclasses
+Initialized empty Git repository in /backend/.git/
+[main (root-commit) 3a29f5b] init
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 init
+{"level":"info","ts":1647778793.3959885,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647778793.4022024,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+7bc0fe4bedcba4761cd7fe66a987717e977e9a42648719215f68a829919b6ba2
+127.0.0.1:2379, 0, v0.0.1-dev, 157 kB, true, false, 1, 1, 1,
+
+Starting container gitcd-pods on port 2879.
+gitcd-pods
+Initialized empty Git repository in /backend/.git/
+[main (root-commit) 53fda86] init
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 init
+{"level":"info","ts":1647778796.4278045,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647778796.4346044,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+bee7c521d062a52cfa198a180628417d7c83f8f447158de34a21c869c16d702d
+127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
+
+Starting container gitcd-configmaps on port 2979.
+gitcd-configmaps
+Initialized empty Git repository in /backend/.git/
+[main (root-commit) 9396826] init
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 init
+{"level":"info","ts":1647778799.4809408,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647778799.4879394,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+7f8d77bb82dc79d523c5c729df8b0b37006b72c2fb95a66ff0ef774fd672e3e7
+127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
+
+Creating a local Kubernetes cluster using Kind configuration in ./hack/kube/kind-config.yaml.
+Creating cluster "trishanku" ...
+ ✓ Ensuring node image (kindest/node:v1.21.1) 🖼
+ ✓ Preparing nodes 📦
+ ✓ Writing configuration 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+Set kubectl context to "kind-trishanku"
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-trishanku
+
+Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/
+
+# Check that Kind and Gitcd containers are running.
+$ docker ps -n 8
+CONTAINER ID   IMAGE                    COMMAND                  CREATED              STATUS          PORTS                                                 NAMES
+e7f7b671a623   kindest/node:v1.21.1     "/usr/local/bin/entr…"   38 seconds ago       Up 34 seconds   127.0.0.1:57508->6443/tcp                             trishanku-control-plane
+7f8d77bb82dc   trishanku/gitcd:latest   "/gitcd serve --repo…"   41 seconds ago       Up 40 seconds   0.0.0.0:2979->2379/tcp, :::2979->2379/tcp             gitcd-configmaps
+bee7c521d062   trishanku/gitcd:latest   "/gitcd serve --repo…"   44 seconds ago       Up 43 seconds   0.0.0.0:2879->2379/tcp, :::2879->2379/tcp             gitcd-pods
+7bc0fe4bedcb   trishanku/gitcd:latest   "/gitcd serve --repo…"   47 seconds ago       Up 46 seconds   0.0.0.0:2779->2379/tcp, :::2779->2379/tcp             gitcd-priorityclasses
+480dbbfb1a1b   trishanku/gitcd:latest   "/gitcd serve --repo…"   50 seconds ago       Up 49 seconds   0.0.0.0:2679->2379/tcp, :::2679->2379/tcp             gitcd-leases
+9b6e02be14b3   trishanku/gitcd:latest   "/gitcd serve --repo…"   53 seconds ago       Up 52 seconds   0.0.0.0:2579->2379/tcp, :::2579->2379/tcp             gitcd-nodes
+9af2d1274dab   trishanku/gitcd:latest   "/gitcd serve --repo…"   56 seconds ago       Up 55 seconds   0.0.0.0:2479->2379/tcp, :::2479->2379/tcp             gitcd-main
+2c1377dbf8e5   bitnami/etcd:3           "/opt/bitnami/script…"   About a minute ago   Up 59 seconds   0.0.0.0:2379->2379/tcp, :::2379->2379/tcp, 2380/tcp   etcd-events
+
+# Check that the kubeconfig is pointint to the newly setup cluster.
+$ kubectl config current-context
+kind-trishanku
+
+# Check the Kubernetes cluster information.
+$ kubectl cluster-info
+Kubernetes control plane is running at https://127.0.0.1:57508
+CoreDNS is running at https://127.0.0.1:57508/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+# List the namespaces in the cluster.
+$ kubectl get namespaces
+NAME                 STATUS   AGE
+default              Active   12s
+kube-node-lease      Active   16s
+kube-public          Active   16s
+kube-system          Active   16s
+local-path-storage   Active   5s
+
+# List the nodes in the cluster.
+$ kubectl get nodes
+NAME                      STATUS     ROLES                  AGE   VERSION
+trishanku-control-plane   NotReady   control-plane,master   16s   v1.21.1
+
+# Wait for the node to be Ready.
+$ caffeinate -disu sleep 6m
+
+# Check if the node is Ready.
+$ kubectl get nodes
+NAME                      STATUS     ROLES                  AGE   VERSION
+trishanku-control-plane   Ready      control-plane,master   6m    v1.21.1
+
+# List all the pods in the cluster across all namespaces.
+$ kubectl get pods --all-namespaces
+NAMESPACE     NAME                                              READY   STATUS    RESTARTS   AGE
+kube-system   kindnet-mqtkh                                     1/1     Running   0          103s
+kube-system   kube-apiserver-trishanku-control-plane            1/1     Running   1          119s
+kube-system   kube-controller-manager-trishanku-control-plane   1/1     Running   0          112s
+kube-system   kube-proxy-f8tmw                                  1/1     Running   0          103s
+kube-system   kube-scheduler-trishanku-control-plane            1/1     Running   0          55s
+
+# Run a pod to say hello.
+$ kubectl run -i -t hello --image=busybox:1 --restart=Never --rm echo  'Hello, World!'
+Hello, World!
+pod "hello" deleted
 
 # Inspect the Kubernetes content in the backend Git repo.
 $ echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
-    docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
-HEAD is now at 2056d4d 61
+    docker run -i --rm -v gitcd-nodes:/backend -w /backend bitnami/git:2 sh
+HEAD is now at e086049 15
 Note: switching to 'refs/gitcd/metadata/refs/heads/main'.
 
 You are in 'detached HEAD' state. You can look around, make experimental
@@ -641,116 +753,286 @@ Or undo this operation with:
 
 Turn off this advice by setting config variable advice.detachedHead to false
 
-HEAD is now at d63fe01 61
-Previous HEAD position was d63fe01 61
+HEAD is now at 1cb9f0d 15
+Previous HEAD position was 1cb9f0d 15
 Switched to branch 'main'
 
-$ echo "apk update && apk add tree && tree /backend" | docker run -i --rm -v gitcd-backend:/backend alpine:3 sh
-fetch https://dl-cdn.alpinelinux.org/alpine/v3.15/main/x86_64/APKINDEX.tar.gz
-fetch https://dl-cdn.alpinelinux.org/alpine/v3.15/community/x86_64/APKINDEX.tar.gz
-v3.15.0-226-g0aa9a217b1 [https://dl-cdn.alpinelinux.org/alpine/v3.15/main]
-v3.15.0-227-ga87054a505 [https://dl-cdn.alpinelinux.org/alpine/v3.15/community]
-OK: 15848 distinct packages available
-(1/1) Installing tree (1.8.0-r0)
-Executing busybox-1.34.1-r3.trigger
-OK: 6 MiB in 15 packages
-/backend
-├── init
-└── registry
-    ├── apiregistration.k8s.io
-    │   └── apiservices
-    │       ├── v1.
-    │       ├── v1.admissionregistration.k8s.io
-    │       ├── v1.apiextensions.k8s.io
-    │       ├── v1.apps
-    │       ├── v1.authentication.k8s.io
-    │       ├── v1.authorization.k8s.io
-    │       ├── v1.autoscaling
-    │       ├── v1.batch
-    │       ├── v1.certificates.k8s.io
-    │       ├── v1.coordination.k8s.io
-    │       ├── v1.discovery.k8s.io
-    │       ├── v1.events.k8s.io
-    │       ├── v1.networking.k8s.io
-    │       ├── v1.node.k8s.io
-    │       ├── v1.policy
-    │       ├── v1.rbac.authorization.k8s.io
-    │       ├── v1.scheduling.k8s.io
-    │       ├── v1.storage.k8s.io
-    │       ├── v1beta1.batch
-    │       ├── v1beta1.discovery.k8s.io
-    │       ├── v1beta1.events.k8s.io
-    │       ├── v1beta1.flowcontrol.apiserver.k8s.io
-    │       ├── v1beta1.node.k8s.io
-    │       ├── v1beta1.policy
-    │       ├── v1beta1.storage.k8s.io
-    │       ├── v1beta2.flowcontrol.apiserver.k8s.io
-    │       ├── v2.autoscaling
-    │       ├── v2beta1.autoscaling
-    │       └── v2beta2.autoscaling
-    ├── configmaps
-    │   └── kube-system
-    │       └── extension-apiserver-authentication
-    ├── flowschemas
-    │   ├── catch-all
-    │   ├── exempt
-    │   ├── global-default
-    │   ├── kube-controller-manager
-    │   ├── kube-scheduler
-    │   ├── kube-system-service-accounts
-    │   ├── probes
-    │   ├── service-accounts
-    │   ├── system-leader-election
-    │   ├── system-node-high
-    │   ├── system-nodes
-    │   └── workload-leader-election
-    ├── namespaces
-    │   ├── kube-node-lease
-    │   ├── kube-public
-    │   └── kube-system
-    ├── priorityclasses
-    │   ├── system-cluster-critical
-    │   └── system-node-critical
-    ├── prioritylevelconfigurations
-    │   ├── catch-all
-    │   ├── exempt
-    │   ├── global-default
-    │   ├── leader-election
-    │   ├── node-high
-    │   ├── system
-    │   ├── workload-high
-    │   └── workload-low
-    └── ranges
-        ├── serviceips
-        └── servicenodeports
-
-10 directories, 58 files
-
-$ docker run --rm -v gitcd-backend:/backend busybox:1 cat /backend/registry/namespaces/kube-system
+docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane
 apiVersion: v1
-kind: Namespace
+kind: Node
 metadata:
-  creationTimestamp: "2022-01-24T14:57:01Z"
+  annotations:
+    kubeadm.alpha.kubernetes.io/cri-socket: unix:///run/containerd/containerd.sock
+    node.alpha.kubernetes.io/ttl: "0"
+    volumes.kubernetes.io/controller-managed-attach-detach: "true"
+  creationTimestamp: "2022-03-20T12:20:26Z"
   labels:
-    kubernetes.io/metadata.name: kube-system
+    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/os: linux
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: trishanku-control-plane
+    kubernetes.io/os: linux
+    node-role.kubernetes.io/control-plane: ""
+    node-role.kubernetes.io/master: ""
+    node.kubernetes.io/exclude-from-external-load-balancers: ""
   managedFields:
   - apiVersion: v1
     fieldsType: FieldsV1
     fieldsV1:
       f:metadata:
+        f:annotations:
+          f:kubeadm.alpha.kubernetes.io/cri-socket: {}
+        f:labels:
+          f:node-role.kubernetes.io/control-plane: {}
+          f:node-role.kubernetes.io/master: {}
+          f:node.kubernetes.io/exclude-from-external-load-balancers: {}
+    manager: kubeadm
+    operation: Update
+    time: "2022-03-20T12:20:32Z"
+  - apiVersion: v1
+    fieldsType: FieldsV1
+    fieldsV1:
+      f:metadata:
+        f:annotations:
+          f:node.alpha.kubernetes.io/ttl: {}
+      f:spec:
+        f:podCIDR: {}
+        f:podCIDRs:
+          .: {}
+          v:"10.244.0.0/24": {}
+    manager: kube-controller-manager
+    operation: Update
+    time: "2022-03-20T12:26:38Z"
+  - apiVersion: v1
+    fieldsType: FieldsV1
+    fieldsV1:
+      f:metadata:
+        f:annotations:
+          .: {}
+          f:volumes.kubernetes.io/controller-managed-attach-detach: {}
         f:labels:
           .: {}
-          f:kubernetes.io/metadata.name: {}
-    manager: Go-http-client
+          f:beta.kubernetes.io/arch: {}
+          f:beta.kubernetes.io/os: {}
+          f:kubernetes.io/arch: {}
+          f:kubernetes.io/hostname: {}
+          f:kubernetes.io/os: {}
+      f:spec:
+        f:providerID: {}
+      f:status:
+        f:conditions:
+          k:{"type":"DiskPressure"}:
+            f:lastHeartbeatTime: {}
+            f:lastTransitionTime: {}
+            f:message: {}
+            f:reason: {}
+            f:status: {}
+          k:{"type":"MemoryPressure"}:
+            f:lastHeartbeatTime: {}
+            f:lastTransitionTime: {}
+            f:message: {}
+            f:reason: {}
+            f:status: {}
+          k:{"type":"PIDPressure"}:
+            f:lastHeartbeatTime: {}
+            f:lastTransitionTime: {}
+            f:message: {}
+            f:reason: {}
+            f:status: {}
+          k:{"type":"Ready"}:
+            f:lastHeartbeatTime: {}
+            f:lastTransitionTime: {}
+            f:message: {}
+            f:reason: {}
+            f:status: {}
+    manager: kubelet
     operation: Update
-    time: "2022-01-24T14:57:01Z"
-  name: kube-system
-  uid: c60ad5a2-9612-4389-bb85-6b26b6d0804c
+    time: "2022-03-20T12:26:39Z"
+  name: trishanku-control-plane
+  uid: 64de4fcb-da69-4495-b281-6d04e90d2fc7
 spec:
-  finalizers:
-  - kubernetes
+  podCIDR: 10.244.0.0/24
+  podCIDRs:
+  - 10.244.0.0/24
+  providerID: kind://docker/trishanku/trishanku-control-plane
 status:
-  phase: Active
+  addresses:
+  - address: 172.18.0.2
+    type: InternalIP
+  - address: trishanku-control-plane
+    type: Hostname
+  allocatable:
+    cpu: "6"
+    ephemeral-storage: 61255492Ki
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 2032964Ki
+    pods: "110"
+  capacity:
+    cpu: "6"
+    ephemeral-storage: 61255492Ki
+    hugepages-1Gi: "0"
+    hugepages-2Mi: "0"
+    memory: 2032964Ki
+    pods: "110"
+  conditions:
+  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
+    lastTransitionTime: "2022-03-20T12:26:39Z"
+    message: kubelet has sufficient memory available
+    reason: KubeletHasSufficientMemory
+    status: "False"
+    type: MemoryPressure
+  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
+    lastTransitionTime: "2022-03-20T12:26:39Z"
+    message: kubelet has no disk pressure
+    reason: KubeletHasNoDiskPressure
+    status: "False"
+    type: DiskPressure
+  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
+    lastTransitionTime: "2022-03-20T12:26:39Z"
+    message: kubelet has sufficient PID available
+    reason: KubeletHasSufficientPID
+    status: "False"
+    type: PIDPressure
+  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
+    lastTransitionTime: "2022-03-20T12:26:39Z"
+    message: kubelet is posting ready status
+    reason: KubeletReady
+    status: "True"
+    type: Ready
+  daemonEndpoints:
+    kubeletEndpoint:
+      Port: 10250
+  images:
+  - names:
+    - k8s.gcr.io/kube-proxy:v1.21.1
+    sizeBytes: 132714699
+  - names:
+    - k8s.gcr.io/kube-apiserver:v1.21.1
+    sizeBytes: 126834637
+  - names:
+    - k8s.gcr.io/kube-controller-manager:v1.21.1
+    sizeBytes: 121042741
+  - names:
+    - k8s.gcr.io/etcd:3.4.13-0
+    sizeBytes: 86742272
+  - names:
+    - docker.io/kindest/kindnetd:v20210326-1e038dc5
+    sizeBytes: 53960776
+  - names:
+    - k8s.gcr.io/kube-scheduler:v1.21.1
+    sizeBytes: 51865396
+  - names:
+    - k8s.gcr.io/build-image/debian-base:v2.1.0
+    sizeBytes: 21086532
+  - names:
+    - docker.io/rancher/local-path-provisioner:v0.0.14
+    sizeBytes: 13367922
+  - names:
+    - k8s.gcr.io/coredns/coredns:v1.8.0
+    sizeBytes: 12945155
+  - names:
+    - k8s.gcr.io/pause:3.5
+    sizeBytes: 301416
+  nodeInfo:
+    architecture: amd64
+    bootID: c4627ea5-610f-49ac-933c-218c8c0eaa20
+    containerRuntimeVersion: containerd://1.5.2
+    kernelVersion: 5.10.47-linuxkit
+    kubeProxyVersion: v1.21.1
+    kubeletVersion: v1.21.1
+    machineID: 52e68fbe70db45a697a50fb38ee00e69
+    operatingSystem: linux
+    osImage: Ubuntu 21.04
+    systemUUID: 0b00a417-b7af-4451-a5c4-fdc183a9b376
+
+# Check the difference between the content in the backend git repo and the output from kubectl (there might have been more updates in the meantime).
+diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane -oyaml )
+--- /dev/fd/63	2022-03-20 17:56:53.000000000 +0530
++++ /dev/fd/62	2022-03-20 17:56:53.000000000 +0530
+@@ -15,80 +15,8 @@
+     node-role.kubernetes.io/control-plane: ""
+     node-role.kubernetes.io/master: ""
+     node.kubernetes.io/exclude-from-external-load-balancers: ""
+-  managedFields:
+-  - apiVersion: v1
+-    fieldsType: FieldsV1
+-    fieldsV1:
+-      f:metadata:
+-        f:annotations:
+-          f:kubeadm.alpha.kubernetes.io/cri-socket: {}
+-        f:labels:
+-          f:node-role.kubernetes.io/control-plane: {}
+-          f:node-role.kubernetes.io/master: {}
+-          f:node.kubernetes.io/exclude-from-external-load-balancers: {}
+-    manager: kubeadm
+-    operation: Update
+-    time: "2022-03-20T12:20:32Z"
+-  - apiVersion: v1
+-    fieldsType: FieldsV1
+-    fieldsV1:
+-      f:metadata:
+-        f:annotations:
+-          f:node.alpha.kubernetes.io/ttl: {}
+-      f:spec:
+-        f:podCIDR: {}
+-        f:podCIDRs:
+-          .: {}
+-          v:"10.244.0.0/24": {}
+-    manager: kube-controller-manager
+-    operation: Update
+-    time: "2022-03-20T12:26:38Z"
+-  - apiVersion: v1
+-    fieldsType: FieldsV1
+-    fieldsV1:
+-      f:metadata:
+-        f:annotations:
+-          .: {}
+-          f:volumes.kubernetes.io/controller-managed-attach-detach: {}
+-        f:labels:
+-          .: {}
+-          f:beta.kubernetes.io/arch: {}
+-          f:beta.kubernetes.io/os: {}
+-          f:kubernetes.io/arch: {}
+-          f:kubernetes.io/hostname: {}
+-          f:kubernetes.io/os: {}
+-      f:spec:
+-        f:providerID: {}
+-      f:status:
+-        f:conditions:
+-          k:{"type":"DiskPressure"}:
+-            f:lastHeartbeatTime: {}
+-            f:lastTransitionTime: {}
+-            f:message: {}
+-            f:reason: {}
+-            f:status: {}
+-          k:{"type":"MemoryPressure"}:
+-            f:lastHeartbeatTime: {}
+-            f:lastTransitionTime: {}
+-            f:message: {}
+-            f:reason: {}
+-            f:status: {}
+-          k:{"type":"PIDPressure"}:
+-            f:lastHeartbeatTime: {}
+-            f:lastTransitionTime: {}
+-            f:message: {}
+-            f:reason: {}
+-            f:status: {}
+-          k:{"type":"Ready"}:
+-            f:lastHeartbeatTime: {}
+-            f:lastTransitionTime: {}
+-            f:message: {}
+-            f:reason: {}
+-            f:status: {}
+-    manager: kubelet
+-    operation: Update
+-    time: "2022-03-20T12:26:39Z"
+   name: trishanku-control-plane
++  resourceVersion: "15"
+   uid: 64de4fcb-da69-4495-b281-6d04e90d2fc7
+ spec:
+   podCIDR: 10.244.0.0/24
+
 ```
 
 #### Cleanup
@@ -759,22 +1041,64 @@ status:
 # Stop kube-apiserver and Gitcd containers.
 $ make stop-docker-gitcd-kube-apiserver
 hack/kube/stop.sh
-+ docker stop gitcd kube-apiserver
-gitcd
-kube-apiserver
++ kind delete cluster --name trishanku
+Deleting cluster "trishanku" ...
++ docker stop gitcd-main etcd-events gitcd-nodes gitcd-leases gitcd-priorityclasses gitcd-pods gitcd-configmaps
+gitcd-main
+etcd-events
+gitcd-nodes
+gitcd-leases
+gitcd-priorityclasses
+gitcd-pods
+gitcd-configmaps
 
 # Clean up kube-apiserver and Gitcd container and volumes.
 $ make cleanup-docker-gitcd-kube-apiserver
 hack/kube/cleanup.sh
-+ docker stop kube-apiserver
-kube-apiserver
-+ docker rm kube-apiserver
-kube-apiserver
-+ docker stop gitcd
-gitcd
-+ docker rm gitcd
-gitcd
-+ docker volume rm kube-certs gitcd-backend
-kube-certs
-gitcd-backend
++ kind delete cluster --name trishanku
+Deleting cluster "trishanku" ...
++ stop_containers gitcd-main etcd-events gitcd-nodes gitcd-leases gitcd-priorityclasses gitcd-pods gitcd-configmaps
++ for container_name in '"$@"'
++ docker stop gitcd-main
+gitcd-main
++ docker rm gitcd-main
+gitcd-main
++ for container_name in '"$@"'
++ docker stop etcd-events
+etcd-events
++ docker rm etcd-events
+etcd-events
++ for container_name in '"$@"'
++ docker stop gitcd-nodes
+gitcd-nodes
++ docker rm gitcd-nodes
+gitcd-nodes
++ for container_name in '"$@"'
++ docker stop gitcd-leases
+gitcd-leases
++ docker rm gitcd-leases
+gitcd-leases
++ for container_name in '"$@"'
++ docker stop gitcd-priorityclasses
+gitcd-priorityclasses
++ docker rm gitcd-priorityclasses
+gitcd-priorityclasses
++ for container_name in '"$@"'
++ docker stop gitcd-pods
+gitcd-pods
++ docker rm gitcd-pods
+gitcd-pods
++ for container_name in '"$@"'
++ docker stop gitcd-configmaps
+gitcd-configmaps
++ docker rm gitcd-configmaps
+gitcd-configmaps
++ docker volume rm gitcd-main etcd-events gitcd-nodes gitcd-leases gitcd-priorityclasses gitcd-pods gitcd-configmaps
+gitcd-main
+etcd-events
+gitcd-nodes
+gitcd-leases
+gitcd-priorityclasses
+gitcd-pods
+gitcd-configmaps
 ```

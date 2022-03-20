@@ -1,10 +1,11 @@
 #!/bin/bash
 
-set -x
-
 function start_gitcd_container {
     local container_name=$1
     local port=$2
+
+    echo
+    echo "Starting container ${container_name} on port ${port}."
 
     docker volume create "$container_name"
 
@@ -28,6 +29,9 @@ function start_etcd_container {
     local container_name=$1
     local port=$2
 
+    echo
+    echo "Starting container ${container_name} on port ${port}."
+
     docker volume create "$container_name"
     
     docker run --name "$container_name" \
@@ -45,6 +49,9 @@ function start_gitcd {
     local port=$2
     local repo_dir="${base_dir}/repo"
     local BACKEND_VERSION=$(cat VERSION)
+
+    echo
+    echo "Starting Gitcd on the folder ${base_dir} on port ${port}."
 
     mkdir -p "$repo_dir"
     
@@ -74,6 +81,9 @@ function start_gitcd {
 function start_etcd {
     local base_dir=$1
     local data_dir="${base_dir}/default.etcd"
+
+    echo
+    echo "Starting ETCD on the folder ${base_dir} on port ${port}."
 
     mkdir -p "$data_dir"
 
@@ -135,7 +145,10 @@ function start_kube_apiserver {
 }
 
 function kind_create_cluster {
-    kind create cluster --config ./hack/kube/kind-config.yaml --verbosity=2 --retain
+    echo
+    echo 'Creating a local Kubernetes cluster using Kind configuration in ./hack/kube/kind-config.yaml.'
+
+    kind create cluster --config ./hack/kube/kind-config.yaml --verbosity=0 --retain
 }
 
 # start_etcd /tmp/trishanku/etcd-events
