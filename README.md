@@ -18,7 +18,8 @@ Gitcd - Git as a distributed key-value store.
   - [Serve ETCD from an existing Git repo](#serve-etcd-from-an-existing-git-repo)
     - [Consume](#consume-2)
     - [Cleanup](#cleanup-2)
-  - [Run kube-apiserver with Gitcd as the backend](#run-kube-apiserver-with-gitcd-as-the-backend)
+  - [Run a local Kubernetes cluster with Gitcd as the backend](#run-a-local-kubernetes-cluster-with-gitcd-as-the-backend)
+    - [Note](#note)
     - [Cleanup](#cleanup-3)
 
 ## Take it for a spin
@@ -27,9 +28,9 @@ Gitcd - Git as a distributed key-value store.
 
 1. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 1. [Docker](https://docs.docker.com/engine/install/) 
-1. [Kind](https://kind.sigs.k8s.io), a tool for running local Kubernetes clusters using Docker container "nodes".
-1. [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/#install-with-homebrew-on-macos), the Kubernetes command-line tool.
-1. [Caffeinate](https://ss64.com/osx/caffeinate.html) to keep the laptop from going to sleep during some long running steps below.
+1. [Kind](https://kind.sigs.k8s.io), a tool for running local Kubernetes clusters using Docker container "nodes"
+1. [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/#install-with-homebrew-on-macos), the Kubernetes command-line tool
+1. [Caffeinate](https://ss64.com/osx/caffeinate.html) to keep the laptop from going to sleep during some long running steps below
 
 ### Build
 
