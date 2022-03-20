@@ -590,73 +590,73 @@ hack/kube/start.sh
 
 Starting container etcd-events on port 2379.
 etcd-events
-2c1377dbf8e5a1d1ae765c45e0b32e9da37693d11ed6b6fe049ae4d2d7ca2fcd
+1a778b3b00b83429b800c373757502712dc86e8a60d1e0d233650eb44375d4c9
 127.0.0.1:2379, 8e9e05c52164694d, 3.5.1, 20 kB, true, false, 2, 4, 4,
 
 Starting container gitcd-main on port 2479.
 gitcd-main
 Initialized empty Git repository in /backend/.git/
-[main (root-commit) a06d42e] init
+[main (root-commit) fb7fa9b] init
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 init
-{"level":"info","ts":1647778784.2813747,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
-{"level":"info","ts":1647778784.288507,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
-9af2d1274dabe663af373094da86459ac76a28905cae617e0f3056bed9954b29
+{"level":"info","ts":1647781399.9602814,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647781399.9673462,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+ee9e8676fa02ec8c148aa2be98ad2841e2f10a2caaaf76f2f596bf72a4988414
 127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
 Starting container gitcd-nodes on port 2579.
 gitcd-nodes
 Initialized empty Git repository in /backend/.git/
-[main (root-commit) 2cc8fe9] init
+[main (root-commit) 42f4ff6] init
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 init
-{"level":"info","ts":1647778787.4042866,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
-{"level":"info","ts":1647778787.4113333,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
-9b6e02be14b3e5a0c74c7863a5af9f16505d95133cc93146db1d71c4361fcae5
+{"level":"info","ts":1647781402.9502132,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647781402.9574022,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+4eeeefbe7a830328257c5e370188d9da7aaecc36be6f15d95b63374148872200
 127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
 Starting container gitcd-leases on port 2679.
 gitcd-leases
 Initialized empty Git repository in /backend/.git/
-[main (root-commit) ed96c19] init
+[main (root-commit) 64d4711] init
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 init
-{"level":"info","ts":1647778790.3922682,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
-{"level":"info","ts":1647778790.400751,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
-480dbbfb1a1ba25b4c964201e85ee1181f014921c7ee9acdc49babbc7989601b
+{"level":"info","ts":1647781405.9456248,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647781405.9526541,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+5d174d7115889ad562db679374c644773a62a591af3f0e64aa116494e7943684
 127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
 Starting container gitcd-priorityclasses on port 2779.
 gitcd-priorityclasses
 Initialized empty Git repository in /backend/.git/
-[main (root-commit) 3a29f5b] init
+[main (root-commit) b3d6195] init
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 init
-{"level":"info","ts":1647778793.3959885,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
-{"level":"info","ts":1647778793.4022024,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
-7bc0fe4bedcba4761cd7fe66a987717e977e9a42648719215f68a829919b6ba2
-127.0.0.1:2379, 0, v0.0.1-dev, 157 kB, true, false, 1, 1, 1,
+{"level":"info","ts":1647781408.9777782,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647781408.985106,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+fb25784f9b1f7eac438f567128149e052294076c9abc93c43f70bcb64eedc758
+127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
 Starting container gitcd-pods on port 2879.
 gitcd-pods
 Initialized empty Git repository in /backend/.git/
-[main (root-commit) 53fda86] init
+[main (root-commit) d33fe09] init
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 init
-{"level":"info","ts":1647778796.4278045,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
-{"level":"info","ts":1647778796.4346044,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
-bee7c521d062a52cfa198a180628417d7c83f8f447158de34a21c869c16d702d
+{"level":"info","ts":1647781411.9831467,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647781411.9903555,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+fed5a6ca20ef0acd8c8023fe8c7f39de99ff73ffc5b51d88e1cb0a5e840cfbf0
 127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
 Starting container gitcd-configmaps on port 2979.
 gitcd-configmaps
 Initialized empty Git repository in /backend/.git/
-[main (root-commit) 9396826] init
+[main (root-commit) 63ad69e] init
  1 file changed, 0 insertions(+), 0 deletions(-)
  create mode 100644 init
-{"level":"info","ts":1647778799.4809408,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
-{"level":"info","ts":1647778799.4879394,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
-7f8d77bb82dc79d523c5c729df8b0b37006b72c2fb95a66ff0ef774fd672e3e7
+{"level":"info","ts":1647781415.0181558,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefNamePrefix":"refs/gitcd/metadata/","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1647781415.0257235,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
+825743a4a66b4cc91ea815002952aea40534b50522e10ac15012d0472db3da36
 127.0.0.1:2379, 0, v0.0.1-dev, 161 kB, true, false, 1, 1, 1,
 
 Creating a local Kubernetes cluster using Kind configuration in ./hack/kube/kind-config.yaml.
@@ -672,19 +672,19 @@ You can now use your cluster with:
 
 kubectl cluster-info --context kind-trishanku
 
-Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/
+Thanks for using kind! 😊
 
 # Check that Kind and Gitcd containers are running.
 $ docker ps -n 8
-CONTAINER ID   IMAGE                    COMMAND                  CREATED              STATUS          PORTS                                                 NAMES
-e7f7b671a623   kindest/node:v1.21.1     "/usr/local/bin/entr…"   38 seconds ago       Up 34 seconds   127.0.0.1:57508->6443/tcp                             trishanku-control-plane
-7f8d77bb82dc   trishanku/gitcd:latest   "/gitcd serve --repo…"   41 seconds ago       Up 40 seconds   0.0.0.0:2979->2379/tcp, :::2979->2379/tcp             gitcd-configmaps
-bee7c521d062   trishanku/gitcd:latest   "/gitcd serve --repo…"   44 seconds ago       Up 43 seconds   0.0.0.0:2879->2379/tcp, :::2879->2379/tcp             gitcd-pods
-7bc0fe4bedcb   trishanku/gitcd:latest   "/gitcd serve --repo…"   47 seconds ago       Up 46 seconds   0.0.0.0:2779->2379/tcp, :::2779->2379/tcp             gitcd-priorityclasses
-480dbbfb1a1b   trishanku/gitcd:latest   "/gitcd serve --repo…"   50 seconds ago       Up 49 seconds   0.0.0.0:2679->2379/tcp, :::2679->2379/tcp             gitcd-leases
-9b6e02be14b3   trishanku/gitcd:latest   "/gitcd serve --repo…"   53 seconds ago       Up 52 seconds   0.0.0.0:2579->2379/tcp, :::2579->2379/tcp             gitcd-nodes
-9af2d1274dab   trishanku/gitcd:latest   "/gitcd serve --repo…"   56 seconds ago       Up 55 seconds   0.0.0.0:2479->2379/tcp, :::2479->2379/tcp             gitcd-main
-2c1377dbf8e5   bitnami/etcd:3           "/opt/bitnami/script…"   About a minute ago   Up 59 seconds   0.0.0.0:2379->2379/tcp, :::2379->2379/tcp, 2380/tcp   etcd-events
+CONTAINER ID   IMAGE                    COMMAND                  CREATED              STATUS              PORTS                                                 NAMES
+d7872d5ae5c8   kindest/node:v1.21.1     "/usr/local/bin/entr…"   38 seconds ago       Up 35 seconds       127.0.0.1:58898->6443/tcp                             trishanku-control-plane
+825743a4a66b   trishanku/gitcd:latest   "/gitcd serve --repo…"   41 seconds ago       Up 41 seconds       0.0.0.0:2979->2379/tcp, :::2979->2379/tcp             gitcd-configmaps
+fed5a6ca20ef   trishanku/gitcd:latest   "/gitcd serve --repo…"   44 seconds ago       Up 44 seconds       0.0.0.0:2879->2379/tcp, :::2879->2379/tcp             gitcd-pods
+fb25784f9b1f   trishanku/gitcd:latest   "/gitcd serve --repo…"   47 seconds ago       Up 47 seconds       0.0.0.0:2779->2379/tcp, :::2779->2379/tcp             gitcd-priorityclasses
+5d174d711588   trishanku/gitcd:latest   "/gitcd serve --repo…"   50 seconds ago       Up 50 seconds       0.0.0.0:2679->2379/tcp, :::2679->2379/tcp             gitcd-leases
+4eeeefbe7a83   trishanku/gitcd:latest   "/gitcd serve --repo…"   53 seconds ago       Up 53 seconds       0.0.0.0:2579->2379/tcp, :::2579->2379/tcp             gitcd-nodes
+ee9e8676fa02   trishanku/gitcd:latest   "/gitcd serve --repo…"   56 seconds ago       Up 56 seconds       0.0.0.0:2479->2379/tcp, :::2479->2379/tcp             gitcd-main
+1a778b3b00b8   bitnami/etcd:3           "/opt/bitnami/script…"   About a minute ago   Up About a minute   0.0.0.0:2379->2379/tcp, :::2379->2379/tcp, 2380/tcp   etcd-events
 
 # Check that the kubeconfig is pointint to the newly setup cluster.
 $ kubectl config current-context
@@ -692,51 +692,51 @@ kind-trishanku
 
 # Check the Kubernetes cluster information.
 $ kubectl cluster-info
-Kubernetes control plane is running at https://127.0.0.1:57508
-CoreDNS is running at https://127.0.0.1:57508/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+Kubernetes control plane is running at https://127.0.0.1:58898
+CoreDNS is running at https://127.0.0.1:58898/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
 
 To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 
 # List the namespaces in the cluster.
 $ kubectl get namespaces
 NAME                 STATUS   AGE
-default              Active   12s
-kube-node-lease      Active   16s
-kube-public          Active   16s
-kube-system          Active   16s
-local-path-storage   Active   5s
+default              Active   11s
+kube-node-lease      Active   15s
+kube-public          Active   15s
+kube-system          Active   15s
+local-path-storage   Active   4s
 
 # List the nodes in the cluster.
 $ kubectl get nodes
 NAME                      STATUS     ROLES                  AGE   VERSION
-trishanku-control-plane   NotReady   control-plane,master   16s   v1.21.1
+trishanku-control-plane   NotReady   control-plane,master   15s   v1.21.1
 
 # Wait for the node to be Ready.
 $ caffeinate -disu sleep 6m
 
 # Check if the node is Ready.
 $ kubectl get nodes
-NAME                      STATUS     ROLES                  AGE   VERSION
-trishanku-control-plane   Ready      control-plane,master   6m    v1.21.1
+NAME                      STATUS   ROLES                  AGE     VERSION
+trishanku-control-plane   Ready    control-plane,master   6m15s   v1.21.1
 
 # List all the pods in the cluster across all namespaces.
 $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                                              READY   STATUS    RESTARTS   AGE
-kube-system   kindnet-mqtkh                                     1/1     Running   0          103s
-kube-system   kube-apiserver-trishanku-control-plane            1/1     Running   1          119s
-kube-system   kube-controller-manager-trishanku-control-plane   1/1     Running   0          112s
-kube-system   kube-proxy-f8tmw                                  1/1     Running   0          103s
-kube-system   kube-scheduler-trishanku-control-plane            1/1     Running   0          55s
+kube-system   kindnet-2qx82                                     1/1     Running   0          104s
+kube-system   kube-apiserver-trishanku-control-plane            1/1     Running   1          6m15s
+kube-system   kube-controller-manager-trishanku-control-plane   1/1     Running   0          6m4s
+kube-system   kube-proxy-46j8c                                  1/1     Running   0          104s
+kube-system   kube-scheduler-trishanku-control-plane            1/1     Running   0          6m4s
 
 # Run a pod to say hello.
 $ kubectl run -i -t hello --image=busybox:1 --restart=Never --rm echo  'Hello, World!'
-Hello, World!
 pod "hello" deleted
+error: timed out waiting for the condition
 
 # Inspect the Kubernetes content in the backend Git repo.
 $ echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
     docker run -i --rm -v gitcd-nodes:/backend -w /backend bitnami/git:2 sh
-HEAD is now at e086049 15
+HEAD is now at 0ab9c2e 15
 Note: switching to 'refs/gitcd/metadata/refs/heads/main'.
 
 You are in 'detached HEAD' state. You can look around, make experimental
@@ -754,11 +754,11 @@ Or undo this operation with:
 
 Turn off this advice by setting config variable advice.detachedHead to false
 
-HEAD is now at 1cb9f0d 15
-Previous HEAD position was 1cb9f0d 15
+HEAD is now at b89a7c1 15
+Previous HEAD position was b89a7c1 15
 Switched to branch 'main'
 
-docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane
+$ docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane
 apiVersion: v1
 kind: Node
 metadata:
@@ -766,7 +766,7 @@ metadata:
     kubeadm.alpha.kubernetes.io/cri-socket: unix:///run/containerd/containerd.sock
     node.alpha.kubernetes.io/ttl: "0"
     volumes.kubernetes.io/controller-managed-attach-detach: "true"
-  creationTimestamp: "2022-03-20T12:20:26Z"
+  creationTimestamp: "2022-03-20T13:04:03Z"
   labels:
     beta.kubernetes.io/arch: amd64
     beta.kubernetes.io/os: linux
@@ -789,7 +789,7 @@ metadata:
           f:node.kubernetes.io/exclude-from-external-load-balancers: {}
     manager: kubeadm
     operation: Update
-    time: "2022-03-20T12:20:32Z"
+    time: "2022-03-20T13:04:09Z"
   - apiVersion: v1
     fieldsType: FieldsV1
     fieldsV1:
@@ -801,9 +801,19 @@ metadata:
         f:podCIDRs:
           .: {}
           v:"10.244.0.0/24": {}
+      f:status:
+        f:conditions:
+          k:{"type":"DiskPressure"}:
+            f:lastTransitionTime: {}
+          k:{"type":"MemoryPressure"}:
+            f:lastTransitionTime: {}
+          k:{"type":"PIDPressure"}:
+            f:lastTransitionTime: {}
+          k:{"type":"Ready"}:
+            f:lastTransitionTime: {}
     manager: kube-controller-manager
     operation: Update
-    time: "2022-03-20T12:26:38Z"
+    time: "2022-03-20T13:10:05Z"
   - apiVersion: v1
     fieldsType: FieldsV1
     fieldsV1:
@@ -824,33 +834,29 @@ metadata:
         f:conditions:
           k:{"type":"DiskPressure"}:
             f:lastHeartbeatTime: {}
-            f:lastTransitionTime: {}
             f:message: {}
             f:reason: {}
             f:status: {}
           k:{"type":"MemoryPressure"}:
             f:lastHeartbeatTime: {}
-            f:lastTransitionTime: {}
             f:message: {}
             f:reason: {}
             f:status: {}
           k:{"type":"PIDPressure"}:
             f:lastHeartbeatTime: {}
-            f:lastTransitionTime: {}
             f:message: {}
             f:reason: {}
             f:status: {}
           k:{"type":"Ready"}:
             f:lastHeartbeatTime: {}
-            f:lastTransitionTime: {}
             f:message: {}
             f:reason: {}
             f:status: {}
     manager: kubelet
     operation: Update
-    time: "2022-03-20T12:26:39Z"
+    time: "2022-03-20T13:10:05Z"
   name: trishanku-control-plane
-  uid: 64de4fcb-da69-4495-b281-6d04e90d2fc7
+  uid: a0c00ca5-2c5f-498d-9a53-00152e08a0ac
 spec:
   podCIDR: 10.244.0.0/24
   podCIDRs:
@@ -877,26 +883,26 @@ status:
     memory: 2032964Ki
     pods: "110"
   conditions:
-  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
-    lastTransitionTime: "2022-03-20T12:26:39Z"
+  - lastHeartbeatTime: "2022-03-20T13:10:05Z"
+    lastTransitionTime: "2022-03-20T13:10:05Z"
     message: kubelet has sufficient memory available
     reason: KubeletHasSufficientMemory
     status: "False"
     type: MemoryPressure
-  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
-    lastTransitionTime: "2022-03-20T12:26:39Z"
+  - lastHeartbeatTime: "2022-03-20T13:10:05Z"
+    lastTransitionTime: "2022-03-20T13:10:05Z"
     message: kubelet has no disk pressure
     reason: KubeletHasNoDiskPressure
     status: "False"
     type: DiskPressure
-  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
-    lastTransitionTime: "2022-03-20T12:26:39Z"
+  - lastHeartbeatTime: "2022-03-20T13:10:05Z"
+    lastTransitionTime: "2022-03-20T13:10:05Z"
     message: kubelet has sufficient PID available
     reason: KubeletHasSufficientPID
     status: "False"
     type: PIDPressure
-  - lastHeartbeatTime: "2022-03-20T12:26:39Z"
-    lastTransitionTime: "2022-03-20T12:26:39Z"
+  - lastHeartbeatTime: "2022-03-20T13:10:05Z"
+    lastTransitionTime: "2022-03-20T13:10:05Z"
     message: kubelet is posting ready status
     reason: KubeletReady
     status: "True"
@@ -942,95 +948,21 @@ status:
     kernelVersion: 5.10.47-linuxkit
     kubeProxyVersion: v1.21.1
     kubeletVersion: v1.21.1
-    machineID: 52e68fbe70db45a697a50fb38ee00e69
+    machineID: 0c694316f39c42749133c7e750ec4de0
     operatingSystem: linux
     osImage: Ubuntu 21.04
-    systemUUID: 0b00a417-b7af-4451-a5c4-fdc183a9b376
+    systemUUID: 458d89dd-56fc-4122-9531-84705ef7f434
 
 # Check the difference between the content in the backend git repo and the output from kubectl (there might have been more updates in the meantime).
-diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane -oyaml )
---- /dev/fd/63	2022-03-20 17:56:53.000000000 +0530
-+++ /dev/fd/62	2022-03-20 17:56:53.000000000 +0530
-@@ -15,80 +15,8 @@
-     node-role.kubernetes.io/control-plane: ""
-     node-role.kubernetes.io/master: ""
-     node.kubernetes.io/exclude-from-external-load-balancers: ""
--  managedFields:
--  - apiVersion: v1
--    fieldsType: FieldsV1
--    fieldsV1:
--      f:metadata:
--        f:annotations:
--          f:kubeadm.alpha.kubernetes.io/cri-socket: {}
--        f:labels:
--          f:node-role.kubernetes.io/control-plane: {}
--          f:node-role.kubernetes.io/master: {}
--          f:node.kubernetes.io/exclude-from-external-load-balancers: {}
--    manager: kubeadm
--    operation: Update
--    time: "2022-03-20T12:20:32Z"
--  - apiVersion: v1
--    fieldsType: FieldsV1
--    fieldsV1:
--      f:metadata:
--        f:annotations:
--          f:node.alpha.kubernetes.io/ttl: {}
--      f:spec:
--        f:podCIDR: {}
--        f:podCIDRs:
--          .: {}
--          v:"10.244.0.0/24": {}
--    manager: kube-controller-manager
--    operation: Update
--    time: "2022-03-20T12:26:38Z"
--  - apiVersion: v1
--    fieldsType: FieldsV1
--    fieldsV1:
--      f:metadata:
--        f:annotations:
--          .: {}
--          f:volumes.kubernetes.io/controller-managed-attach-detach: {}
--        f:labels:
--          .: {}
--          f:beta.kubernetes.io/arch: {}
--          f:beta.kubernetes.io/os: {}
--          f:kubernetes.io/arch: {}
--          f:kubernetes.io/hostname: {}
--          f:kubernetes.io/os: {}
--      f:spec:
--        f:providerID: {}
--      f:status:
--        f:conditions:
--          k:{"type":"DiskPressure"}:
--            f:lastHeartbeatTime: {}
--            f:lastTransitionTime: {}
--            f:message: {}
--            f:reason: {}
--            f:status: {}
--          k:{"type":"MemoryPressure"}:
--            f:lastHeartbeatTime: {}
--            f:lastTransitionTime: {}
--            f:message: {}
--            f:reason: {}
--            f:status: {}
--          k:{"type":"PIDPressure"}:
--            f:lastHeartbeatTime: {}
--            f:lastTransitionTime: {}
--            f:message: {}
--            f:reason: {}
--            f:status: {}
--          k:{"type":"Ready"}:
--            f:lastHeartbeatTime: {}
--            f:lastTransitionTime: {}
--            f:message: {}
--            f:reason: {}
--            f:status: {}
--    manager: kubelet
--    operation: Update
--    time: "2022-03-20T12:26:39Z"
+$ diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane --show-managed-fields=true -oyaml )
+--- /dev/fd/63	2022-03-20 18:41:20.000000000 +0530
++++ /dev/fd/62	2022-03-20 18:41:20.000000000 +0530
+@@ -95,6 +95,7 @@
+     operation: Update
+     time: "2022-03-20T13:10:05Z"
    name: trishanku-control-plane
 +  resourceVersion: "15"
-   uid: 64de4fcb-da69-4495-b281-6d04e90d2fc7
+   uid: a0c00ca5-2c5f-498d-9a53-00152e08a0ac
  spec:
    podCIDR: 10.244.0.0/24
 

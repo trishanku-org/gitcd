@@ -297,12 +297,12 @@ echo '$ echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/ma
 echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
     docker run -i --rm -v gitcd-nodes:/backend -w /backend bitnami/git:2 sh
 echo
-echo 'docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane'
+echo '$ docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane'
 docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane
 echo
 echo '# Check the difference between the content in the backend git repo and the output from kubectl (there might have been more updates in the meantime).'
-echo 'diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane -oyaml )'
-diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane -oyaml )
+echo '$ diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane --show-managed-fields=true -oyaml )'
+diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane --show-managed-fields=true -oyaml )
 echo 
 echo '```'
 echo
