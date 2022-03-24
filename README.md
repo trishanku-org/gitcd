@@ -729,9 +729,9 @@ kube-system   kube-proxy-46j8c                                  1/1     Running 
 kube-system   kube-scheduler-trishanku-control-plane            1/1     Running   0          6m4s
 
 # Run a pod to say hello.
-$ kubectl run -i -t hello --image=busybox:1 --restart=Never --rm echo  'Hello, World!'
-pod "hello" deleted
-error: timed out waiting for the condition
+$ caffeinate -disu kubectl run -i -t hello --image=busybox:1 --restart=Never --pod-running-timeout=3m --rm echo  'Hello, World!'
+Hello, World!
+pod "busybox" deleted
 
 # Inspect the Kubernetes content in the backend Git repo.
 $ echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
