@@ -110,37 +110,6 @@ func (i *closedOpenInterval) merge(s *closedOpenInterval) *closedOpenInterval {
 	return i
 }
 
-const (
-	pathSeparator = "/"
-)
-
-func splitPath(p string) (ps []string) {
-	p = util.ToCanonicalRelativePath(p)
-
-	if len(p) > 0 {
-		ps = strings.Split(p, pathSeparator)
-	}
-
-	return
-}
-
-type pathSlice []string
-
-func (ps pathSlice) boundedIndex(i int) int {
-	switch {
-	case i < 0:
-		return 0
-	case i <= len(ps):
-		return i
-	default:
-		return len(ps)
-	}
-}
-
-func (ps pathSlice) getRelevantPathForDepthOf(p string) string {
-	return path.Join(ps[:ps.boundedIndex(len(splitPath(p)))]...)
-}
-
 func joinSafe(parent, child string) string {
 	if len(parent) == 0 {
 		return child
@@ -168,11 +137,11 @@ func (kp *keyPrefix) getPathForKey(key string) string {
 		return util.ToCanonicalPath(key)
 	}
 
-	prefix = strings.TrimSuffix(prefix, pathSeparator)
+	prefix = strings.TrimSuffix(prefix, util.PathSeparator)
 
 	if strings.HasPrefix(key, prefix) {
 		// Only consider if the prefix is followed by a '/' in the key.
-		if key = key[len(prefix):]; len(key) > 0 && key[:1] == pathSeparator {
+		if key = key[len(prefix):]; len(key) > 0 && key[:1] == util.PathSeparator {
 			return util.ToCanonicalRelativePath(key)
 		}
 	}
@@ -206,7 +175,7 @@ func (ie *intervalExplorer) doFilterAndReceive(ctx context.Context, key string, 
 
 func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn intervalExplorerReceiverFunc, filterFns ...intervalExplorerFilterFunc) (err error) {
 	var (
-		startPathSlice pathSlice
+		startPathSlice util.PathSlice
 		tw             git.TreeWalker
 	)
 
@@ -225,7 +194,7 @@ func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn i
 		return
 	}
 
-	startPathSlice = pathSlice(splitPath(ie.getPathForKey(ie.interval.GetStartInclusive().String())))
+	startPathSlice = util.PathSlice(util.SplitPath(ie.getPathForKey(ie.interval.GetStartInclusive().String())))
 
 	tw = ie.repo.TreeWalker()
 
@@ -238,7 +207,7 @@ func (ie *intervalExplorer) forEachMatchingKey(ctx context.Context, receiverFn i
 			var (
 				p               = joinSafe(parentPath, te.EntryName())
 				k               = key(ie.getKeyForPath(p))
-				startKeyForPath = key(ie.getKeyForPath(startPathSlice.getRelevantPathForDepthOf(p)))
+				startKeyForPath = key(ie.getKeyForPath(startPathSlice.GetRelevantPathForDepthOf(p)))
 			)
 
 			if k.Cmp(startKeyForPath) == cmpResultLess {

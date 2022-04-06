@@ -32,7 +32,7 @@ func toGitObjectType(t impl.ObjectType) git.ObjectType {
 // object implements the Object interface defined in the parent git package.
 type object impl.Object
 
-var _ git.Object = &object{}
+var _ git.Object = (*object)(nil)
 
 func (o *object) impl() *impl.Object   { return (*impl.Object)(o) }
 func (o *object) Close() error         { return free(o.impl()) }
@@ -56,7 +56,7 @@ func (o *object) Peel(ctx context.Context, r git.ObjectReceiver) error {
 // blob implements the Blob interface defined in the parent git package.
 type blob impl.Blob
 
-var _ git.Blob = &blob{}
+var _ git.Blob = (*blob)(nil)
 
 func (b *blob) impl() *impl.Blob                                     { return (*impl.Blob)(b) }
 func (b *blob) Close() error                                         { return free(b.impl()) }
@@ -74,7 +74,7 @@ func (b *blob) ContentReader() (io.ReadCloser, error) {
 // treeEntry implements the TreeEntry interface defined in the parent git package.
 type treeEntry impl.TreeEntry
 
-var _ git.TreeEntry = &treeEntry{}
+var _ git.TreeEntry = (*treeEntry)(nil)
 
 func (te *treeEntry) impl() *impl.TreeEntry     { return (*impl.TreeEntry)(te) }
 func (te *treeEntry) EntryName() string         { return te.impl().Name }
@@ -85,7 +85,7 @@ func (te *treeEntry) EntryMode() git.Filemode   { return git.Filemode(te.impl().
 // tree implements the Tree interface defined in the parent git package.
 type tree impl.Tree
 
-var _ git.Tree = &tree{}
+var _ git.Tree = (*tree)(nil)
 
 func (t *tree) impl() *impl.Tree                                     { return (*impl.Tree)(t) }
 func (t *tree) Close() error                                         { return free(t.impl()) }
@@ -129,7 +129,7 @@ func (t *tree) ForEachEntry(ctx context.Context, fn git.TreeEntryReceiverFunc) e
 // commit implements the Commit interface defined in the parent git package.
 type commit impl.Commit
 
-var _ git.Commit = &commit{}
+var _ git.Commit = (*commit)(nil)
 
 func (c *commit) impl() *impl.Commit   { return (*impl.Commit)(c) }
 func (c *commit) Close() error         { return free(c.impl()) }

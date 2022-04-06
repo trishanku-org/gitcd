@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/trishanku/gitcd/pkg/git"
+	"github.com/trishanku/gitcd/pkg/git/tree/mutation"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 )
@@ -26,7 +27,7 @@ func (b *backend) doDeleteRange(
 		metaRoot, dataRoot                    git.Tree
 		dataHead                              git.Commit
 		ie                                    *intervalExplorer
-		metaTM, dataTM                        *treeMutation
+		metaTM, dataTM                        *mutation.TreeMutation
 		dMutated                              bool
 		newMetaRootID, newDataRootID, newDHID git.ObjectID
 		ndeleted                              int64
@@ -85,11 +86,11 @@ func (b *backend) doDeleteRange(
 				res.PrevKvs = append(res.PrevKvs, kv)
 			}
 
-			if dataTM, err = addMutation(dataTM, p, deleteEntry); err != nil {
+			if dataTM, err = mutation.AddMutation(dataTM, p, mutation.DeleteEntry); err != nil {
 				return
 			}
 
-			if metaTM, err = addMutation(metaTM, p, deleteEntry); err != nil {
+			if metaTM, err = mutation.AddMutation(metaTM, p, mutation.DeleteEntry); err != nil {
 				return
 			}
 
@@ -102,11 +103,11 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
-	if isMutationNOP(dataTM) {
+	if mutation.IsMutationNOP(dataTM) {
 		return
 	}
 
-	if dMutated, newDataRootID, err = b.mutateTree(ctx, dataRoot, dataTM, true); err != nil {
+	if dMutated, newDataRootID, err = mutation.MutateTree(ctx, b.repo, dataRoot, dataTM, true); err != nil {
 		return
 	}
 
@@ -114,7 +115,7 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
-	if metaTM, err = addMutation(
+	if metaTM, err = mutation.AddMutation(
 		metaTM,
 		metadataPathData,
 		func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -129,7 +130,7 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
-	if metaTM, err = addMutation(
+	if metaTM, err = mutation.AddMutation(
 		metaTM,
 		metadataPathRevision,
 		b.mutateRevisionTo(newRevision),
@@ -137,11 +138,11 @@ func (b *backend) doDeleteRange(
 		return
 	}
 
-	if isMutationNOP(metaTM) {
+	if mutation.IsMutationNOP(metaTM) {
 		return
 	}
 
-	if metaMutated, newMetaRootID, err = b.mutateTree(ctx, metaRoot, metaTM, true); err != nil {
+	if metaMutated, newMetaRootID, err = mutation.MutateTree(ctx, b.repo, metaRoot, metaTM, true); err != nil {
 		return
 	}
 

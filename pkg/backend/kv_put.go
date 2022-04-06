@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/trishanku/gitcd/pkg/git"
+	"github.com/trishanku/gitcd/pkg/git/tree/mutation"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
@@ -31,8 +32,8 @@ func (b *backend) doPut(
 		ie                                     *intervalExplorer
 		k                                      = string(req.GetKey())
 		p                                      string
-		metaTM                                 *treeMutation
-		revisionMutateFn                       mutateTreeEntryFunc
+		metaTM                                 *mutation.TreeMutation
+		revisionMutateFn                       mutation.MutateTreeEntryFunc
 		newMetaRootID, newMetaRootID2, newDHID git.ObjectID
 		metaMutated2, dMutated                 bool
 		mte                                    git.TreeEntry
@@ -79,11 +80,11 @@ func (b *backend) doPut(
 
 	if !req.IgnoreValue || req.PrevKv {
 		var (
-			dataTM        *treeMutation
+			dataTM        *mutation.TreeMutation
 			newDataRootID git.ObjectID
 		)
 
-		if dataTM, err = addMutation(
+		if dataTM, err = mutation.AddMutation(
 			nil,
 			p,
 			func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -125,12 +126,12 @@ func (b *backend) doPut(
 			return
 		}
 
-		if dMutated, newDataRootID, err = b.mutateTree(ctx, dataRoot, dataTM, false); err != nil {
+		if dMutated, newDataRootID, err = mutation.MutateTree(ctx, b.repo, dataRoot, dataTM, false); err != nil {
 			return
 		}
 
 		if dMutated {
-			if metaTM, err = addMutation(
+			if metaTM, err = mutation.AddMutation(
 				metaTM,
 				metadataPathData,
 				func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -145,7 +146,7 @@ func (b *backend) doPut(
 				return
 			}
 
-			if metaTM, err = addMutation(
+			if metaTM, err = mutation.AddMutation(
 				metaTM,
 				path.Join(p, etcdserverpb.Compare_VERSION.String()),
 				func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -167,7 +168,7 @@ func (b *backend) doPut(
 	}
 
 	if !req.GetIgnoreLease() {
-		if metaTM, err = addMutation(
+		if metaTM, err = mutation.AddMutation(
 			metaTM,
 			path.Join(p, etcdserverpb.Compare_LEASE.String()),
 			func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
@@ -194,12 +195,12 @@ func (b *backend) doPut(
 		}
 	}
 
-	if isMutationNOP(metaTM) {
+	if mutation.IsMutationNOP(metaTM) {
 		return // nop
 	}
 
 	// Apply non-conditional mutations on metadata first to see if the conditional mutations need to be applied.
-	if metaMutated, newMetaRootID, err = b.mutateTree(ctx, metaRoot, metaTM, false); err != nil || !metaMutated {
+	if metaMutated, newMetaRootID, err = mutation.MutateTree(ctx, b.repo, metaRoot, metaTM, false); err != nil || !metaMutated {
 		return
 	}
 
@@ -235,7 +236,7 @@ func (b *backend) doPut(
 				return
 			}
 
-			metaTM, err = addMutation(metaTM, path.Join(p, entryName), deleteEntry)
+			metaTM, err = mutation.AddMutation(metaTM, path.Join(p, entryName), mutation.DeleteEntry)
 			return
 		}); err != nil {
 			return
@@ -244,11 +245,11 @@ func (b *backend) doPut(
 
 	revisionMutateFn = b.mutateRevisionTo(newRevision)
 
-	if metaTM, err = addMutation(metaTM, metadataPathRevision, revisionMutateFn); err != nil {
+	if metaTM, err = mutation.AddMutation(metaTM, metadataPathRevision, revisionMutateFn); err != nil {
 		return
 	}
 
-	if metaTM, err = addMutation(
+	if metaTM, err = mutation.AddMutation(
 		metaTM,
 		path.Join(p, etcdserverpb.Compare_CREATE.String()),
 		b.mutateRevisionIfNotExistsTo(newRevision),
@@ -256,11 +257,11 @@ func (b *backend) doPut(
 		return
 	}
 
-	if metaTM, err = addMutation(metaTM, path.Join(p, etcdserverpb.Compare_MOD.String()), revisionMutateFn); err != nil {
+	if metaTM, err = mutation.AddMutation(metaTM, path.Join(p, etcdserverpb.Compare_MOD.String()), revisionMutateFn); err != nil {
 		return
 	}
 
-	if metaMutated2, newMetaRootID2, err = b.mutateTree(ctx, metaRoot, metaTM, false); err != nil {
+	if metaMutated2, newMetaRootID2, err = mutation.MutateTree(ctx, b.repo, metaRoot, metaTM, false); err != nil {
 		return
 	}
 

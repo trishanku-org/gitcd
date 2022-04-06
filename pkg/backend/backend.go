@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"reflect"
 	"strconv"
 	"time"
 
 	"github.com/trishanku/gitcd/pkg/git"
+	"github.com/trishanku/gitcd/pkg/git/tree/mutation"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
@@ -433,193 +433,9 @@ func (b *backend) inheritCurrentCommit(ctx context.Context, message string, newT
 	})
 }
 
-// mutateFunc defines the contract to mutate a tree entry.
-// The current tree entry which is passed as an argument might be nil if such an entry does not exist yet.
-// This function can be used as a callback to simultaneously retrieve previous content while mutating the tree entry.
-type mutateTreeEntryFunc func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error)
-
-// treeMutation defines the contract to combile multiple changes to a tree.
-type treeMutation struct {
-	Entries  map[string]mutateTreeEntryFunc
-	Subtrees map[string]*treeMutation
-}
-
-func (b *backend) isTreeEmpty(ctx context.Context, treeID git.ObjectID) (empty bool, err error) {
-	var (
-		t          git.Tree
-		hasEntries = false
-	)
-
-	if t, err = b.repo.ObjectGetter().GetTree(ctx, treeID); err != nil {
-		return
-	}
-
-	defer t.Close()
-
-	if err = t.ForEachEntry(ctx, func(_ context.Context, te git.TreeEntry) (done bool, err error) {
-		hasEntries = true
-		done = true
-		return
-	}); err != nil {
-		return
-	}
-
-	empty = !hasEntries
-	return
-}
-
-func deleteEntry(_ context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-	if te != nil {
-		err = tb.RemoveEntry(entryName)
-		mutated = err == nil
-	}
-	return
-}
-
-var _ mutateTreeEntryFunc = deleteEntry
-
-func (b *backend) mutateTreeBuilder(ctx context.Context, t git.Tree, tb git.TreeBuilder, tm *treeMutation, cleanupEmptySubtrees bool) (mutated bool, err error) {
-	// Process subtrees first to ensure depth first mutation.
-
-	for entryName, stm := range tm.Subtrees {
-		var (
-			te             git.TreeEntry
-			st             git.Tree
-			stb            git.TreeBuilder
-			subtreeMutated bool
-			entryID        git.ObjectID
-		)
-
-		if t != nil {
-			if te, err = t.GetEntryByPath(ctx, entryName); err == nil {
-				if te.EntryType() == git.ObjectTypeTree {
-					if st, err = b.repo.ObjectGetter().GetTree(ctx, te.EntryID()); err != nil {
-						return
-					}
-
-					defer st.Close()
-
-					if stb, err = b.repo.TreeBuilderFromTree(ctx, st); err != nil {
-						return
-					}
-				} else {
-					te = nil // Just to be sure
-				}
-			} else if err == ctx.Err() {
-				return // Return if context error
-			}
-		}
-
-		if stb == nil {
-			if stb, err = b.repo.TreeBuilder(ctx); err != nil {
-				return
-			}
-		}
-
-		defer stb.Close()
-
-		if subtreeMutated, err = b.mutateTreeBuilder(ctx, st, stb, stm, cleanupEmptySubtrees); err != nil {
-			return
-		}
-
-		if !subtreeMutated {
-			continue
-		}
-
-		if entryID, err = stb.Build(ctx); err != nil {
-			return
-		}
-
-		if st != nil {
-			if subtreeMutated = !reflect.DeepEqual(entryID, st.ID()); subtreeMutated {
-				if err = tb.RemoveEntry(entryName); err != nil {
-					return
-				}
-			}
-		}
-
-		if !subtreeMutated {
-			continue
-		}
-
-		mutated = mutated || subtreeMutated
-
-		if cleanupEmptySubtrees {
-			var empty bool
-
-			if empty, err = b.isTreeEmpty(ctx, entryID); err != nil {
-				return
-			}
-
-			if empty {
-				continue // Skip adding the entry. It would already have been removed above.
-			}
-		}
-
-		if err = tb.AddEntry(entryName, entryID, git.FilemodeTree); err != nil {
-			return
-		}
-	}
-
-	for entryName, entryMutateFn := range tm.Entries {
-		var (
-			te           git.TreeEntry
-			entryMutated bool
-		)
-
-		if t != nil {
-			if te, err = t.GetEntryByPath(ctx, entryName); err != nil && err == ctx.Err() {
-				return // Return if context error
-			}
-		}
-
-		if entryMutated, err = entryMutateFn(ctx, tb, entryName, te); err != nil {
-			return
-		}
-
-		mutated = mutated || entryMutated
-	}
-
-	return
-}
-
-func (b *backend) mutateTree(ctx context.Context, currentT git.Tree, tm *treeMutation, cleanupEmptySubtrees bool) (mutated bool, newTreeID git.ObjectID, err error) {
-	var tb git.TreeBuilder
-
-	if currentT != nil {
-		tb, err = b.repo.TreeBuilderFromTree(ctx, currentT)
-	} else {
-		tb, err = b.repo.TreeBuilder(ctx)
-	}
-
-	if err != nil {
-		return
-	}
-
-	defer tb.Close()
-
-	if mutated, err = b.mutateTreeBuilder(ctx, currentT, tb, tm, cleanupEmptySubtrees); err != nil {
-		return
-	}
-
-	if !mutated {
-		return
-	}
-
-	if newTreeID, err = tb.Build(ctx); err != nil {
-		return
-	}
-
-	if currentT != nil {
-		mutated = !reflect.DeepEqual(newTreeID, currentT.ID())
-	}
-
-	return
-}
-
 func (b *backend) mutateRevisionConditionallyTo(
 	conditionFn func(context.Context, git.TreeEntry) (check bool, revision int64, err error),
-) mutateTreeEntryFunc {
+) mutation.MutateTreeEntryFunc {
 	return func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
 		var (
 			check    bool
@@ -635,7 +451,7 @@ func (b *backend) mutateRevisionConditionallyTo(
 	}
 }
 
-func (b *backend) mutateRevisionTo(newRevision int64) mutateTreeEntryFunc {
+func (b *backend) mutateRevisionTo(newRevision int64) mutation.MutateTreeEntryFunc {
 	return b.mutateRevisionConditionallyTo(func(ctx context.Context, te git.TreeEntry) (check bool, revision int64, err error) {
 		var currentRevision int64
 
@@ -654,13 +470,13 @@ func (b *backend) mutateRevisionTo(newRevision int64) mutateTreeEntryFunc {
 	})
 }
 
-func (b *backend) mutateRevisionIfNotExistsTo(newRevision int64) mutateTreeEntryFunc {
+func (b *backend) mutateRevisionIfNotExistsTo(newRevision int64) mutation.MutateTreeEntryFunc {
 	return b.mutateRevisionConditionallyTo(func(_ context.Context, te git.TreeEntry) (bool, int64, error) {
 		return te == nil || te.EntryType() != git.ObjectTypeBlob, newRevision, nil
 	})
 }
 
-func (b *backend) incrementRevision() mutateTreeEntryFunc {
+func (b *backend) incrementRevision() mutation.MutateTreeEntryFunc {
 	return b.mutateRevisionConditionallyTo(func(ctx context.Context, te git.TreeEntry) (check bool, revision int64, err error) {
 		defer func() { revision++ }()
 
@@ -711,75 +527,6 @@ func (b *backend) addOrReplaceTreeEntry(ctx context.Context, tb git.TreeBuilder,
 	mutated = true
 
 	return
-}
-
-func addMutationPathSlice(tm *treeMutation, ps pathSlice, entryName string, entryMutateFn mutateTreeEntryFunc) (newTM *treeMutation, err error) {
-	var (
-		stName string
-		stm    *treeMutation
-		stOK   bool
-	)
-
-	if tm == nil {
-		tm = &treeMutation{}
-	}
-
-	if len(ps) == 0 {
-		if tm.Entries == nil {
-			tm.Entries = make(map[string]mutateTreeEntryFunc)
-		}
-
-		tm.Entries[entryName] = entryMutateFn // TODO error if already exists
-
-		newTM = tm
-		return
-	}
-
-	if tm.Subtrees == nil {
-		tm.Subtrees = make(map[string]*treeMutation)
-	}
-
-	stName = ps[0]
-
-	if stm, stOK = tm.Subtrees[stName]; !stOK {
-		stm = &treeMutation{}
-	}
-
-	tm.Subtrees[stName], err = addMutationPathSlice(stm, ps[1:], entryName, entryMutateFn)
-
-	newTM = tm
-	return
-}
-
-func addMutation(tm *treeMutation, p string, mutateFn mutateTreeEntryFunc) (newTM *treeMutation, err error) {
-	var ps = splitPath(p)
-
-	if len(ps) == 0 {
-		newTM = tm
-		err = rpctypes.ErrGRPCEmptyKey
-		return
-	}
-
-	newTM, err = addMutationPathSlice(tm, ps[:len(ps)-1], ps[len(ps)-1], mutateFn)
-	return
-}
-
-func isMutationNOP(tm *treeMutation) bool {
-	if tm == nil {
-		return true
-	}
-
-	if len(tm.Entries) > 0 {
-		return false
-	}
-
-	for _, stm := range tm.Subtrees {
-		if !isMutationNOP(stm) {
-			return false
-		}
-	}
-
-	return true
 }
 
 func (b *backend) advanceReferences(

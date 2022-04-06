@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/trishanku/gitcd/pkg/git"
+	"github.com/trishanku/gitcd/pkg/git/tree/mutation"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 )
 
@@ -196,11 +197,11 @@ func (b *backend) mutateMetadataForDataChange(
 ) (mutated bool, newMetaTID git.ObjectID, err error) {
 	var (
 		diff                   git.Diff
-		deleteFn               = deleteEntry
+		deleteFn               = mutation.DeleteEntry
 		revisionMutateFn       = b.mutateRevisionTo(newRevision)
 		createRevisionMutateFn = b.mutateRevisionIfNotExistsTo(newRevision)
 		versionMutateFn        = b.incrementRevision()
-		mtm                    *treeMutation
+		mtm                    *mutation.TreeMutation
 	)
 
 	if diff, err = b.repo.TreeDiff(ctx, oldDataT, newDataT); err != nil {
@@ -211,7 +212,7 @@ func (b *backend) mutateMetadataForDataChange(
 
 	if err = diff.ForEachDiffChange(ctx, func(ctx context.Context, change git.DiffChange) (done bool, err error) {
 		var (
-			mutations = make(map[string]mutateTreeEntryFunc, 3)
+			mutations = make(map[string]mutation.MutateTreeEntryFunc, 3)
 			p         = change.Path()
 		)
 
@@ -227,7 +228,7 @@ func (b *backend) mutateMetadataForDataChange(
 		}
 
 		for p, mutateFn := range mutations {
-			if mtm, err = addMutation(mtm, p, mutateFn); err != nil {
+			if mtm, err = mutation.AddMutation(mtm, p, mutateFn); err != nil {
 				return
 			}
 		}
@@ -237,19 +238,19 @@ func (b *backend) mutateMetadataForDataChange(
 		return
 	}
 
-	for p, mutateFn := range map[string]mutateTreeEntryFunc{
+	for p, mutateFn := range map[string]mutation.MutateTreeEntryFunc{
 		metadataPathRevision: revisionMutateFn,
 		metadataPathData: func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
 			mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, []byte(newDataHeadID.String()), te)
 			return
 		},
 	} {
-		if mtm, err = addMutation(mtm, p, mutateFn); err != nil {
+		if mtm, err = mutation.AddMutation(mtm, p, mutateFn); err != nil {
 			return
 		}
 	}
 
-	mutated, newMetaTID, err = b.mutateTree(ctx, metaT, mtm, true)
+	mutated, newMetaTID, err = mutation.MutateTree(ctx, b.repo, metaT, mtm, true)
 	return
 }
 

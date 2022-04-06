@@ -21,6 +21,7 @@ import (
 	"github.com/trishanku/gitcd/pkg/git"
 	"github.com/trishanku/gitcd/pkg/git/git2go"
 	. "github.com/trishanku/gitcd/pkg/tests_util"
+	"github.com/trishanku/gitcd/pkg/util"
 )
 
 var _ = Describe("backend", func() {
@@ -133,10 +134,10 @@ var _ = Describe("backend", func() {
 		) (newMetaHead, newDataHead *CommitDef) {
 			var (
 				bNewRevision = []byte(revisionToString(newRevision))
-				addTreeEntry func(td *TreeDef, ps pathSlice, callback func(td *TreeDef, entryName string))
+				addTreeEntry func(td *TreeDef, ps util.PathSlice, callback func(td *TreeDef, entryName string))
 			)
 
-			addTreeEntry = func(td *TreeDef, ps pathSlice, callback func(td *TreeDef, entryName string)) {
+			addTreeEntry = func(td *TreeDef, ps util.PathSlice, callback func(td *TreeDef, entryName string)) {
 				switch len(ps) {
 				case 0:
 					return
@@ -192,12 +193,12 @@ var _ = Describe("backend", func() {
 			newMetaHead.Message, newDataHead.Message = string(bNewRevision), string(bNewRevision)
 
 			if !ignoreValue {
-				addTreeEntry(&newDataHead.Tree, splitPath(p), func(td *TreeDef, entryName string) {
+				addTreeEntry(&newDataHead.Tree, util.SplitPath(p), func(td *TreeDef, entryName string) {
 					delete(td.Subtrees, entryName)
 					td.Blobs[entryName] = value
 				})
 
-				addTreeEntry(&newMetaHead.Tree, splitPath(p), func(td *TreeDef, entryName string) {
+				addTreeEntry(&newMetaHead.Tree, util.SplitPath(p), func(td *TreeDef, entryName string) {
 					var (
 						version = int64(0)
 						std     TreeDef
@@ -223,7 +224,7 @@ var _ = Describe("backend", func() {
 			}
 
 			if !ignoreLease {
-				addTreeEntry(&newMetaHead.Tree, splitPath(p), func(td *TreeDef, entryName string) {
+				addTreeEntry(&newMetaHead.Tree, util.SplitPath(p), func(td *TreeDef, entryName string) {
 					var (
 						std TreeDef
 						ok  bool
@@ -241,7 +242,7 @@ var _ = Describe("backend", func() {
 			}
 
 			if !(ignoreValue && ignoreLease) {
-				addTreeEntry(&newMetaHead.Tree, splitPath(p), func(td *TreeDef, entryName string) {
+				addTreeEntry(&newMetaHead.Tree, util.SplitPath(p), func(td *TreeDef, entryName string) {
 					var (
 						std TreeDef
 						ok  bool
@@ -261,7 +262,7 @@ var _ = Describe("backend", func() {
 					td.Subtrees[entryName] = std
 				})
 
-				addTreeEntry(&newMetaHead.Tree, splitPath(metadataPathRevision), func(td *TreeDef, entryName string) {
+				addTreeEntry(&newMetaHead.Tree, util.SplitPath(metadataPathRevision), func(td *TreeDef, entryName string) {
 					delete(td.Subtrees, entryName)
 					td.Blobs[entryName] = bNewRevision
 				})

@@ -18,7 +18,7 @@ type repository struct {
 	path string
 }
 
-var _ git.Repository = &repository{}
+var _ git.Repository = (*repository)(nil)
 
 func (repo *repository) Close() error { return free(repo.impl) }
 
@@ -409,6 +409,14 @@ func (repo *repository) TreeDiff(ctx context.Context, oldT, newT git.Tree) (d gi
 
 	d = (*diff)(implDiff)
 	return
+}
+
+func (repo *repository) Merger() git.Merger {
+	return &mergerImpl{
+		repo:               repo,
+		conflictResolution: git.DefaultConflictResolution,
+		retentionPolicy:    git.DefaultMergeRetentionPolicy,
+	}
 }
 
 func (repo *repository) Size() (size int64, err error) {

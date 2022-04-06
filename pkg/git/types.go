@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"regexp"
 	"time"
 )
 
@@ -284,6 +285,119 @@ type Diff interface {
 	ForEachDiffChange(context.Context, DiffChangeReceiverFunc) error
 }
 
+type MergeConfictResolution int
+
+const (
+	MergeConfictResolutionFavorOurs = MergeConfictResolution(iota + 1)
+	MergeConfictResolutionFavorTheirs
+
+	DefaultConflictResolution = MergeConfictResolutionFavorTheirs
+)
+
+// MergeRetentionPolicy defines the interface to check if a tree entry must be retained during merge/rebase.
+type MergeRetentionPolicy interface {
+	Retain(ctx context.Context, tePath string) (retain bool, err error)
+}
+
+var DefaultMergeRetentionPolicy = AllMergeRetentionPolicy()
+
+func AllMergeRetentionPolicy() MergeRetentionPolicy { return allMRP{} }
+
+type allMRP struct{}
+
+func (allMRP) Retain(_ context.Context, _ string) (retain bool, err error) { retain = true; return }
+
+func NoneMergeRetentionPolicy() MergeRetentionPolicy { return noneMRP{} }
+
+type noneMRP struct{}
+
+func (noneMRP) Retain(_ context.Context, _ string) (retain bool, err error) { return }
+
+// OrMergeRetentionPolicy returns a policy which etains if any one of the given policies retains.
+func OrMergeRetentionPolicy(mrps ...MergeRetentionPolicy) MergeRetentionPolicy {
+	return orMRP(mrps)
+}
+
+// orMRP retains if any one of the given policies retains.
+type orMRP []MergeRetentionPolicy
+
+func (o orMRP) Retain(ctx context.Context, tePath string) (retain bool, err error) {
+	for _, mrp := range o {
+		if retain, err = mrp.Retain(ctx, tePath); retain || err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+// AndMergeRetentionPolicy returns a policy which retains if all of the given policies retain.
+func AndMergeRetentionPolicy(mrps ...MergeRetentionPolicy) MergeRetentionPolicy {
+	return andMRP(mrps)
+}
+
+// andMRP retains only if all of the policies retain.
+type andMRP []MergeRetentionPolicy
+
+func (a andMRP) Retain(ctx context.Context, tePath string) (retain bool, err error) {
+	for _, mrp := range a {
+		if retain, err = mrp.Retain(ctx, tePath); !retain || err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+// NotMergeRetentionPolicy returns a policy which negates the given policy.
+func NotMergeRetentionPolicy(mrp MergeRetentionPolicy) MergeRetentionPolicy {
+	return notMRP{mrp: mrp}
+}
+
+// notMRP negates the given policy.
+type notMRP struct {
+	mrp MergeRetentionPolicy
+}
+
+func (n notMRP) Retain(ctx context.Context, tePath string) (retain bool, err error) {
+	retain, err = n.mrp.Retain(ctx, tePath)
+	retain = !retain
+	return
+}
+
+// regexpMRP retains if the tree entry path matches the given regexp.
+type regexpMRP regexp.Regexp
+
+func (r *regexpMRP) regexp() *regexp.Regexp {
+	return (*regexp.Regexp)(r)
+}
+
+func (r *regexpMRP) Retain(ctx context.Context, tePath string) (retain bool, err error) {
+	retain = r.regexp().MatchString(tePath)
+	return
+}
+
+// Merger defines the interface to merge changes from diffrent commit trees.
+// It only merges the commit trees and automatically resolves conflicts.
+// Creating the new commit based on the merged tree is out of scope of the Merger.
+// So, the core functionality here can be used to do actual merges, rebases or cherry-picks.
+//
+// The overall options and preferances such as favoring ours or theirs to resolve conflicts,
+// retention policy to filter changes coming in or allowing fast-forward changes can be
+// configured in the Merger before merging the commit trees.
+type Merger interface {
+	io.Closer
+
+	GetConfictResolution() MergeConfictResolution
+	GetRetentionPolicy() MergeRetentionPolicy
+
+	SetConflictResolution(conflictResolution MergeConfictResolution)
+	SetRetentionPolicy(retentionPolicy MergeRetentionPolicy)
+
+	MergeTrees(ctx context.Context, ancestor, ours, theirs Tree) (mutate bool, treeID ObjectID, err error)
+	MergeTreesFromCommits(ctx context.Context, ours, theirs Commit) (mutated bool, treeID ObjectID, fastForward bool, err error)
+}
+
 // Repository defines access to a Git repository.
 type Repository interface {
 	io.Closer
@@ -302,6 +416,8 @@ type Repository interface {
 	CommitBuilder(context.Context) (CommitBuilder, error)
 
 	TreeDiff(ctx context.Context, oldT, newT Tree) (Diff, error)
+
+	Merger() Merger
 
 	Size() (int64, error)
 }
