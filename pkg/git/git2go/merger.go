@@ -223,6 +223,7 @@ func (m *mergerImpl) retainFromMergePeelable(
 ) (
 	mutated bool,
 	treeID git.ObjectID,
+	fastForward bool,
 	err error,
 ) {
 	var oursT, mergeT git.Tree
@@ -243,7 +244,14 @@ func (m *mergerImpl) retainFromMergePeelable(
 		defer mergeT.Close()
 	}
 
-	mutated, treeID, err = m.retainFromMergeTree(ctx, oursT, mergeT)
+	if mutated, treeID, err = m.retainFromMergeTree(ctx, oursT, mergeT); err != nil {
+		return
+	}
+
+	if mutated {
+		fastForward = reflect.DeepEqual(treeID, mergeT.ID())
+	}
+
 	return
 }
 
@@ -298,8 +306,7 @@ func (m *mergerImpl) MergeTreesFromCommits(
 
 	if ours == nil {
 		// Simple merge. Theirs is the merge candidate.
-		fastForward = true
-		mutated, treeID, err = m.retainFromMergePeelable(ctx, nil, theirs)
+		mutated, treeID, fastForward, err = m.retainFromMergePeelable(ctx, nil, theirs)
 		return
 	} else if iOurs, ok = ours.(*commit); !ok {
 		err = NewUnsupportedImplementationError(ours)
@@ -307,7 +314,7 @@ func (m *mergerImpl) MergeTreesFromCommits(
 	}
 
 	if reflect.DeepEqual(ours.ID(), theirs.ID()) {
-		// Nothing to do both sides are identical.
+		// Nothing to do. Both sides are identical.
 		return
 	}
 
@@ -322,8 +329,7 @@ func (m *mergerImpl) MergeTreesFromCommits(
 
 	if reflect.DeepEqual(baseCommitID, ours.ID()) {
 		// Simple merge. Theirs is the merge candidate because it has already merged ours but has gone ahead.
-		fastForward = true
-		mutated, treeID, err = m.retainFromMergePeelable(ctx, ours, theirs)
+		mutated, treeID, fastForward, err = m.retainFromMergePeelable(ctx, ours, theirs)
 		return
 	}
 

@@ -63,6 +63,10 @@ func (repo *repository) References() (git.ReferenceCollection, error) {
 	return (*referenceCollection)(&repo.impl.References), nil
 }
 
+func (repo *repository) Remotes() (git.RemoteCollection, error) {
+	return (*remoteCollection)(&repo.impl.Remotes), nil
+}
+
 func (repo *repository) ObjectGetter() git.ObjectGetter { return repo }
 
 func (repo *repository) GetObject(ctx context.Context, id git.ObjectID) (git.Object, error) {

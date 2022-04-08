@@ -398,12 +398,35 @@ type Merger interface {
 	MergeTreesFromCommits(ctx context.Context, ours, theirs Commit) (mutated bool, treeID ObjectID, fastForward bool, err error)
 }
 
+// RemoteName defines the type for the names of the remotes of a Git repository.
+type RemoteName string
+
+// RefSpec defines the type for refspecs of remotes.
+type RefSpec string
+
+// Remote defines access to a remote of a Git repository.
+// It must be closed after use to release the resources it holds.
+type Remote interface {
+	io.Closer
+
+	Name() RemoteName
+	Fetch(ctx context.Context, refSpecs []RefSpec) error
+}
+
+// RemoteCollection defines access to the remotes of a Git repository.
+type RemoteCollection interface {
+	io.Closer
+
+	Get(context.Context, RemoteName) (Remote, error)
+}
+
 // Repository defines access to a Git repository.
 type Repository interface {
 	io.Closer
 
 	ForEachReferenceName(context.Context, ReferenceNameReceiverFunc) error
 	References() (ReferenceCollection, error)
+	Remotes() (RemoteCollection, error)
 
 	ObjectGetter() ObjectGetter
 	ObjectConverter() ObjectConverter
