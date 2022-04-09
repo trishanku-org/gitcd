@@ -153,6 +153,18 @@ func (b *backend) readRevisionFromTreeEntry(ctx context.Context, te git.TreeEntr
 	return strconv.ParseInt(string(v), 10, 64)
 }
 
+func (b *backend) readRevisionFromMetaPeelable(ctx context.Context, metaP git.Peelable) (revision int64, err error) {
+	var t git.Tree
+
+	if t, err = b.repo.Peeler().PeelToTree(ctx, metaP); err != nil {
+		return
+	}
+
+	defer t.Close()
+
+	return b.readRevision(ctx, t, metadataPathRevision)
+}
+
 func revisionToString(revision int64) string {
 	return strconv.FormatInt(revision, 10)
 }
