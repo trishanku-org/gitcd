@@ -138,7 +138,7 @@ const (
 	defaultStartRevision = int64(1)
 )
 
-var initFlags = struct {
+type initFlagsImpl struct {
 	repoPath          string
 	committerName     string
 	committerEmail    string
@@ -147,37 +147,29 @@ var initFlags = struct {
 	startRevisions    map[string]int64
 	versions          map[string]string
 	force             bool
-}{}
+}
+
+var (
+	_ commonBackendFlags = (*initFlagsImpl)(nil)
+
+	initFlags = &initFlagsImpl{
+		dataRefNames:   map[string]string{},
+		startRevisions: map[string]int64{},
+		versions:       map[string]string{},
+	}
+)
+
+func (i *initFlagsImpl) getRepoPath() *string                { return &i.repoPath }
+func (i *initFlagsImpl) getCommitterName() *string           { return &i.committerName }
+func (i *initFlagsImpl) getCommitterEmail() *string          { return &i.committerEmail }
+func (i *initFlagsImpl) getMetadataRefNamePrefix() *string   { return &i.metaRefNamePrefix }
+func (i *initFlagsImpl) getDataRefNames() *map[string]string { return &i.dataRefNames }
 
 func init() {
 	rootCmd.AddCommand(initCmd)
 
-	initCmd.Flags().StringVar(&initFlags.repoPath, "repo", defaultRepoPath, "Path to the Git repo to be used as the backend.")
-	initCmd.Flags().StringVar(
-		&initFlags.committerName,
-		"committer-name",
-		defaultCommitterName,
-		"Name of the committer to use while making changes to the Git repo backend.",
-	)
-	initCmd.Flags().StringVar(
-		&initFlags.committerEmail,
-		"committer-email",
-		defaultCommitterEmail,
-		"Email of the committer to use while making changes to the Git repo backend.",
-	)
-	initCmd.Flags().StringVar(
-		&initFlags.metaRefNamePrefix,
-		"metadata-reference-name-prefix",
-		backend.DefaultMetadataReferencePrefix,
-		`Prefix for the Git reference name to be used as the metadata backend.
-The full metadata Git referene name will be the path concatenation of the prefix and the data Git reference name.`)
+	addCommonBackendFlags(initCmd.Flags(), initFlags)
 
-	initCmd.Flags().StringToStringVar(
-		&initFlags.dataRefNames,
-		"data-reference-names",
-		map[string]string{"default": "refs/heads/main"},
-		"Git reference names to be used as the data backend.",
-	)
 	initCmd.Flags().StringToInt64Var(
 		&initFlags.startRevisions,
 		"start-revisions",

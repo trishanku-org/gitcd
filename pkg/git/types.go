@@ -259,7 +259,7 @@ type CommitBuilder interface {
 type ReferenceNameReceiverFunc func(context.Context, ReferenceName) (done bool, err error)
 
 // DiffChangeType defines the possible types of individual changes in a diff of a tree.
-type DiffChangeType int
+type DiffChangeType int8
 
 const (
 	DiffChangeTypeAdded DiffChangeType = iota + 1
@@ -285,7 +285,7 @@ type Diff interface {
 	ForEachDiffChange(context.Context, DiffChangeReceiverFunc) error
 }
 
-type MergeConfictResolution int
+type MergeConfictResolution int8
 
 const (
 	MergeConfictResolutionFavorOurs = MergeConfictResolution(iota + 1)
@@ -313,7 +313,7 @@ type noneMRP struct{}
 
 func (noneMRP) Retain(_ context.Context, _ string) (retain bool, err error) { return }
 
-// OrMergeRetentionPolicy returns a policy which etains if any one of the given policies retains.
+// OrMergeRetentionPolicy returns a policy which retains if any one of the given policies retains.
 func OrMergeRetentionPolicy(mrps ...MergeRetentionPolicy) MergeRetentionPolicy {
 	return orMRP(mrps)
 }
@@ -363,6 +363,11 @@ func (n notMRP) Retain(ctx context.Context, tePath string) (retain bool, err err
 	retain, err = n.mrp.Retain(ctx, tePath)
 	retain = !retain
 	return
+}
+
+// RegexpMergeRetentionPolicy returns a policy which retains paths which matches the given regexp pattern.
+func RegexpMergeRetentionPolicy(re *regexp.Regexp) MergeRetentionPolicy {
+	return (*regexpMRP)(re)
 }
 
 // regexpMRP retains if the tree entry path matches the given regexp.

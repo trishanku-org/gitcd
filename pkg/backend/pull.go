@@ -13,6 +13,18 @@ import (
 
 type PullOptionFunc func(*puller) error
 
+func NewPull(optFns ...PullOptionFunc) (err error) {
+	var p = &puller{}
+
+	for _, fn := range optFns {
+		if err = fn(p); err != nil {
+			return
+		}
+	}
+
+	return
+}
+
 type pullOpts struct{}
 
 var PullOptions = pullOpts{}

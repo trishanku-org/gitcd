@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/trishanku/gitcd/pkg/backend"
 	"github.com/trishanku/gitcd/pkg/backend/mutex"
 	"github.com/trishanku/gitcd/pkg/git"
@@ -120,6 +121,25 @@ type serverInfo struct {
 	listenURL           *url.URL
 	clientURLs          []*url.URL
 	clusterId, memberId uint64
+
+	remoteName                           git.RemoteName
+	remoteDataRefName, remoteMetaRefName git.ReferenceName
+	mergeConflictResolution              git.MergeConfictResolution
+	mergeRetentionPolicy                 git.MergeRetentionPolicy
+	noFastForward                        bool
+}
+
+var _ commonPullerInfo = (*serverInfo)(nil)
+
+func (s *serverInfo) DataRefName() *git.ReferenceName                 { return &s.dataRefName }
+func (s *serverInfo) RemoteName() *git.RemoteName                     { return &s.remoteName }
+func (s *serverInfo) RemoteDataRefName() *git.ReferenceName           { return &s.remoteDataRefName }
+func (s *serverInfo) RemoteMetaRefName() *git.ReferenceName           { return &s.remoteMetaRefName }
+func (s *serverInfo) MergeRetentionPolicy() *git.MergeRetentionPolicy { return &s.mergeRetentionPolicy }
+func (s *serverInfo) NoFastForward() *bool                            { return &s.noFastForward }
+
+func (s *serverInfo) MergeConflictResolution() *git.MergeConfictResolution {
+	return &s.mergeConflictResolution
 }
 
 func organizeServerInfo() (sis []*serverInfo, err error) {
@@ -181,6 +201,10 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 		}
 
 		si.memberId = uint64(i)
+
+		if err = loadPullerInfoFor(si, serveFlags, serveFlags, k); err != nil {
+			return
+		}
 
 		m[k] = si
 	}
@@ -288,6 +312,15 @@ func registerGRPCServers(
 
 		if err = registerHealthServer(grpcSrv); err != nil {
 			return
+		}
+
+		if serveFlags.pullTickerDuration > 0 {
+			var ticker = time.NewTicker(serveFlags.pullTickerDuration)
+
+			closers = append(closers, funcCloser(ticker.Stop))
+			if err = schedulePull(ctx, si, kvs, ticker.C, log.WithValues("remoteName", si.remoteName)); err != nil {
+				return
+			}
 		}
 
 		servers[si.dataRefName] = grpcSrv
@@ -544,6 +577,30 @@ func registerHealthServer(grpcSrv *grpc.Server) (err error) {
 	return
 }
 
+func schedulePull(
+	ctx context.Context,
+	pi commonPullerInfo,
+	kvs etcdserverpb.KVServer,
+	ticker <-chan time.Time,
+	log logr.Logger,
+) (err error) {
+	if err = backend.NewPull(
+		backend.PullOptions.WithBackend(kvs),
+		backend.PullOptions.WithRemoteName(*pi.RemoteName()),
+		backend.PullOptions.WithRemoteDataRefName(*pi.RemoteDataRefName()),
+		backend.PullOptions.WithRemoteMetaRefName(*pi.RemoteMetaRefName()),
+		backend.PullOptions.WithMergeConfictResolution(*pi.MergeConflictResolution()),
+		backend.PullOptions.WithMergeRetentionPolicy(*pi.MergeRetentionPolicy()),
+		backend.PullOptions.WithNoFastForward(*pi.NoFastForward()),
+		backend.PullOptions.WithTicker(ticker),
+		backend.PullOptions.WithLogger(log),
+		backend.PullOptions.WithContext(ctx),
+	); err != nil {
+		log.Error(err, "Error pulling")
+	}
+	return
+}
+
 const (
 	defaultRepoPath       = "/tmp/trishanku/gitcd"
 	defaultCommitterName  = "trishanku"
@@ -558,7 +615,44 @@ var (
 	defaultClientURLs = []string{"http://127.0.0.1:2379/"}
 )
 
-var serveFlags = struct {
+type commonBackendFlags interface {
+	getRepoPath() *string
+	getCommitterName() *string
+	getCommitterEmail() *string
+	getMetadataRefNamePrefix() *string
+	getDataRefNames() *map[string]string
+}
+
+func addCommonBackendFlags(flags *pflag.FlagSet, commonFlags commonBackendFlags) {
+	flags.StringVar(commonFlags.getRepoPath(), "repo", defaultRepoPath, "Path to the Git repo to be used as the backend.")
+	flags.StringVar(
+		commonFlags.getCommitterName(),
+		"committer-name",
+		defaultCommitterName,
+		"Name of the committer to use while making changes to the Git repo backend.",
+	)
+	flags.StringVar(
+		commonFlags.getCommitterEmail(),
+		"committer-email",
+		defaultCommitterEmail,
+		"Email of the committer to use while making changes to the Git repo backend.",
+	)
+	flags.StringVar(
+		commonFlags.getMetadataRefNamePrefix(),
+		"metadata-reference-name-prefix",
+		backend.DefaultMetadataReferencePrefix,
+		`Prefix for the Git reference name to be used as the metadata backend.
+The full metadata Git referene name will be the path concatenation of the prefix and the data Git reference name.`)
+
+	flags.StringToStringVar(
+		commonFlags.getDataRefNames(),
+		"data-reference-names",
+		map[string]string{"default": "refs/heads/main"},
+		"Git reference names to be used as the data backend.",
+	)
+}
+
+type serveFlagsImpl struct {
 	repoPath                    string
 	keyPrefix                   map[string]string
 	dataRefNames                map[string]string
@@ -573,44 +667,58 @@ var serveFlags = struct {
 	tlsCertFile                 string
 	tlsKeyFile                  string
 	tlsTrustedCACertFile        string
-}{
-	keyPrefix:    map[string]string{},
-	dataRefNames: map[string]string{},
-	clusterId:    map[string]int64{},
-	memberId:     map[string]int64{},
-	listenURL:    map[string]string{},
-	clientURLs:   map[string]string{},
+
+	remoteNames                   map[string]string
+	remoteDataRefNames            map[string]string
+	remoteMetaRefNames            map[string]string
+	mergeConflictResolutions      map[string]string
+	mergeRetentionPoliciesInclude map[string]string
+	mergeRetentionPoliciesExclude map[string]string
+	noFastForwards                map[string]string
+	pullTickerDuration            time.Duration
+}
+
+var (
+	_ commonBackendFlags = (*serveFlagsImpl)(nil)
+	_ commonPullFlags    = (*serveFlagsImpl)(nil)
+
+	serveFlags = &serveFlagsImpl{
+		keyPrefix:    map[string]string{},
+		dataRefNames: map[string]string{},
+		clusterId:    map[string]int64{},
+		memberId:     map[string]int64{},
+		listenURL:    map[string]string{},
+		clientURLs:   map[string]string{},
+	}
+)
+
+func (s *serveFlagsImpl) getRepoPath() *string                { return &s.repoPath }
+func (s *serveFlagsImpl) getCommitterName() *string           { return &s.committerName }
+func (s *serveFlagsImpl) getCommitterEmail() *string          { return &s.committerEmail }
+func (s *serveFlagsImpl) getMetadataRefNamePrefix() *string   { return &s.metadataRefNamePrefix }
+func (s *serveFlagsImpl) getDataRefNames() *map[string]string { return &s.dataRefNames }
+
+func (s *serveFlagsImpl) getRemoteNames() *map[string]string        { return &s.remoteNames }
+func (s *serveFlagsImpl) getRemoteDataRefNames() *map[string]string { return &s.remoteDataRefNames }
+func (s *serveFlagsImpl) getRemoteMetaRefNames() *map[string]string { return &s.remoteMetaRefNames }
+func (s *serveFlagsImpl) getNoFastForwards() *map[string]string     { return &s.noFastForwards }
+
+func (s *serveFlagsImpl) getMergeConflictResolutions() *map[string]string {
+	return &s.mergeConflictResolutions
+}
+
+func (s *serveFlagsImpl) getMergeRetentionPoliciesInclude() *map[string]string {
+	return &s.mergeRetentionPoliciesInclude
+}
+
+func (s *serveFlagsImpl) getMergeRetentionPoliciesExclude() *map[string]string {
+	return &s.mergeRetentionPoliciesExclude
 }
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().StringVar(&serveFlags.repoPath, "repo", defaultRepoPath, "Path to the Git repo to be used as the backend.")
-	serveCmd.Flags().StringVar(
-		&serveFlags.committerName,
-		"committer-name",
-		defaultCommitterName,
-		"Name of the committer to use while making changes to the Git repo backend.",
-	)
-	serveCmd.Flags().StringVar(
-		&serveFlags.committerEmail,
-		"committer-email",
-		defaultCommitterEmail,
-		"Email of the committer to use while making changes to the Git repo backend.",
-	)
-	serveCmd.Flags().StringVar(
-		&serveFlags.metadataRefNamePrefix,
-		"metadata-reference-name-prefix",
-		backend.DefaultMetadataReferencePrefix,
-		`Prefix for the Git reference name to be used as the metadata backend.
-The full metadata Git referene name will be the path concatenation of the prefix and the data Git reference name.`)
-
-	serveCmd.Flags().StringToStringVar(
-		&serveFlags.dataRefNames,
-		"data-reference-names",
-		map[string]string{"default": "refs/heads/main"},
-		"Git reference names to be used as the data backend.",
-	)
+	addCommonBackendFlags(serveCmd.Flags(), serveFlags)
 
 	serveCmd.Flags().StringToStringVar(
 		&serveFlags.keyPrefix,
@@ -668,5 +776,14 @@ The full metadata Git referene name will be the path concatenation of the prefix
 		"tls-trusted-ca-certs",
 		"",
 		"Path to the CA certificates file to use to validate client certificates while serving TLS.",
+	)
+
+	addCommonPullFlags(serveCmd.Flags(), serveFlags)
+
+	serveCmd.Flags().DurationVar(
+		&serveFlags.pullTickerDuration,
+		"pull-ticker-duration",
+		0,
+		"Interval duration to pull changes from remote. Setting this to zero disables scheduled pull merges.",
 	)
 }
