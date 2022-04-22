@@ -522,6 +522,13 @@ func (b *backend) createBlob(ctx context.Context, content []byte) (blobID git.Ob
 	return
 }
 
+func (b *backend) addOrReplaceTreeEntryMutateFn(newContent []byte) mutation.MutateTreeEntryFunc {
+	return func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
+		mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, newContent, te)
+		return
+	}
+}
+
 func (b *backend) addOrReplaceTreeEntry(ctx context.Context, tb git.TreeBuilder, entryName string, newContent []byte, te git.TreeEntry) (mutated bool, err error) {
 	var entryID git.ObjectID
 

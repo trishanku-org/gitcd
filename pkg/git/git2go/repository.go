@@ -415,9 +415,10 @@ func (repo *repository) TreeDiff(ctx context.Context, oldT, newT git.Tree) (d gi
 	return
 }
 
-func (repo *repository) Merger() git.Merger {
+func (repo *repository) Merger(errs git.Errors) git.Merger {
 	return &mergerImpl{
 		repo:               repo,
+		errors:             errs,
 		conflictResolution: git.DefaultConflictResolution,
 		retentionPolicy:    git.DefaultMergeRetentionPolicy,
 	}

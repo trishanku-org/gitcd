@@ -3,11 +3,13 @@ package backend
 import (
 	"context"
 	"errors"
+	"path"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/trishanku/gitcd/pkg/git"
 	"github.com/trishanku/gitcd/pkg/git/tree/mutation"
+	"github.com/trishanku/gitcd/pkg/util"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 )
 
@@ -38,7 +40,7 @@ func (pullOpts) WithBackend(kvs etcdserverpb.KVServer) PullOptionFunc {
 		}
 
 		p.backend = b
-		p.merger = b.repo.Merger()
+		p.merger = b.repo.Merger(b.errors)
 		return
 	}
 }
@@ -97,6 +99,13 @@ func (pullOpts) WithNoFastForward(noFastForward bool) PullOptionFunc {
 	}
 }
 
+func (pullOpts) WithNoFetch(noFetch bool) PullOptionFunc {
+	return func(p *puller) error {
+		p.noFetch = noFetch
+		return nil
+	}
+}
+
 func (pullOpts) WithTicker(ticker <-chan time.Time) PullOptionFunc {
 	return func(p *puller) error {
 		p.ticker = ticker
@@ -126,6 +135,16 @@ func (pullOpts) WithOnce(ctx context.Context) PullOptionFunc {
 	return func(p *puller) error { return p.pull(ctx) }
 }
 
+func (pullOpts) WithMergerClose(ctx context.Context) PullOptionFunc {
+	return func(p *puller) error {
+		if p.merger != nil {
+			return p.merger.Close()
+		}
+
+		return nil
+	}
+}
+
 // puller helps pull changes from a configured remote Git repository into the backend.
 type puller struct {
 	backend *backend
@@ -136,6 +155,7 @@ type puller struct {
 	remoteMetaRefName git.ReferenceName
 
 	noFastForward bool
+	noFetch       bool
 
 	ticker <-chan time.Time
 	log    logr.Logger
@@ -208,41 +228,274 @@ func (p *puller) createMergeCommit(ctx context.Context, message string, mergeTre
 	return
 }
 
-func (p *puller) mutateTree(
+// Here be hairy monsters! TODO find a better/simpler/more efficient way to deal with this.
+//
+// Non-fast-forward merge could result in many inconsistencies in metadata.
+// 1. If merged value includes changes from both sides, the MOD revision and VERSION will still,
+// at best, be the largest of the revisions on either side.
+// Ideally, MOD revision should be the new revision corresponding to the merge commit and the
+// VERSION should be incremented.
+//
+// 2. CREATE revision and LEASE metadata could be deleted if modify/delete conflicts are resolved
+// in favour of the modification, because those metadata may not be part of the modification and
+// hence, not conflicting.
+// Ideally, the CREATE revision and LEASE should be retained from the modification.
+// TODO: This issue can be complete avoided by consolidating metatata into a single YAML file per key.
+//
+// 3. The overall new revision (as well as data HEAD commit ID, it data was mutated) should be updated.
+type metadataFixerAfterNonFastForwardMerge struct {
+	backend                                         *backend
+	newRevision                                     int64
+	oursDataC, theirsDataC, oursMetaC, theirsMetaC  git.Commit
+	dataMutated                                     bool
+	dataMergeTreeID, metaMergeTreeID, newDataHeadID git.ObjectID
+	message                                         string
+}
+
+func (f *metadataFixerAfterNonFastForwardMerge) fix(
 	ctx context.Context,
-	t git.Tree,
-	contents map[string][]byte,
 ) (
 	mutated bool,
 	newTreeID git.ObjectID,
 	err error,
 ) {
 	var (
-		b  = p.backend
-		tm *mutation.TreeMutation
+		b                                                                      = f.backend
+		oursDataT, theirsDataT, oursMetaT, theirsMetaT, dataMergeT, metaMergeT git.Tree
+		tm                                                                     *mutation.TreeMutation
 	)
 
-	for p, content := range contents {
+	for _, s := range []struct {
+		tPtr     *git.Tree
+		peelable git.Peelable
+		tID      git.ObjectID
+		skip     bool
+	}{
+		{tPtr: &oursDataT, peelable: f.oursDataC},
+		{tPtr: &theirsDataT, peelable: f.theirsDataC},
+		{tPtr: &oursMetaT, peelable: f.oursMetaC},
+		{tPtr: &theirsMetaT, peelable: f.theirsMetaC},
+		{tPtr: &dataMergeT, tID: f.dataMergeTreeID, skip: !f.dataMutated},
+		{tPtr: &metaMergeT, tID: f.metaMergeTreeID},
+	} {
+		if s.skip {
+			continue
+		}
+
+		if s.peelable != nil {
+			if *s.tPtr, err = b.repo.Peeler().PeelToTree(ctx, s.peelable); err != nil {
+				return
+			}
+		} else {
+			if *s.tPtr, err = b.repo.ObjectGetter().GetTree(ctx, s.tID); err != nil {
+				return
+			}
+		}
+
+		defer (*s.tPtr).Close()
+	}
+
+	if f.dataMutated {
+		// TODO special case handling where oursDataT or theirsDataT is nil
+		var (
+			dataDiff, metaDiff git.Diff
+			revisionMutateFn   = b.mutateRevisionTo(f.newRevision)
+			versionMutateFn    = b.incrementRevision()
+		)
+
+		if dataDiff, err = b.repo.TreeDiff(ctx, oursDataT, dataMergeT); err != nil {
+			return
+		}
+
+		defer dataDiff.Close()
+
+		if err = dataDiff.ForEachDiffChange(ctx, func(ctx context.Context, change git.DiffChange) (done bool, err error) {
+			var (
+				te git.TreeEntry
+				p  = change.Path()
+			)
+
+			if change.Type() != git.DiffChangeTypeModified {
+				// Only value modifications could have changes from both sides.
+				return
+			}
+
+			// theirsDataT cannot be nil because dataMutated.
+			if te, err = theirsDataT.GetEntryByPath(ctx, change.Path()); b.errors.IgnoreNotFound(err) != nil {
+				return
+			}
+
+			if err != nil {
+				// Entry not found in theirs. Should not happen. Nothing to do.
+				return
+			}
+
+			if te.EntryID() == change.NewBlobID() {
+				// Change came from theirs. Nothing do to.
+				return
+			}
+
+			// Merged entry is different from both ours and theirs. Update MOD revision and VERSION.
+			for p, mutateFn := range map[string]mutation.MutateTreeEntryFunc{
+				path.Join(p, etcdserverpb.Compare_MOD.String()):     revisionMutateFn,
+				path.Join(p, etcdserverpb.Compare_VERSION.String()): versionMutateFn,
+			} {
+				func(p string, mutateFn mutation.MutateTreeEntryFunc) {
+					if tm, err = mutation.AddMutation(tm, p, mutateFn); err != nil {
+						return
+					}
+				}(p, mutateFn)
+			}
+
+			return
+		}); err != nil {
+			return
+		}
+
+		if metaDiff, err = b.repo.TreeDiff(ctx, oursMetaT, metaMergeT); err != nil {
+			return
+		}
+
+		defer metaDiff.Close()
+
+		if err = metaDiff.ForEachDiffChange(ctx, func(ctx context.Context, change git.DiffChange) (done bool, err error) {
+			var (
+				p    = change.Path()
+				base = util.ToCanonicalPath(path.Base(p))
+				dir  = util.ToCanonicalPath(path.Dir(p))
+				te   git.TreeEntry
+			)
+
+			switch change.Type() {
+			case git.DiffChangeTypeAdded:
+				if base != etcdserverpb.Compare_MOD.String() {
+					// Only addition of MOD revision needs to be checked to see if other metadata are also added.
+					return
+				}
+
+				// VERSION should have been already handled similar to MOD revision because they change together.
+				for mBase, skipNotFound := range map[string]bool{
+					etcdserverpb.Compare_CREATE.String(): false,
+					etcdserverpb.Compare_LEASE.String():  true,
+				} {
+					var mPath = path.Join(dir, mBase)
+
+					if _, err = metaMergeT.GetEntryByPath(ctx, mPath); b.errors.IgnoreNotFound(err) != nil {
+						return
+					}
+
+					if err == nil {
+						// Metadata exists in the merge tree. Nothing to do.
+						continue
+					}
+
+					// Metadata not found. Restore it from theirs which is the only possible place MOD revision would have come from.
+					if te, err = theirsMetaT.GetEntryByPath(ctx, mPath); b.errors.IgnoreNotFound(err) != nil {
+						return
+					} else if err != nil { // Not found.
+						if skipNotFound {
+							err = nil
+							continue // Skip.
+						}
+
+						return // Error out.
+					}
+
+					if tm, err = mutation.AddMutation(
+						tm,
+						mPath,
+						func(ctx context.Context, tb git.TreeBuilder, entryName string, _ git.TreeEntry) (mutated bool, err error) {
+							err = tb.AddEntry(entryName, te.EntryID(), te.EntryMode())
+							mutated = err == nil
+							return
+						},
+					); err != nil {
+						return
+					}
+
+				}
+			case git.DiffChangeTypeDeleted:
+				var skipNotFound bool
+
+				if base != etcdserverpb.Compare_CREATE.String() && base != etcdserverpb.Compare_LEASE.String() {
+					// Only deletion of CREATE revision or LEASE needs to be checked to see if other metadata are also deleted.
+					return
+				}
+
+				if _, err = metaMergeT.GetEntryByPath(
+					ctx,
+					path.Join(dir, etcdserverpb.Compare_MOD.String()),
+				); b.errors.IgnoreNotFound(err) != nil {
+					return
+				}
+
+				if err != nil {
+					// Not found. MOD revision has also been deleted. Nothing to do.
+					err = nil
+					return
+				}
+
+				// Partial metadata found. Undo the deletion from ours because the partial deletion must have come from theirs.
+				// VERSION should have been already handled like MOD revision because they change together.
+				skipNotFound = base == etcdserverpb.Compare_LEASE.String()
+
+				if te, err = oursMetaT.GetEntryByPath(ctx, p); b.errors.IgnoreNotFound(err) != nil {
+					return
+				} else if err != nil { // Not found.
+					if skipNotFound {
+						err = nil // Skip.
+					}
+
+					return // Error out.
+				}
+
+				if tm, err = mutation.AddMutation(
+					tm,
+					p,
+					func(ctx context.Context, tb git.TreeBuilder, entryName string, _ git.TreeEntry) (mutated bool, err error) {
+						err = tb.AddEntry(entryName, te.EntryID(), te.EntryMode())
+						mutated = err == nil
+						return
+					},
+				); err != nil {
+					return
+				}
+			}
+
+			return
+		}); err != nil {
+			return
+		}
+
 		if tm, err = mutation.AddMutation(
 			tm,
-			p,
-			func(ctx context.Context, tb git.TreeBuilder, entryName string, te git.TreeEntry) (mutated bool, err error) {
-				mutated, err = b.addOrReplaceTreeEntry(ctx, tb, entryName, content, te)
-				return
-			},
+			metadataPathData,
+			f.backend.addOrReplaceTreeEntryMutateFn([]byte(f.newDataHeadID.String())),
 		); err != nil {
 			return
 		}
 	}
 
-	mutated, newTreeID, err = mutation.MutateTree(ctx, b.repo, t, tm, false)
+	if tm, err = mutation.AddMutation(
+		tm,
+		metadataPathRevision,
+		f.backend.addOrReplaceTreeEntryMutateFn([]byte(revisionToString(f.newRevision))),
+	); err != nil {
+		return
+	}
+
+	if mutation.IsMutationNOP(tm) {
+		return
+	}
+
+	mutated, newTreeID, err = mutation.MutateTree(ctx, b.repo, metaMergeT, tm, true)
 	return
 }
 
 func (p *puller) merge(ctx context.Context) (err error) {
 	var (
 		b      = p.backend
-		merger = b.repo.Merger()
+		merger = p.merger
 
 		oursDataC, theirsDataC, oursMetaC, theirsMetaC                 git.Commit
 		revision, oursRevision, theirsRevision                         int64
@@ -250,8 +503,6 @@ func (p *puller) merge(ctx context.Context) (err error) {
 		dataMergeTreeID, metaMergeTreeID, newDataHeadID, newMetaHeadID git.ObjectID
 		message                                                        string
 	)
-
-	defer merger.Close()
 
 	for _, s := range []struct {
 		ptrC           *git.Commit
@@ -340,23 +591,23 @@ func (p *puller) merge(ctx context.Context) (err error) {
 
 	if !metaFastForward {
 		var (
-			metaMergeT         git.Tree
 			newMetaMutated     bool
 			newMetaMergeTreeID git.ObjectID
-			contents           = map[string][]byte{metadataPathRevision: []byte(revisionToString(revision))}
 		)
 
-		if metaMergeT, err = b.repo.ObjectGetter().GetTree(ctx, metaMergeTreeID); err != nil {
-			return
-		}
-
-		defer metaMergeT.Close()
-
-		if dataMutated {
-			contents[metadataPathData] = []byte(newDataHeadID.String())
-		}
-
-		if newMetaMutated, newMetaMergeTreeID, err = p.mutateTree(ctx, metaMergeT, contents); err != nil {
+		if newMetaMutated, newMetaMergeTreeID, err = (&metadataFixerAfterNonFastForwardMerge{
+			backend:         p.backend,
+			newRevision:     revision,
+			oursDataC:       oursDataC,
+			theirsDataC:     theirsDataC,
+			oursMetaC:       oursMetaC,
+			theirsMetaC:     theirsMetaC,
+			dataMutated:     dataMutated,
+			dataMergeTreeID: dataMergeTreeID,
+			metaMergeTreeID: metaMergeTreeID,
+			newDataHeadID:   newDataHeadID,
+			message:         message,
+		}).fix(ctx); err != nil {
 			return
 		} else if !newMetaMutated {
 			newMetaMergeTreeID = metaMergeTreeID
@@ -371,7 +622,15 @@ func (p *puller) merge(ctx context.Context) (err error) {
 }
 
 func (p *puller) pull(ctx context.Context) (err error) {
-	for _, fn := range []func(context.Context) error{p.fetch, p.merge} {
+	var fns []func(context.Context) error
+
+	if !p.noFetch {
+		fns = append(fns, p.fetch)
+	}
+
+	fns = append(fns, p.merge)
+
+	for _, fn := range fns {
 		if err = fn(ctx); err != nil {
 			return
 		}

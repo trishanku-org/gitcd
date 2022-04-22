@@ -445,15 +445,17 @@ type Repository interface {
 
 	TreeDiff(ctx context.Context, oldT, newT Tree) (Diff, error)
 
-	Merger() Merger
+	Merger(Errors) Merger
 
 	Size() (int64, error)
 }
 
 type Errors interface {
 	IsNotFound(err error) bool
+	IsIterOver(err error) bool
 
 	IgnoreNotFound(err error) error
+	IgnoreIterOver(err error) error
 }
 
 // Interface defines access to a Git implementation.

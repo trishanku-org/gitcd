@@ -10,9 +10,11 @@ import (
 // gitImpl implements the Git Interface defined in the parent git package.
 type gitImpl struct{}
 
+var _ git.Interface = gitImpl{}
+
 // New returns an interface to a Git implementation.
 func New() git.Interface {
-	return &gitImpl{}
+	return gitImpl{}
 }
 
 func (gitImpl) OpenOrInitBareRepository(ctx context.Context, path string) (git.Repository, error) {

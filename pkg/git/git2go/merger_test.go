@@ -12,10 +12,11 @@ import (
 
 var _ = Describe("merger", func() {
 	var (
-		ctx    context.Context
-		merger git.Merger
-		repo   git.Repository
-		dir    string
+		ctx     context.Context
+		merger  git.Merger
+		gitImpl git.Interface
+		repo    git.Repository
+		dir     string
 	)
 
 	BeforeEach(func() {
@@ -24,10 +25,12 @@ var _ = Describe("merger", func() {
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
 		Expect(dir).ToNot(BeEmpty())
 
-		Expect(func() (err error) { repo, err = New().OpenOrInitBareRepository(ctx, dir); return }()).To(Succeed())
+		gitImpl = New()
+
+		Expect(func() (err error) { repo, err = gitImpl.OpenOrInitBareRepository(ctx, dir); return }()).To(Succeed())
 		Expect(repo).ToNot(BeNil())
 
-		merger = repo.Merger()
+		merger = repo.Merger(gitImpl.Errors())
 		Expect(merger).ToNot(BeNil())
 	})
 

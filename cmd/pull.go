@@ -100,8 +100,10 @@ var pullCmd = &cobra.Command{
 				backend.PullOptions.WithMergeConfictResolution(pi.mergeConflictResolution),
 				backend.PullOptions.WithMergeRetentionPolicy(pi.mergeRetentionPolicy),
 				backend.PullOptions.WithNoFastForward(pi.noFastForward),
+				backend.PullOptions.WithNoFetch(pi.noFetch),
 				backend.PullOptions.WithLogger(log),
 				backend.PullOptions.WithOnce(ctx),
+				backend.PullOptions.WithMergerClose(ctx),
 			); err != nil {
 				log.Error(err, "Error pulling")
 			}
@@ -117,6 +119,7 @@ type commonPullerInfo interface {
 	MergeConflictResolution() *git.MergeConfictResolution
 	MergeRetentionPolicy() *git.MergeRetentionPolicy
 	NoFastForward() *bool
+	NoFetch() *bool
 }
 
 type pullerInfo struct {
@@ -124,7 +127,7 @@ type pullerInfo struct {
 	remoteName                                        git.RemoteName
 	mergeConflictResolution                           git.MergeConfictResolution
 	mergeRetentionPolicy                              git.MergeRetentionPolicy
-	noFastForward                                     bool
+	noFastForward, noFetch                            bool
 }
 
 var _ commonPullerInfo = (*pullerInfo)(nil)
@@ -135,6 +138,7 @@ func (p *pullerInfo) RemoteDataRefName() *git.ReferenceName           { return &
 func (p *pullerInfo) RemoteMetaRefName() *git.ReferenceName           { return &p.remoteMetaRefName }
 func (p *pullerInfo) MergeRetentionPolicy() *git.MergeRetentionPolicy { return &p.mergeRetentionPolicy }
 func (p *pullerInfo) NoFastForward() *bool                            { return &p.noFastForward }
+func (p *pullerInfo) NoFetch() *bool                                  { return &p.noFetch }
 
 func (p *pullerInfo) MergeConflictResolution() *git.MergeConfictResolution {
 	return &p.mergeConflictResolution
@@ -201,6 +205,12 @@ func loadPullerInfoFor(pi commonPullerInfo, backendFlags commonBackendFlags, pul
 		}
 	}
 
+	if s, ok = (*pullFlags.getNoFetches())[key]; ok {
+		if *pi.NoFetch(), err = strconv.ParseBool(s); err != nil {
+			return
+		}
+	}
+
 	for _, spec := range []struct {
 		m          map[string]string
 		defaultMRP string
@@ -255,6 +265,7 @@ type commonPullFlags interface {
 	getMergeRetentionPoliciesInclude() *map[string]string
 	getMergeRetentionPoliciesExclude() *map[string]string
 	getNoFastForwards() *map[string]string
+	getNoFetches() *map[string]string
 }
 
 const (
@@ -265,6 +276,7 @@ const (
 	defaultMergeRetentionPoliciesInclude = ".*" // Everything is retained
 	defaultMergeRetentionPoliciesExclude = "^$" // Nothing is excluded
 	defaultNoFastForward                 = false
+	defaultNoFetch                       = false
 )
 
 func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
@@ -313,6 +325,12 @@ func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
 		map[string]string{"default": strconv.FormatBool(defaultNoFastForward)},
 		"Enable this if merge commits should always be created even when fast-forward merges are possible.",
 	)
+	flags.StringToStringVar(
+		commonFlags.getNoFetches(),
+		"no-fetches",
+		map[string]string{"default": strconv.FormatBool(defaultNoFetch)},
+		"Enable this if fetch should be skipped before merging from remotes.",
+	)
 }
 
 type pullFlagsImpl struct {
@@ -328,6 +346,7 @@ type pullFlagsImpl struct {
 	mergeRetentionPoliciesInclude map[string]string
 	mergeRetentionPoliciesExclude map[string]string
 	noFastForwards                map[string]string
+	noFetch                       map[string]string
 }
 
 var (
@@ -356,6 +375,7 @@ func (p *pullFlagsImpl) getRemoteNames() *map[string]string        { return &p.r
 func (p *pullFlagsImpl) getRemoteDataRefNames() *map[string]string { return &p.remoteDataRefNames }
 func (p *pullFlagsImpl) getRemoteMetaRefNames() *map[string]string { return &p.remoteMetaRefNames }
 func (p *pullFlagsImpl) getNoFastForwards() *map[string]string     { return &p.noFastForwards }
+func (p *pullFlagsImpl) getNoFetches() *map[string]string          { return &p.noFetch }
 
 func (p *pullFlagsImpl) getMergeConflictResolutions() *map[string]string {
 	return &p.mergeConflictResolutions

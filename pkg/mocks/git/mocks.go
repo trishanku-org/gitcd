@@ -756,6 +756,20 @@ func (m *MockErrors) EXPECT() *MockErrorsMockRecorder {
 	return m.recorder
 }
 
+// IgnoreIterOver mocks base method.
+func (m *MockErrors) IgnoreIterOver(arg0 error) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IgnoreIterOver", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// IgnoreIterOver indicates an expected call of IgnoreIterOver.
+func (mr *MockErrorsMockRecorder) IgnoreIterOver(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IgnoreIterOver", reflect.TypeOf((*MockErrors)(nil).IgnoreIterOver), arg0)
+}
+
 // IgnoreNotFound mocks base method.
 func (m *MockErrors) IgnoreNotFound(arg0 error) error {
 	m.ctrl.T.Helper()
@@ -768,6 +782,20 @@ func (m *MockErrors) IgnoreNotFound(arg0 error) error {
 func (mr *MockErrorsMockRecorder) IgnoreNotFound(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IgnoreNotFound", reflect.TypeOf((*MockErrors)(nil).IgnoreNotFound), arg0)
+}
+
+// IsIterOver mocks base method.
+func (m *MockErrors) IsIterOver(arg0 error) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsIterOver", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsIterOver indicates an expected call of IsIterOver.
+func (mr *MockErrorsMockRecorder) IsIterOver(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsIterOver", reflect.TypeOf((*MockErrors)(nil).IsIterOver), arg0)
 }
 
 // IsNotFound mocks base method.
@@ -1834,17 +1862,17 @@ func (mr *MockRepositoryMockRecorder) ForEachReferenceName(arg0, arg1 interface{
 }
 
 // Merger mocks base method.
-func (m *MockRepository) Merger() git.Merger {
+func (m *MockRepository) Merger(arg0 git.Errors) git.Merger {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Merger")
+	ret := m.ctrl.Call(m, "Merger", arg0)
 	ret0, _ := ret[0].(git.Merger)
 	return ret0
 }
 
 // Merger indicates an expected call of Merger.
-func (mr *MockRepositoryMockRecorder) Merger() *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Merger(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Merger", reflect.TypeOf((*MockRepository)(nil).Merger))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Merger", reflect.TypeOf((*MockRepository)(nil).Merger), arg0)
 }
 
 // ObjectConverter mocks base method.

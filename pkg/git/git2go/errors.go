@@ -27,6 +27,14 @@ func (i gitImpl) IsNotFound(err error) bool {
 	return i.isErrCode(err, impl.ErrorCodeNotFound)
 }
 
+func (i gitImpl) IsIterOver(err error) bool {
+	return i.isErrCode(err, impl.ErrorCodeIterOver)
+}
+
 func (i gitImpl) IgnoreNotFound(err error) error {
 	return i.ignoreErrCode(err, impl.ErrorCodeNotFound)
+}
+
+func (i gitImpl) IgnoreIterOver(err error) error {
+	return i.ignoreErrCode(err, impl.ErrorCodeIterOver)
 }

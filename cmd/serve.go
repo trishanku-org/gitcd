@@ -126,7 +126,7 @@ type serverInfo struct {
 	remoteDataRefName, remoteMetaRefName git.ReferenceName
 	mergeConflictResolution              git.MergeConfictResolution
 	mergeRetentionPolicy                 git.MergeRetentionPolicy
-	noFastForward                        bool
+	noFastForward, noFetch               bool
 }
 
 var _ commonPullerInfo = (*serverInfo)(nil)
@@ -137,6 +137,7 @@ func (s *serverInfo) RemoteDataRefName() *git.ReferenceName           { return &
 func (s *serverInfo) RemoteMetaRefName() *git.ReferenceName           { return &s.remoteMetaRefName }
 func (s *serverInfo) MergeRetentionPolicy() *git.MergeRetentionPolicy { return &s.mergeRetentionPolicy }
 func (s *serverInfo) NoFastForward() *bool                            { return &s.noFastForward }
+func (s *serverInfo) NoFetch() *bool                                  { return &s.noFetch }
 
 func (s *serverInfo) MergeConflictResolution() *git.MergeConfictResolution {
 	return &s.mergeConflictResolution
@@ -592,9 +593,11 @@ func schedulePull(
 		backend.PullOptions.WithMergeConfictResolution(*pi.MergeConflictResolution()),
 		backend.PullOptions.WithMergeRetentionPolicy(*pi.MergeRetentionPolicy()),
 		backend.PullOptions.WithNoFastForward(*pi.NoFastForward()),
+		backend.PullOptions.WithNoFetch(*pi.NoFetch()),
 		backend.PullOptions.WithTicker(ticker),
 		backend.PullOptions.WithLogger(log),
 		backend.PullOptions.WithContext(ctx),
+		backend.PullOptions.WithMergerClose(ctx),
 	); err != nil {
 		log.Error(err, "Error pulling")
 	}
@@ -602,13 +605,15 @@ func schedulePull(
 }
 
 const (
-	defaultRepoPath       = "/tmp/trishanku/gitcd"
-	defaultCommitterName  = "trishanku"
-	defaultCommitterEmail = "trishanku@heaven.com"
-	defaultClusterId      = uint64(0)
-	defaultMemberId       = uint64(0)
-	defaultKeyPrefix      = "/"
-	defaultListenURL      = "http://0.0.0.0:2379/"
+	defaultRepoPath                    = "/tmp/trishanku/gitcd"
+	defaultCommitterName               = "trishanku"
+	defaultCommitterEmail              = "trishanku@heaven.com"
+	defaultClusterId                   = uint64(0)
+	defaultMemberId                    = uint64(0)
+	defaultKeyPrefix                   = "/"
+	defaultListenURL                   = "http://0.0.0.0:2379/"
+	defaultWatchDispatchTickerDuration = 10 * time.Second
+	defaultPullTickerDuration          = time.Duration(0)
 )
 
 var (
@@ -675,6 +680,7 @@ type serveFlagsImpl struct {
 	mergeRetentionPoliciesInclude map[string]string
 	mergeRetentionPoliciesExclude map[string]string
 	noFastForwards                map[string]string
+	noFetches                     map[string]string
 	pullTickerDuration            time.Duration
 }
 
@@ -702,6 +708,7 @@ func (s *serveFlagsImpl) getRemoteNames() *map[string]string        { return &s.
 func (s *serveFlagsImpl) getRemoteDataRefNames() *map[string]string { return &s.remoteDataRefNames }
 func (s *serveFlagsImpl) getRemoteMetaRefNames() *map[string]string { return &s.remoteMetaRefNames }
 func (s *serveFlagsImpl) getNoFastForwards() *map[string]string     { return &s.noFastForwards }
+func (s *serveFlagsImpl) getNoFetches() *map[string]string          { return &s.noFetches }
 
 func (s *serveFlagsImpl) getMergeConflictResolutions() *map[string]string {
 	return &s.mergeConflictResolutions
@@ -755,7 +762,7 @@ func init() {
 	serveCmd.Flags().DurationVar(
 		&serveFlags.watchDispatchTickerDuration,
 		"watch-dispatch-ticker-duration",
-		10*time.Second,
+		defaultWatchDispatchTickerDuration,
 		"Interval duration to poll and dispatch any pending events to watches.",
 	)
 
@@ -783,7 +790,7 @@ func init() {
 	serveCmd.Flags().DurationVar(
 		&serveFlags.pullTickerDuration,
 		"pull-ticker-duration",
-		0,
-		"Interval duration to pull changes from remote. Setting this to zero disables scheduled pull merges.",
+		defaultPullTickerDuration,
+		"Interval duration to pull changes from remote. Set this to non-zero to schedule pull merges.",
 	)
 }

@@ -13,7 +13,8 @@ import (
 
 // mergerImpl implements the Merger Interface defined in the parent git package.
 type mergerImpl struct {
-	repo *repository
+	repo   *repository
+	errors git.Errors
 
 	conflictResolution git.MergeConfictResolution
 	retentionPolicy    git.MergeRetentionPolicy
@@ -123,7 +124,7 @@ func (m *mergerImpl) indexToTree(ctx context.Context, index *impl.Index) (t git.
 		return
 	}
 
-	if tOid, err = index.WriteTree(); err != nil {
+	if tOid, err = index.WriteTreeTo(m.repo.impl); err != nil {
 		return
 	}
 
@@ -133,6 +134,83 @@ func (m *mergerImpl) indexToTree(ctx context.Context, index *impl.Index) (t git.
 
 	t, err = m.repo.GetTree(ctx, git.ObjectID(*tOid))
 	return
+}
+
+type indexActionFunc func() error
+
+func indexRemoveByPath(index *impl.Index, p string) indexActionFunc {
+	return func() error { return index.RemoveByPath(p) }
+}
+
+func indexAddEntry(index *impl.Index, ie *impl.IndexEntry) indexActionFunc {
+	return func() error { return index.Add(ie) }
+}
+
+func indexRemoveConflict(index *impl.Index, p string) indexActionFunc {
+	return func() error { return index.RemoveConflict(p) }
+}
+
+func (m *mergerImpl) resolveModifyDeleteConflicts(ctx context.Context, index *impl.Index) (err error) {
+	var (
+		i         *impl.IndexConflictIterator
+		actionFns []func() error
+	)
+
+	if i, err = index.ConflictIterator(); err != nil {
+		return
+	}
+
+	defer i.Free()
+
+	for {
+		var (
+			ic impl.IndexConflict
+			ie *impl.IndexEntry
+			p  string
+		)
+
+		if ic, err = i.Next(); m.errors.IgnoreIterOver(err) != nil {
+			return
+		} else if err != nil { // IterOver
+			for _, actionFn := range actionFns {
+				if err = actionFn(); m.errors.IgnoreNotFound(err) != nil {
+					return
+				}
+			}
+
+			err = nil
+			return
+		}
+
+		if ic.Our != nil && ic.Their != nil {
+			// Should not happen. Modify/Modify conflict should be resolved using impl.FileFlavor.
+			continue
+		}
+
+		switch {
+		case ic.Ancestor != nil:
+			p = ic.Ancestor.Path
+		case ic.Our != nil:
+			p = ic.Our.Path
+		case ic.Their != nil:
+			p = ic.Their.Path
+		}
+
+		switch m.conflictResolution {
+		case git.MergeConfictResolutionFavorOurs:
+			ie = ic.Our
+		case git.MergeConfictResolutionFavorTheirs:
+			ie = ic.Their
+		}
+
+		if ie == nil {
+			actionFns = append(actionFns, indexRemoveByPath(index, p))
+		} else {
+			actionFns = append(actionFns, indexAddEntry(index, ie))
+		}
+
+		actionFns = append(actionFns, indexRemoveConflict(index, p))
+	}
 }
 
 func (m *mergerImpl) retainFromMergeIndex(
@@ -164,7 +242,14 @@ func (m *mergerImpl) retainFromMergeIndex(
 	return
 }
 
-func (m *mergerImpl) MergeTrees(ctx context.Context, ancestor, ours, theirs git.Tree) (mutated bool, treeID git.ObjectID, err error) {
+func (m *mergerImpl) MergeTrees(
+	ctx context.Context,
+	ancestor, ours, theirs git.Tree,
+) (
+	mutated bool,
+	treeID git.ObjectID,
+	err error,
+) {
 	var (
 		iAncestor, iOurs, iTheirs *tree
 		ok                        bool
@@ -210,6 +295,12 @@ func (m *mergerImpl) MergeTrees(ctx context.Context, ancestor, ours, theirs git.
 	}
 
 	if index, err = m.repo.impl.MergeTrees(iAncestor.impl(), iOurs.impl(), iTheirs.impl(), opts); err != nil {
+		return
+	}
+
+	defer index.Free()
+
+	if err = m.resolveModifyDeleteConflicts(ctx, index); err != nil {
 		return
 	}
 
@@ -338,6 +429,12 @@ func (m *mergerImpl) MergeTreesFromCommits(
 	}
 
 	if index, err = m.repo.impl.MergeCommits(iOurs.impl(), iTheirs.impl(), opts); err != nil {
+		return
+	}
+
+	defer index.Free()
+
+	if err = m.resolveModifyDeleteConflicts(ctx, index); err != nil {
 		return
 	}
 
