@@ -172,6 +172,9 @@ func (b *backend) DeleteRange(ctx context.Context, req *etcdserverpb.DeleteRange
 	log.V(-1).Info("received", "request", req)
 	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
 
+	b.Lock()
+	defer b.Unlock()
+
 	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
 		return
 	}

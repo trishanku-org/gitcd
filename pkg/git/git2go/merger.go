@@ -2,6 +2,7 @@ package git2go
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	impl "github.com/libgit2/git2go/v31"
@@ -182,10 +183,7 @@ func (m *mergerImpl) resolveModifyDeleteConflicts(ctx context.Context, index *im
 			return
 		}
 
-		if ic.Our != nil && ic.Their != nil {
-			// Should not happen. Modify/Modify conflict should be resolved using impl.FileFlavor.
-			continue
-		}
+		fmt.Printf("\nresolveModifyDeleteConflicts: ancestors=%#v, ours=%#v, theirs=%#v\n", ic.Ancestor, ic.Our, ic.Their)
 
 		switch {
 		case ic.Ancestor != nil:

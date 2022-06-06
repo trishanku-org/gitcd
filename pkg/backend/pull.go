@@ -3,7 +3,9 @@ package backend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -179,6 +181,9 @@ func (p *puller) getRemote(ctx context.Context) (r git.Remote, err error) {
 
 func (p *puller) fetch(ctx context.Context) (err error) {
 	var remote git.Remote
+
+	p.backend.RLock()
+	defer p.backend.RUnlock()
 
 	if remote, err = p.getRemote(ctx); err != nil {
 		return
@@ -366,6 +371,8 @@ func (f *metadataFixerAfterNonFastForwardMerge) fix(
 				te   git.TreeEntry
 			)
 
+			fmt.Printf("\nMetadata diff: %#v\n", change)
+
 			switch change.Type() {
 			case git.DiffChangeTypeAdded:
 				if base != etcdserverpb.Compare_MOD.String() {
@@ -488,6 +495,8 @@ func (f *metadataFixerAfterNonFastForwardMerge) fix(
 		return
 	}
 
+	fmt.Printf("\nMetadata mutation: %#v\n", tm)
+
 	mutated, newTreeID, err = mutation.MutateTree(ctx, b.repo, metaMergeT, tm, true)
 	return
 }
@@ -496,6 +505,10 @@ func (p *puller) merge(ctx context.Context) (err error) {
 	var (
 		b      = p.backend
 		merger = p.merger
+		log    = p.log.WithValues(
+			"our-data-reference", b.refName,
+			"their-data-reference", p.remoteDataRefName,
+		)
 
 		oursDataC, theirsDataC, oursMetaC, theirsMetaC                 git.Commit
 		revision, oursRevision, theirsRevision                         int64
@@ -503,6 +516,12 @@ func (p *puller) merge(ctx context.Context) (err error) {
 		dataMergeTreeID, metaMergeTreeID, newDataHeadID, newMetaHeadID git.ObjectID
 		message                                                        string
 	)
+
+	log.V(-1).Info("Merging")
+	defer func() { log.V(-1).Info("Merged", "error", err, "dataMutated", dataMutated, "metaMutated", metaMutated) }()
+
+	p.backend.RLock()
+	defer p.backend.RUnlock()
 
 	for _, s := range []struct {
 		ptrC           *git.Commit
@@ -560,6 +579,10 @@ func (p *puller) merge(ctx context.Context) (err error) {
 		return
 	}
 
+	if oursDataC != nil {
+		newDataHeadID = oursDataC.ID() // Just to be safe.
+	}
+
 	if dataFastForward = dataFastForward && !p.noFastForward; dataFastForward {
 		newDataHeadID = theirsDataC.ID()
 	}
@@ -594,6 +617,11 @@ func (p *puller) merge(ctx context.Context) (err error) {
 			newMetaMutated     bool
 			newMetaMergeTreeID git.ObjectID
 		)
+
+		if reflect.DeepEqual(newDataHeadID, git.ObjectID{}) {
+			err = errors.New("invalid empty data head commit")
+			return
+		}
 
 		if newMetaMutated, newMetaMergeTreeID, err = (&metadataFixerAfterNonFastForwardMerge{
 			backend:         p.backend,

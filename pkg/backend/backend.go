@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/trishanku/gitcd/pkg/git"
@@ -26,6 +27,7 @@ type commitConfig struct {
 
 // backend implements an ETCD server backed by a Git repository.
 type backend struct {
+	sync.RWMutex
 	keyPrefix
 	repo                           git.Repository
 	errors                         git.Errors

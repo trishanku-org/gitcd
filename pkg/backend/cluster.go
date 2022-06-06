@@ -33,12 +33,17 @@ func (c *clusterImpl) MemberList(ctx context.Context, req *etcdserverpb.MemberLi
 	var (
 		b    = c.backend
 		log  = b.log.WithName("MemberList")
-		h    = b.newResponseHeader(ctx)
 		perf = perfCounter()
+		h    *etcdserverpb.ResponseHeader
 	)
 
 	log.V(-1).Info("received", "request", req)
 	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
+
+	b.RLock()
+	defer b.RUnlock()
+
+	h = b.newResponseHeader(ctx)
 
 	res = &etcdserverpb.MemberListResponse{
 		Header: h,

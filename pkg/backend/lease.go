@@ -34,6 +34,9 @@ func (l *leaseImpl) LeaseGrant(ctx context.Context, req *etcdserverpb.LeaseGrant
 	log.V(-1).Info("received", "request", req)
 	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
 
+	l.backend.RLock()
+	defer l.backend.RUnlock()
+
 	res = &etcdserverpb.LeaseGrantResponse{
 		Header: l.backend.newResponseHeader(ctx),
 		ID:     req.ID,

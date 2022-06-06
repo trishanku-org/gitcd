@@ -269,6 +269,9 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 		}
 	}()
 
+	rw.backend.RLock()
+	defer rw.backend.RUnlock()
+
 	rw.watches = getActiveWatches(rw.watches)
 
 	if len(rw.watches) == 0 {
@@ -799,6 +802,9 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 	log.V(-1).Info("accepting", "request", req)
 	defer func() { log.V(-1).Info("returned", "error", err) }()
 
+	b.RLock()
+	defer b.RUnlock()
+
 	defer func() {
 		if err != nil {
 			// TODO log cancel error
@@ -863,6 +869,9 @@ func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) (
 	if w == nil {
 		return
 	}
+
+	ws.mgr.backend.RLock()
+	defer ws.mgr.backend.RUnlock()
 
 	err = w.Cancel(ws.mgr.backend.newResponseHeader(ctx), cause)
 	return

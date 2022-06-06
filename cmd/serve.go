@@ -34,7 +34,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/trishanku/gitcd/pkg/backend"
-	"github.com/trishanku/gitcd/pkg/backend/mutex"
 	"github.com/trishanku/gitcd/pkg/git"
 	"github.com/trishanku/gitcd/pkg/git/git2go"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
@@ -507,7 +506,7 @@ func registerKVServer(
 		return
 	}
 
-	etcdserverpb.RegisterKVServer(grpcSrv, mutex.NewKVServer(kvs))
+	etcdserverpb.RegisterKVServer(grpcSrv, kvs)
 	return
 }
 
