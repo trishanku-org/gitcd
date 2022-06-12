@@ -215,23 +215,32 @@ func MutateTree(
 
 func AddMutationPathSlice(tm *TreeMutation, ps util.PathSlice, entryName string, entryMutateFn MutateTreeEntryFunc) (newTM *TreeMutation, err error) {
 	var (
-		stName string
-		stm    *TreeMutation
-		stOK   bool
+		stName        string
+		stm           *TreeMutation
+		stOK, entryOK bool
 	)
 
 	if tm == nil {
 		tm = &TreeMutation{}
 	}
 
+	defer func() {
+		if err == nil {
+			newTM = tm
+		}
+	}()
+
 	if len(ps) == 0 {
 		if tm.Entries == nil {
 			tm.Entries = make(map[string]MutateTreeEntryFunc)
 		}
 
-		tm.Entries[entryName] = entryMutateFn // TODO error if already exists
+		if _, entryOK = tm.Entries[entryName]; entryOK {
+			err = rpctypes.ErrGRPCDuplicateKey
+			return
+		}
 
-		newTM = tm
+		tm.Entries[entryName] = entryMutateFn // TODO error if already exists
 		return
 	}
 
@@ -246,8 +255,6 @@ func AddMutationPathSlice(tm *TreeMutation, ps util.PathSlice, entryName string,
 	}
 
 	tm.Subtrees[stName], err = AddMutationPathSlice(stm, ps[1:], entryName, entryMutateFn)
-
-	newTM = tm
 	return
 }
 

@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path"
 	"reflect"
 	"time"
@@ -371,8 +370,6 @@ func (f *metadataFixerAfterNonFastForwardMerge) fix(
 				te   git.TreeEntry
 			)
 
-			fmt.Printf("\nMetadata diff: %#v\n", change)
-
 			switch change.Type() {
 			case git.DiffChangeTypeAdded:
 				if base != etcdserverpb.Compare_MOD.String() {
@@ -494,8 +491,6 @@ func (f *metadataFixerAfterNonFastForwardMerge) fix(
 	if mutation.IsMutationNOP(tm) {
 		return
 	}
-
-	fmt.Printf("\nMetadata mutation: %#v\n", tm)
 
 	mutated, newTreeID, err = mutation.MutateTree(ctx, b.repo, metaMergeT, tm, true)
 	return

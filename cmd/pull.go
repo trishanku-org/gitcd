@@ -197,6 +197,8 @@ func loadPullerInfoFor(pi commonPullerInfo, backendFlags commonBackendFlags, pul
 		}
 
 		*pi.MergeConflictResolution() = git.MergeConfictResolution(i)
+	} else {
+		*pi.MergeConflictResolution() = defaultMergeConflictResolution
 	}
 
 	if s, ok = (*pullFlags.getNoFastForwards())[key]; ok {

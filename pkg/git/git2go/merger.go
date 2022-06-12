@@ -183,7 +183,10 @@ func (m *mergerImpl) resolveModifyDeleteConflicts(ctx context.Context, index *im
 			return
 		}
 
-		fmt.Printf("\nresolveModifyDeleteConflicts: ancestors=%#v, ours=%#v, theirs=%#v\n", ic.Ancestor, ic.Our, ic.Their)
+		if ic.Our != nil && ic.Their != nil {
+			// Should not happen. Modify/Modify conflict should be resolved using impl.FileFlavor.
+			continue
+		}
 
 		switch {
 		case ic.Ancestor != nil:
@@ -199,15 +202,18 @@ func (m *mergerImpl) resolveModifyDeleteConflicts(ctx context.Context, index *im
 			ie = ic.Our
 		case git.MergeConfictResolutionFavorTheirs:
 			ie = ic.Their
+		default:
+			err = fmt.Errorf("invalid conflict resolution %d", m.conflictResolution)
+			return
 		}
+
+		actionFns = append(actionFns, indexRemoveConflict(index, p))
 
 		if ie == nil {
 			actionFns = append(actionFns, indexRemoveByPath(index, p))
 		} else {
 			actionFns = append(actionFns, indexAddEntry(index, ie))
 		}
-
-		actionFns = append(actionFns, indexRemoveConflict(index, p))
 	}
 }
 
