@@ -319,6 +319,121 @@ var _ = FDescribe("merger", func() {
 					}})),
 				}
 			}(),
+			func() spec {
+				var (
+					ours   = &TreeDef{Blobs: map[string][]byte{"1": []byte("1\na\n2\n3\n")}}
+					theirs = &TreeDef{Blobs: map[string][]byte{"1": []byte("1\n2\nb\n3\n")}}
+				)
+
+				return spec{
+					ours:         ours,
+					theirs:       theirs,
+					matchErr:     Succeed(),
+					matchMutated: BeTrue(),
+					matchTreeID:  Not(Equal(git.ObjectID{})),
+					matchTree: PointTo(GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{
+						"1": []byte("1\n2\nb\n3\n")}})),
+				}
+			}(),
+			func() spec {
+				var (
+					ancestor = &TreeDef{Blobs: map[string][]byte{"1": []byte("1\n2\n3\n")}}
+					ours     = &TreeDef{Blobs: map[string][]byte{"1": []byte("1\na\n2\n3\n")}}
+					theirs   = &TreeDef{Blobs: map[string][]byte{"1": []byte("1\n2\nb\n3\n")}}
+				)
+
+				return spec{
+					ancestor:     ancestor,
+					ours:         ours,
+					theirs:       theirs,
+					matchErr:     Succeed(),
+					matchMutated: BeTrue(),
+					matchTreeID:  Not(Equal(git.ObjectID{})),
+					matchTree: PointTo(GetTreeDefMatcher(&TreeDef{Blobs: map[string][]byte{
+						"1": []byte("1\na\n2\nb\n3\n")}})),
+				}
+			}(),
+			func() spec {
+				var (
+					ancestor = &TreeDef{Subtrees: map[string]TreeDef{"pods": {Blobs: map[string][]byte{"nginx": []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  containers:
+  - name: nginx
+	image: nginx:1
+	imagePullPolicy: IfNotPresent
+status:
+  phase: Scheduled
+`)}}}}
+
+					ours = &TreeDef{Subtrees: map[string]TreeDef{"pods": {Blobs: map[string][]byte{"nginx": []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  containers:
+  - name: nginx
+	image: nginx:1
+	imagePullPolicy: IfNotPresent
+status:
+  phase: Scheduled
+  conditions:
+  - type: MemoryPressure
+    status: False
+    message: "Pod has sufficient memory"
+`)}}}}
+
+					theirs = &TreeDef{Subtrees: map[string]TreeDef{"pods": {Blobs: map[string][]byte{"nginx": []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  namespace: default
+  annotations:
+    app: nginx
+spec:
+  containers:
+  - name: nginx
+	image: nginx:1
+	imagePullPolicy: IfNotPresent
+status:
+  phase: Scheduled
+`)}}}}
+				)
+
+				return spec{
+					ancestor:     ancestor,
+					ours:         ours,
+					theirs:       theirs,
+					matchErr:     Succeed(),
+					matchMutated: BeTrue(),
+					matchTreeID:  Not(Equal(git.ObjectID{})),
+					matchTree: PointTo(GetTreeDefMatcher(
+						&TreeDef{Subtrees: map[string]TreeDef{"pods": {Blobs: map[string][]byte{"nginx": []byte(`apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  namespace: default
+  annotations:
+    app: nginx
+spec:
+  containers:
+  - name: nginx
+	image: nginx:1
+	imagePullPolicy: IfNotPresent
+status:
+  phase: Scheduled
+  conditions:
+  - type: MemoryPressure
+    status: False
+    message: "Pod has sufficient memory"
+`)}}}},
+					)),
+				}
+			}(),
 		} {
 			func(s spec) {
 				Describe(
@@ -355,6 +470,14 @@ var _ = FDescribe("merger", func() {
 										return
 									}(t.tPtr, t.td),
 								).To(Succeed())
+							}
+
+							if s.conflictResolution > 0 {
+								merger.SetConflictResolution(s.conflictResolution)
+							}
+
+							if s.retentionPolicy != nil {
+								merger.SetRetentionPolicy(s.retentionPolicy)
 							}
 
 							parentCtx = ctx
