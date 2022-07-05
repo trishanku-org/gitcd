@@ -2,18 +2,25 @@ package backend
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
 	"github.com/trishanku/gitcd/pkg/git"
 	. "github.com/trishanku/gitcd/pkg/tests_util"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
+	"go.uber.org/zap"
 
 	"testing"
 )
 
 func TestBackend(t *testing.T) {
+	format.MaxLength, format.MaxDepth = 0, 100
+
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Backend Suite")
 }
@@ -31,7 +38,10 @@ func metaHeadFrom(metaHead, dataHead *CommitDef) metaHeadFunc {
 		metaHead = metaHead.DeepCopy()
 
 		if dataHead != nil {
-			var dID git.ObjectID
+			var (
+				dID         git.ObjectID
+				metaParents []CommitDef
+			)
 
 			if dID, err = CreateCommitFromDef(ctx, repo, dataHead); err != nil {
 				return
@@ -42,6 +52,32 @@ func metaHeadFrom(metaHead, dataHead *CommitDef) metaHeadFunc {
 			}
 
 			metaHead.Tree.Blobs[metadataPathData] = []byte(dID.String())
+
+			for i, mpd := range metaHead.Parents {
+				var (
+					dpd *CommitDef
+					mpc git.Commit
+				)
+
+				if i < len(dataHead.Parents) {
+					dpd = &dataHead.Parents[i]
+				}
+
+				if dpd == nil {
+					metaParents = append(metaParents, mpd)
+					continue
+				}
+
+				if mpc, err = metaHeadFrom(&mpd, dpd)(ctx, repo); err != nil {
+					return
+				}
+
+				defer mpc.Close()
+
+				metaParents = append(metaParents, *GetCommitDefByCommit(ctx, repo, mpc))
+			}
+
+			metaHead.Parents = metaParents
 		}
 
 		mh, err = CreateAndLoadCommitFromDef(ctx, repo, metaHead)
@@ -104,6 +140,19 @@ func metaHeadInheritFrom(metaHead, dataHead *CommitDef) metaHeadFunc {
 	}
 }
 
+func deepCopyWithoutMetadataDataPath(mcd *CommitDef) *CommitDef {
+	var parents = mcd.Parents
+
+	mcd = mcd.DeepCopy()
+	delete(mcd.Tree.Blobs, metadataPathData)
+
+	for i, mpd := range parents {
+		mcd.Parents[i] = *deepCopyWithoutMetadataDataPath(&mpd)
+	}
+
+	return mcd
+}
+
 func expectMetaHead(em, ed *CommitDef) expectMetaHeadFunc {
 	return func(ctx context.Context, repo git.Repository, am *CommitDef, spec string) {
 		var dID git.ObjectID
@@ -116,9 +165,7 @@ func expectMetaHead(em, ed *CommitDef) expectMetaHeadFunc {
 			return
 		}()).To(Succeed(), spec)
 
-		em, am = em.DeepCopy(), am.DeepCopy()
-		delete(em.Tree.Blobs, metadataPathData)
-		delete(am.Tree.Blobs, metadataPathData)
+		em, am = deepCopyWithoutMetadataDataPath(em), deepCopyWithoutMetadataDataPath(am)
 
 		Expect(*am).To(GetCommitDefMatcher(em), spec)
 
@@ -126,7 +173,7 @@ func expectMetaHead(em, ed *CommitDef) expectMetaHeadFunc {
 			Expect(dID).To(Equal(git.ObjectID{}), spec)
 		} else {
 			Expect(dID).ToNot(Equal(git.ObjectID{}), spec)
-			Expect(*GetCommitDefByID(ctx, repo, dID)).To(GetCommitDefMatcher(ed), spec)
+			Expect(*GetCommitDefByID(ctx, repo, dID)).To(GetCommitDefMatcher(ed), fmt.Sprintf("%s-data", spec))
 		}
 	}
 }
@@ -148,9 +195,9 @@ func expectMetaHeadInherit(em, ed *CommitDef, dataMutated bool) expectMetaHeadFu
 
 			if dataMutated {
 				Expect(ed.Parents).To(HaveLen(1), spec)
-				expectMetaHead(&em.Parents[0], &ed.Parents[0])(ctx, repo, &am.Parents[0], spec)
+				expectMetaHead(&em.Parents[0], &ed.Parents[0])(ctx, repo, &am.Parents[0], fmt.Sprintf("%s-data-mutated", spec))
 			} else {
-				expectMetaHead(&em.Parents[0], ed)(ctx, repo, &am.Parents[0], spec)
+				expectMetaHead(&em.Parents[0], ed)(ctx, repo, &am.Parents[0], fmt.Sprintf("%s-data-not-mutated", spec))
 			}
 		}
 	}
@@ -165,4 +212,19 @@ var allMetaKeys = []string{
 	etcdserverpb.Compare_LEASE.String(),
 	etcdserverpb.Compare_MOD.String(),
 	etcdserverpb.Compare_VERSION.String(),
+}
+
+func getTestLogger() (log logr.Logger) {
+	Expect(func() (err error) {
+		var zl *zap.Logger
+
+		if zl, err = zap.NewDevelopment(); err != nil {
+			return
+		}
+
+		log = zapr.NewLogger(zl)
+		return
+	}()).To(Succeed())
+
+	return
 }

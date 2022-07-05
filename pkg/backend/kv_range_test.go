@@ -233,6 +233,7 @@ var _ = Describe("backend", func() {
 		var gitImpl = git2go.New()
 
 		b = &backend{
+			log: getTestLogger(),
 			commitConfig: commitConfig{
 				committerName:  "trishanku",
 				committerEmail: "trishanku@heaven.com",
@@ -354,7 +355,7 @@ var _ = Describe("backend", func() {
 		)
 
 		BeforeEach(func() {
-			b.refName = "refs/heads/main"
+			b.refName = DefaultDataReferenceName
 		})
 
 		for clusterID, memberID := range map[uint64]uint64{
@@ -1309,15 +1310,15 @@ var _ = Describe("backend", func() {
 						b.memberID = memberID
 					})
 
-					for refName, metaRefNamePrefix := range map[git.ReferenceName]git.ReferenceName{
-						"refs/heads/main":   "",
-						"refs/heads/custom": "refs/custom/prefix",
+					for refName, metaRefName := range map[git.ReferenceName]git.ReferenceName{
+						DefaultDataReferenceName: DefaultMetadataReferenceName,
+						"refs/heads/custom":      "refs/meta/custom",
 					} {
-						func(refName, metaRefNamePrefix git.ReferenceName) {
-							Describe(fmt.Sprintf("refName=%q, metaRefNamePrefix=%q", refName, metaRefNamePrefix), func() {
+						func(refName, metaRefName git.ReferenceName) {
+							Describe(fmt.Sprintf("refName=%q, metaRefName=%q", refName, metaRefName), func() {
 								BeforeEach(func() {
 									b.refName = refName
-									b.metadataRefNamePrefix = metaRefNamePrefix
+									b.metadataRefName = metaRefName
 								})
 
 								var checks = []check{
@@ -1786,7 +1787,7 @@ var _ = Describe("backend", func() {
 									}(s)
 								}
 							})
-						}(refName, metaRefNamePrefix)
+						}(refName, metaRefName)
 					}
 				})
 			}(clusterID, memberID)

@@ -14,7 +14,7 @@ import (
 	. "github.com/trishanku/gitcd/pkg/tests_util"
 )
 
-var _ = FDescribe("merger", func() {
+var _ = Describe("merger", func() {
 	var (
 		ctx     context.Context
 		merger  git.Merger

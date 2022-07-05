@@ -71,9 +71,9 @@ func (opts kvOpts) WithRefName(refName git.ReferenceName) KVOptionFunc {
 	})
 }
 
-func (opts kvOpts) WithMetadataRefNamePrefix(metaRefNamePrefix git.ReferenceName) KVOptionFunc {
+func (opts kvOpts) WithMetadataRefName(metaRefName git.ReferenceName) KVOptionFunc {
 	return opts.doIt(func(b *backend) error {
-		b.metadataRefNamePrefix = metaRefNamePrefix
+		b.metadataRefName = metaRefName
 		return nil
 	})
 }

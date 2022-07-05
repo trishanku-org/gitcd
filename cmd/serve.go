@@ -115,11 +115,11 @@ var serveCmd = &cobra.Command{
 }
 
 type serverInfo struct {
-	dataRefName         git.ReferenceName
-	keyPrefix           string
-	listenURL           *url.URL
-	clientURLs          []*url.URL
-	clusterId, memberId uint64
+	dataRefName, metaRefName git.ReferenceName
+	keyPrefix                string
+	listenURL                *url.URL
+	clientURLs               []*url.URL
+	clusterId, memberId      uint64
 
 	remoteName                           git.RemoteName
 	remoteDataRefName, remoteMetaRefName git.ReferenceName
@@ -131,6 +131,7 @@ type serverInfo struct {
 var _ commonPullerInfo = (*serverInfo)(nil)
 
 func (s *serverInfo) DataRefName() *git.ReferenceName                 { return &s.dataRefName }
+func (s *serverInfo) MetaRefName() *git.ReferenceName                 { return &s.metaRefName }
 func (s *serverInfo) RemoteName() *git.RemoteName                     { return &s.remoteName }
 func (s *serverInfo) RemoteDataRefName() *git.ReferenceName           { return &s.remoteDataRefName }
 func (s *serverInfo) RemoteMetaRefName() *git.ReferenceName           { return &s.remoteMetaRefName }
@@ -161,6 +162,10 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 			ss []string
 			i  int64
 		)
+
+		if si.metaRefName, err = getReferenceNameFor(serveFlags.metaRefNames, k); err != nil {
+			return
+		}
 
 		if si.keyPrefix, ok = serveFlags.keyPrefix[k]; !ok {
 			si.keyPrefix = defaultKeyPrefix
@@ -290,7 +295,7 @@ func registerGRPCServers(
 
 		sat, closers = newSemiAutomaticTicker(serveFlags.watchDispatchTickerDuration, closers)
 
-		if kvs, err = registerKVServer(si, ctx, repo, errs, git.ReferenceName(serveFlags.metadataRefNamePrefix), log, sat, grpcSrv); err != nil {
+		if kvs, err = registerKVServer(si, ctx, repo, errs, log, sat, grpcSrv); err != nil {
 			return
 		}
 
@@ -483,7 +488,6 @@ func registerKVServer(
 	ctx context.Context,
 	repo git.Repository,
 	errs git.Errors,
-	metaRefNamePrefix git.ReferenceName,
 	log logr.Logger,
 	watchDispatchTicker chan<- time.Time,
 	grpcSrv *grpc.Server,
@@ -494,7 +498,7 @@ func registerKVServer(
 	if kvs, err = backend.NewKVServer(
 		backend.KVOptions.WithKeyPrefix(si.keyPrefix),
 		backend.KVOptions.WithRefName(si.dataRefName),
-		backend.KVOptions.WithMetadataRefNamePrefix(metaRefNamePrefix),
+		backend.KVOptions.WithMetadataRefName(si.metaRefName),
 		backend.KVOptions.WithClusterId(si.clusterId),
 		backend.KVOptions.WithMemberId(si.memberId),
 		backend.KVOptions.WithCommitterName(serveFlags.committerName),
@@ -623,7 +627,7 @@ type commonBackendFlags interface {
 	getRepoPath() *string
 	getCommitterName() *string
 	getCommitterEmail() *string
-	getMetadataRefNamePrefix() *string
+	getMetaRefNames() *map[string]string
 	getDataRefNames() *map[string]string
 }
 
@@ -641,26 +645,25 @@ func addCommonBackendFlags(flags *pflag.FlagSet, commonFlags commonBackendFlags)
 		defaultCommitterEmail,
 		"Email of the committer to use while making changes to the Git repo backend.",
 	)
-	flags.StringVar(
-		commonFlags.getMetadataRefNamePrefix(),
-		"metadata-reference-name-prefix",
-		backend.DefaultMetadataReferencePrefix,
-		`Prefix for the Git reference name to be used as the metadata backend.
-The full metadata Git referene name will be the path concatenation of the prefix and the data Git reference name.`)
 
 	flags.StringToStringVar(
 		commonFlags.getDataRefNames(),
 		"data-reference-names",
-		map[string]string{"default": "refs/heads/main"},
+		map[string]string{"default": backend.DefaultDataReferenceName},
 		"Git reference names to be used as the data backend.",
 	)
+	flags.StringToStringVar(
+		commonFlags.getMetaRefNames(),
+		"metadata-reference-names",
+		map[string]string{"default": backend.DefaultMetadataReferenceName},
+		`Git reference name to be used as the metadata backend.`)
 }
 
 type serveFlagsImpl struct {
 	repoPath                    string
 	keyPrefix                   map[string]string
 	dataRefNames                map[string]string
-	metadataRefNamePrefix       string
+	metaRefNames                map[string]string
 	clusterId                   map[string]int64
 	memberId                    map[string]int64
 	committerName               string
@@ -700,7 +703,7 @@ var (
 func (s *serveFlagsImpl) getRepoPath() *string                { return &s.repoPath }
 func (s *serveFlagsImpl) getCommitterName() *string           { return &s.committerName }
 func (s *serveFlagsImpl) getCommitterEmail() *string          { return &s.committerEmail }
-func (s *serveFlagsImpl) getMetadataRefNamePrefix() *string   { return &s.metadataRefNamePrefix }
+func (s *serveFlagsImpl) getMetaRefNames() *map[string]string { return &s.metaRefNames }
 func (s *serveFlagsImpl) getDataRefNames() *map[string]string { return &s.dataRefNames }
 
 func (s *serveFlagsImpl) getRemoteNames() *map[string]string        { return &s.remoteNames }

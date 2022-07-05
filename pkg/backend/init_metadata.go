@@ -13,21 +13,21 @@ import (
 )
 
 type InitOpts struct {
-	Repo                               git.Repository
-	Errors                             git.Errors
-	DataRefName, MetadataRefNamePrefix git.ReferenceName
-	StartRevision                      int64
-	Version                            string
-	Force                              bool
-	CommitterName, CommitterEmail      string
+	Repo                          git.Repository
+	Errors                        git.Errors
+	DataRefName, MetadataRefName  git.ReferenceName
+	StartRevision                 int64
+	Version                       string
+	Force                         bool
+	CommitterName, CommitterEmail string
 }
 
 func InitMetadata(ctx context.Context, opts *InitOpts, log logr.Logger) error {
 	var b = &backend{
-		repo:                  opts.Repo,
-		errors:                opts.Errors,
-		refName:               opts.DataRefName,
-		metadataRefNamePrefix: opts.MetadataRefNamePrefix,
+		repo:            opts.Repo,
+		errors:          opts.Errors,
+		refName:         opts.DataRefName,
+		metadataRefName: opts.MetadataRefName,
 		commitConfig: commitConfig{
 			committerName:  opts.CommitterName,
 			committerEmail: opts.CommitterEmail,

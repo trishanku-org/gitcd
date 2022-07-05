@@ -83,7 +83,7 @@ var pullCmd = &cobra.Command{
 
 			if kvs, err = backend.NewKVServer(
 				backend.KVOptions.WithRefName(pi.dataRefName),
-				backend.KVOptions.WithMetadataRefNamePrefix(git.ReferenceName(pullFlags.metaRefNamePrefix)),
+				backend.KVOptions.WithMetadataRefName(pi.metaRefName),
 				backend.KVOptions.WithCommitterName(serveFlags.committerName),
 				backend.KVOptions.WithCommitterEmail(serveFlags.committerEmail),
 				backend.KVOptions.WithLogger(log),
@@ -113,6 +113,7 @@ var pullCmd = &cobra.Command{
 
 type commonPullerInfo interface {
 	DataRefName() *git.ReferenceName
+	MetaRefName() *git.ReferenceName
 	RemoteName() *git.RemoteName
 	RemoteDataRefName() *git.ReferenceName
 	RemoteMetaRefName() *git.ReferenceName
@@ -123,16 +124,17 @@ type commonPullerInfo interface {
 }
 
 type pullerInfo struct {
-	dataRefName, remoteDataRefName, remoteMetaRefName git.ReferenceName
-	remoteName                                        git.RemoteName
-	mergeConflictResolution                           git.MergeConfictResolution
-	mergeRetentionPolicy                              git.MergeRetentionPolicy
-	noFastForward, noFetch                            bool
+	dataRefName, metaRefName, remoteDataRefName, remoteMetaRefName git.ReferenceName
+	remoteName                                                     git.RemoteName
+	mergeConflictResolution                                        git.MergeConfictResolution
+	mergeRetentionPolicy                                           git.MergeRetentionPolicy
+	noFastForward, noFetch                                         bool
 }
 
 var _ commonPullerInfo = (*pullerInfo)(nil)
 
 func (p *pullerInfo) DataRefName() *git.ReferenceName                 { return &p.dataRefName }
+func (p *pullerInfo) MetaRefName() *git.ReferenceName                 { return &p.metaRefName }
 func (p *pullerInfo) RemoteName() *git.RemoteName                     { return &p.remoteName }
 func (p *pullerInfo) RemoteDataRefName() *git.ReferenceName           { return &p.remoteDataRefName }
 func (p *pullerInfo) RemoteMetaRefName() *git.ReferenceName           { return &p.remoteMetaRefName }
@@ -178,6 +180,10 @@ func loadPullerInfoFor(pi commonPullerInfo, backendFlags commonBackendFlags, pul
 		i                      int
 		mrpInclude, mrpExclude git.MergeRetentionPolicy
 	)
+
+	if *pi.MetaRefName(), err = getReferenceNameFor(*backendFlags.getMetaRefNames(), key); err != nil {
+		return
+	}
 
 	if s, ok = (*pullFlags.getRemoteNames())[key]; ok {
 		*pi.RemoteName() = git.RemoteName(s)
@@ -336,19 +342,17 @@ func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
 }
 
 type pullFlagsImpl struct {
-	repoPath                      string
-	committerName                 string
-	committerEmail                string
-	dataRefNames                  map[string]string
-	metaRefNamePrefix             string
-	remoteNames                   map[string]string
-	remoteDataRefNames            map[string]string
-	remoteMetaRefNames            map[string]string
-	mergeConflictResolutions      map[string]string
-	mergeRetentionPoliciesInclude map[string]string
-	mergeRetentionPoliciesExclude map[string]string
-	noFastForwards                map[string]string
-	noFetch                       map[string]string
+	repoPath                               string
+	committerName                          string
+	committerEmail                         string
+	dataRefNames, metaRefNames             map[string]string
+	remoteNames                            map[string]string
+	remoteDataRefNames, remoteMetaRefNames map[string]string
+	mergeConflictResolutions               map[string]string
+	mergeRetentionPoliciesInclude          map[string]string
+	mergeRetentionPoliciesExclude          map[string]string
+	noFastForwards                         map[string]string
+	noFetch                                map[string]string
 }
 
 var (
@@ -370,8 +374,8 @@ var (
 func (p *pullFlagsImpl) getRepoPath() *string                { return &p.repoPath }
 func (p *pullFlagsImpl) getCommitterName() *string           { return &p.committerName }
 func (p *pullFlagsImpl) getCommitterEmail() *string          { return &p.committerEmail }
-func (p *pullFlagsImpl) getMetadataRefNamePrefix() *string   { return &p.metaRefNamePrefix }
 func (p *pullFlagsImpl) getDataRefNames() *map[string]string { return &p.dataRefNames }
+func (p *pullFlagsImpl) getMetaRefNames() *map[string]string { return &p.metaRefNames }
 
 func (p *pullFlagsImpl) getRemoteNames() *map[string]string        { return &p.remoteNames }
 func (p *pullFlagsImpl) getRemoteDataRefNames() *map[string]string { return &p.remoteDataRefNames }

@@ -69,15 +69,15 @@ var initCmd = &cobra.Command{
 			var (
 				log  = log.WithName(string(ri.dataRefName))
 				opts = &backend.InitOpts{
-					Repo:                  repo,
-					Errors:                gitImpl.Errors(),
-					DataRefName:           ri.dataRefName,
-					MetadataRefNamePrefix: git.ReferenceName(initFlags.metaRefNamePrefix),
-					StartRevision:         ri.startRevision,
-					Version:               ri.version,
-					Force:                 initFlags.force,
-					CommitterName:         initFlags.committerName,
-					CommitterEmail:        initFlags.committerEmail,
+					Repo:            repo,
+					Errors:          gitImpl.Errors(),
+					DataRefName:     ri.dataRefName,
+					MetadataRefName: ri.metaRefName,
+					StartRevision:   ri.startRevision,
+					Version:         ri.version,
+					Force:           initFlags.force,
+					CommitterName:   initFlags.committerName,
+					CommitterEmail:  initFlags.committerEmail,
 				}
 			)
 
@@ -95,6 +95,7 @@ var initCmd = &cobra.Command{
 
 type refInfo struct {
 	dataRefName   git.ReferenceName
+	metaRefName   git.ReferenceName
 	startRevision int64
 	version       string
 }
@@ -118,6 +119,10 @@ func organizeRefInfo() (ris []*refInfo, err error) {
 			i  int64
 		)
 
+		if ri.metaRefName, err = getReferenceNameFor(initFlags.metaRefNames, k); err != nil {
+			return
+		}
+
 		if i, ok = initFlags.startRevisions[k]; !ok {
 			i = defaultStartRevision
 		}
@@ -139,14 +144,14 @@ const (
 )
 
 type initFlagsImpl struct {
-	repoPath          string
-	committerName     string
-	committerEmail    string
-	dataRefNames      map[string]string
-	metaRefNamePrefix string
-	startRevisions    map[string]int64
-	versions          map[string]string
-	force             bool
+	repoPath       string
+	committerName  string
+	committerEmail string
+	dataRefNames   map[string]string
+	metaRefNames   map[string]string
+	startRevisions map[string]int64
+	versions       map[string]string
+	force          bool
 }
 
 var (
@@ -162,7 +167,7 @@ var (
 func (i *initFlagsImpl) getRepoPath() *string                { return &i.repoPath }
 func (i *initFlagsImpl) getCommitterName() *string           { return &i.committerName }
 func (i *initFlagsImpl) getCommitterEmail() *string          { return &i.committerEmail }
-func (i *initFlagsImpl) getMetadataRefNamePrefix() *string   { return &i.metaRefNamePrefix }
+func (i *initFlagsImpl) getMetaRefNames() *map[string]string { return &i.metaRefNames }
 func (i *initFlagsImpl) getDataRefNames() *map[string]string { return &i.dataRefNames }
 
 func init() {

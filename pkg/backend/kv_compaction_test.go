@@ -22,8 +22,7 @@ var _ = Describe("backend", func() {
 	)
 
 	BeforeEach(func() {
-		b = &backend{}
-
+		b = &backend{log: getTestLogger()}
 		ctx = context.Background()
 
 		Expect(func() (err error) { dir, err = ioutil.TempDir("", "repository"); return }()).To(Succeed())
@@ -96,7 +95,8 @@ var _ = Describe("backend", func() {
 						var metaRefName git.ReferenceName
 
 						BeforeEach(func() {
-							b.refName = "refs/heads/main"
+							b.refName = DefaultDataReferenceName
+							b.metadataRefName = DefaultMetadataReferenceName
 							b.clusterID = s.clusterID
 							b.memberID = s.memberID
 

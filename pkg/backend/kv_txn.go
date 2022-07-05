@@ -181,7 +181,11 @@ func (b *backend) checkTxnCompare(ctx context.Context, metaRoot, dataRoot git.Tr
 
 func copyResponseHeaderFrom(h *etcdserverpb.ResponseHeader) (r *etcdserverpb.ResponseHeader) {
 	r = new(etcdserverpb.ResponseHeader)
-	*r = *h
+
+	if h != nil {
+		*r = *h
+	}
+
 	return
 }
 

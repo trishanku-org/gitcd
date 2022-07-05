@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"fmt"
-	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -29,50 +28,39 @@ type commitConfig struct {
 type backend struct {
 	sync.RWMutex
 	keyPrefix
-	repo                           git.Repository
-	errors                         git.Errors
-	refName, metadataRefNamePrefix git.ReferenceName
-	clusterID, memberID            uint64
-	commitConfig                   commitConfig
-	log                            logr.Logger
-	watchDispatchTicker            chan<- time.Time
+	repo                     git.Repository
+	errors                   git.Errors
+	refName, metadataRefName git.ReferenceName
+	clusterID, memberID      uint64
+	commitConfig             commitConfig
+	log                      logr.Logger
+	watchDispatchTicker      chan<- time.Time
 }
 
 var _ etcdserverpb.KVServer = (*backend)(nil)
 
 const (
-	DefaultMetadataReferencePrefix = "refs/gitcd/metadata/"
-	metadataPathRevision           = ".revision"
-	metadataPathData               = ".data"
-	metadataPathVersion            = ".version"
+	DefaultDataReferenceName     = "refs/heads/main"
+	DefaultMetadataReferenceName = "refs/gitcd/metadata/main"
+	metadataPathRevision         = ".revision"
+	metadataPathData             = ".data"
+	metadataPathVersion          = ".version"
 )
 
 func (b *backend) getDataRefName() (refName git.ReferenceName, err error) {
-	refName = b.refName
-
-	if len(b.refName) == 0 {
-		err = rpctypes.ErrGRPCCorrupt
-	}
-
-	return
+	return validateReferenceName(b.refName)
 }
 
 func (b *backend) getMetadataRefName() (refName git.ReferenceName, err error) {
-	var (
-		dataRefName       git.ReferenceName
-		metaRefNamePrefix = b.metadataRefNamePrefix
-	)
+	return validateReferenceName(b.metadataRefName)
+}
 
-	if len(metaRefNamePrefix) == 0 {
-		metaRefNamePrefix = DefaultMetadataReferencePrefix
+func validateReferenceName(refName git.ReferenceName) (git.ReferenceName, error) {
+	if len(refName) == 0 {
+		return "", rpctypes.ErrGRPCCorrupt
 	}
 
-	if dataRefName, err = b.getDataRefName(); err != nil {
-		return
-	}
-
-	refName = git.ReferenceName(path.Clean(path.Join(string(metaRefNamePrefix), string(dataRefName))))
-	return
+	return refName, nil
 }
 
 func (b *backend) getReference(ctx context.Context, refName git.ReferenceName) (ref git.Reference, err error) {

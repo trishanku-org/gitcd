@@ -22,6 +22,39 @@ import (
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 )
 
+var _ = Describe("validateReferenceName", func() {
+	for refName, expectErr := range map[string]bool{
+		"":                       true,
+		"a":                      false,
+		DefaultDataReferenceName: false,
+	} {
+		func(refName git.ReferenceName, expectErr bool) {
+			var spec = fmt.Sprintf("%q should succeed", refName)
+
+			if expectErr {
+				spec = fmt.Sprintf("%q should fail", refName)
+			}
+
+			It(spec, func() {
+				var (
+					r   git.ReferenceName
+					err error
+				)
+
+				r, err = validateReferenceName(refName)
+
+				if expectErr {
+					Expect(err).To(MatchError(rpctypes.ErrGRPCCorrupt))
+					Expect(r).To(BeEmpty())
+				} else {
+					Expect(err).ToNot(HaveOccurred())
+					Expect(r).To(Equal(refName))
+				}
+			})
+		}(git.ReferenceName(refName), expectErr)
+	}
+})
+
 var _ = Describe("backend", func() {
 	var b *backend
 
@@ -31,9 +64,9 @@ var _ = Describe("backend", func() {
 
 	Describe("getDataRefName", func() {
 		for refName, expectErr := range map[string]bool{
-			"":                true,
-			"a":               false,
-			"refs/heads/main": false,
+			"":                       true,
+			"a":                      false,
+			DefaultDataReferenceName: false,
 		} {
 			func(refName git.ReferenceName, expectErr bool) {
 				var spec = fmt.Sprintf("%q should succeed", refName)
@@ -64,37 +97,39 @@ var _ = Describe("backend", func() {
 		}
 	})
 
-	Describe("getMetadataRefName", func() {
-		for _, s := range []struct {
-			refName, metaRefNamePrefix, expectedMetaRefName string
-			matchErr                                        types.GomegaMatcher
-		}{
-			{matchErr: MatchError(rpctypes.ErrGRPCCorrupt)},
-			{refName: "a", expectedMetaRefName: DefaultMetadataReferencePrefix + "a", matchErr: Succeed()},
-			{refName: "refs/heads/main", expectedMetaRefName: DefaultMetadataReferencePrefix + "refs/heads/main", matchErr: Succeed()},
-			{metaRefNamePrefix: "refs/p", matchErr: MatchError(rpctypes.ErrGRPCCorrupt)},
-			{refName: "a", metaRefNamePrefix: "refs/p", expectedMetaRefName: "refs/p/a", matchErr: Succeed()},
-			{refName: "refs/heads/main", metaRefNamePrefix: "refs/p", expectedMetaRefName: "refs/p/refs/heads/main", matchErr: Succeed()},
-			{metaRefNamePrefix: "refs/p/", matchErr: MatchError(rpctypes.ErrGRPCCorrupt)},
-			{refName: "a", metaRefNamePrefix: "refs/p/", expectedMetaRefName: "refs/p/a", matchErr: Succeed()},
-			{refName: "refs/heads/main", metaRefNamePrefix: "refs/p/", expectedMetaRefName: "refs/p/refs/heads/main", matchErr: Succeed()},
+	Describe("getMetaRefName", func() {
+		for metaRefName, expectErr := range map[string]bool{
+			"":                         true,
+			"a":                        false,
+			"refs/gitcd/metadata/main": false,
+			"refs/meta/custom":         false,
 		} {
-			func(refName, metaRefNamePrefix, expectedMetaRefName git.ReferenceName, matchErr types.GomegaMatcher) {
-				It(fmt.Sprintf("refName=%q, metadataRefNamePrefix=%q", refName, metaRefNamePrefix), func() {
+			func(metaRefName git.ReferenceName, expectErr bool) {
+				var spec = fmt.Sprintf("%q should succeed", metaRefName)
+
+				if expectErr {
+					spec = fmt.Sprintf("%q should fail", metaRefName)
+				}
+
+				It(spec, func() {
 					var (
 						r   git.ReferenceName
 						err error
 					)
 
-					b.refName = refName
-					b.metadataRefNamePrefix = metaRefNamePrefix
+					b.metadataRefName = metaRefName
 
 					r, err = b.getMetadataRefName()
 
-					Expect(err).To(matchErr)
-					Expect(r).To(Equal(expectedMetaRefName))
+					if expectErr {
+						Expect(err).To(MatchError(rpctypes.ErrGRPCCorrupt))
+						Expect(r).To(BeEmpty())
+					} else {
+						Expect(err).ToNot(HaveOccurred())
+						Expect(r).To(Equal(metaRefName))
+					}
 				})
-			}(git.ReferenceName(s.refName), git.ReferenceName(s.metaRefNamePrefix), git.ReferenceName(s.expectedMetaRefName), s.matchErr)
+			}(git.ReferenceName(metaRefName), expectErr)
 		}
 	})
 
@@ -157,7 +192,7 @@ var _ = Describe("backend", func() {
 
 			Describe("empty repo", func() {
 				BeforeEach(func() {
-					refName = "refs/heads/main"
+					refName = DefaultDataReferenceName
 					matchErr = HaveOccurred()
 					expectRef = func(ref git.Reference) { Expect(ref).To(BeNil()) }
 				})
@@ -169,7 +204,7 @@ var _ = Describe("backend", func() {
 				var cd *CommitDef
 
 				BeforeEach(func() {
-					refName = "refs/heads/main"
+					refName = DefaultDataReferenceName
 					cd = &CommitDef{
 						Message: "1",
 						Tree:    TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
@@ -239,7 +274,7 @@ var _ = Describe("backend", func() {
 			)
 
 			BeforeEach(func() {
-				b.refName = "refs/heads/main"
+				b.metadataRefName = "refs/gitcd/metadata/main"
 			})
 
 			JustBeforeEach(func() {
@@ -266,6 +301,16 @@ var _ = Describe("backend", func() {
 			Describe("empty repo", func() {
 				BeforeEach(func() {
 					matchErr = HaveOccurred()
+					expectRef = func(ref git.Reference) { Expect(ref).To(BeNil()) }
+				})
+
+				ItShouldFail()
+			})
+
+			Describe("without metadata reference", func() {
+				BeforeEach(func() {
+					b.metadataRefName = ""
+					matchErr = MatchError(rpctypes.ErrGRPCCorrupt)
 					expectRef = func(ref git.Reference) { Expect(ref).To(BeNil()) }
 				})
 
@@ -333,7 +378,7 @@ var _ = Describe("backend", func() {
 
 				Describe("reference name does not exist", func() {
 					BeforeEach(func() {
-						b.refName = "refs/heads/does_not_exist"
+						b.metadataRefName = "refs/gitcd/metadata/does_not_exist"
 						matchErr = HaveOccurred()
 						expectRef = func(ref git.Reference) { Expect(ref).To(BeNil()) }
 					})
@@ -1765,7 +1810,7 @@ var _ = Describe("backend", func() {
 
 				referencePeelable = func(cd *CommitDef) peelableFunc {
 					return func() (git.Peelable, error) {
-						return CreateAndLoadReferenceFromDef(ctx, b.repo, "refs/heads/main", cd)
+						return CreateAndLoadReferenceFromDef(ctx, b.repo, DefaultDataReferenceName, cd)
 					}
 				}
 			)
@@ -2083,7 +2128,8 @@ var _ = Describe("backend", func() {
 						var metaRefName git.ReferenceName
 
 						BeforeEach(func() {
-							b.refName = "refs/heads/main"
+							b.refName = DefaultDataReferenceName
+							b.metadataRefName = DefaultMetadataReferenceName
 							b.clusterID = s.clusterID
 							b.memberID = s.memberID
 
@@ -2520,7 +2566,7 @@ var _ = Describe("backend", func() {
 				type check struct {
 					spec                                                           string
 					ctxFn                                                          ContextFunc
-					refName, metaRefNamePrefix                                     git.ReferenceName
+					refName, metaRefName                                           git.ReferenceName
 					currentMetaHead, currentDataHead                               *CommitDef
 					metaMutated, dataMutated                                       bool
 					newMetaHead, newDataHead                                       *CommitDef
@@ -2528,16 +2574,16 @@ var _ = Describe("backend", func() {
 					matchErr, matchMetaHeadCommitDefPtr, matchDataHeadCommitDefPtr types.GomegaMatcher
 				}
 
-				for refName, metaRefNamePrefix := range map[git.ReferenceName]git.ReferenceName{
-					"refs/heads/main":   "",
-					"refs/heads/custom": "refs/custom/prefix",
+				for refName, metaRefName := range map[git.ReferenceName]git.ReferenceName{
+					DefaultDataReferenceName: DefaultMetadataReferenceName,
+					"refs/heads/custom":      "refs/meta/custom",
 				} {
 					for _, s := range []check{
 						{
 							spec:                      "expired context",
 							ctxFn:                     CanceledContext,
 							refName:                   refName,
-							metaRefNamePrefix:         metaRefNamePrefix,
+							metaRefName:               metaRefName,
 							revision:                  1,
 							matchErr:                  Succeed(),
 							matchMetaHeadCommitDefPtr: BeNil(),
@@ -2547,7 +2593,7 @@ var _ = Describe("backend", func() {
 							spec:                      "expired context",
 							ctxFn:                     CanceledContext,
 							refName:                   refName,
-							metaRefNamePrefix:         metaRefNamePrefix,
+							metaRefName:               metaRefName,
 							metaMutated:               true,
 							newMetaHead:               &CommitDef{},
 							revision:                  1,
@@ -2559,7 +2605,7 @@ var _ = Describe("backend", func() {
 							spec:                      "expired context",
 							ctxFn:                     CanceledContext,
 							refName:                   refName,
-							metaRefNamePrefix:         metaRefNamePrefix,
+							metaRefName:               metaRefName,
 							dataMutated:               true,
 							newDataHead:               &CommitDef{},
 							revision:                  1,
@@ -2571,7 +2617,7 @@ var _ = Describe("backend", func() {
 							spec:                      "expired context",
 							ctxFn:                     CanceledContext,
 							refName:                   refName,
-							metaRefNamePrefix:         metaRefNamePrefix,
+							metaRefName:               metaRefName,
 							metaMutated:               true,
 							newMetaHead:               &CommitDef{},
 							dataMutated:               true,
@@ -2583,7 +2629,7 @@ var _ = Describe("backend", func() {
 						},
 						{
 							refName:                   refName,
-							metaRefNamePrefix:         metaRefNamePrefix,
+							metaRefName:               metaRefName,
 							revision:                  1,
 							matchErr:                  Succeed(),
 							matchMetaHeadCommitDefPtr: BeNil(),
@@ -2594,7 +2640,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								metaMutated:               true,
 								newMetaHead:               cd,
 								revision:                  1,
@@ -2608,7 +2654,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								dataMutated:               true,
 								newDataHead:               cd,
 								matchErr:                  Succeed(),
@@ -2624,7 +2670,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								metaMutated:               true,
 								newMetaHead:               metaCD,
 								dataMutated:               true,
@@ -2642,7 +2688,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentMetaHead:           currentMetaHead,
 								currentDataHead:           currentDataHead,
 								revision:                  1,
@@ -2659,7 +2705,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentMetaHead:           currentMetaHead,
 								metaMutated:               true,
 								newMetaHead:               newMetaHead,
@@ -2678,7 +2724,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentMetaHead:           currentMetaHead,
 								currentDataHead:           currentDataHead,
 								metaMutated:               true,
@@ -2697,7 +2743,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentDataHead:           currentDataHead,
 								dataMutated:               true,
 								newDataHead:               newDataHead,
@@ -2715,7 +2761,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentMetaHead:           currentMetaHead,
 								currentDataHead:           currentDataHead,
 								dataMutated:               true,
@@ -2735,7 +2781,7 @@ var _ = Describe("backend", func() {
 
 							return check{
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentMetaHead:           currentMetaHead,
 								currentDataHead:           currentDataHead,
 								metaMutated:               true,
@@ -2774,7 +2820,7 @@ var _ = Describe("backend", func() {
 							return check{
 								spec:                      "replace current commits",
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentMetaHead:           currentMetaHead,
 								currentDataHead:           currentDataHead,
 								metaMutated:               true,
@@ -2813,7 +2859,7 @@ var _ = Describe("backend", func() {
 							return check{
 								spec:                      "inherit current commits",
 								refName:                   refName,
-								metaRefNamePrefix:         metaRefNamePrefix,
+								metaRefName:               metaRefName,
 								currentMetaHead:           currentMetaHead,
 								currentDataHead:           currentDataHead,
 								metaMutated:               true,
@@ -2829,10 +2875,10 @@ var _ = Describe("backend", func() {
 						func(s check) {
 							Describe(
 								fmt.Sprintf(
-									"%s refName=%q metaRefNamePrefix=%q hasCurrentMetaHead=%t, hasCurrentDataHead=%t metaMutated=%t dataMutated=%t, revision=%d",
+									"%s refName=%q metaRefName=%q hasCurrentMetaHead=%t, hasCurrentDataHead=%t metaMutated=%t dataMutated=%t, revision=%d",
 									s.spec,
 									s.refName,
-									s.metaRefNamePrefix,
+									s.metaRefName,
 									s.currentMetaHead != nil,
 									s.currentDataHead != nil,
 									s.metaMutated,
@@ -2846,7 +2892,7 @@ var _ = Describe("backend", func() {
 									)
 
 									BeforeEach(func() {
-										b.refName, b.metadataRefNamePrefix = s.refName, s.metaRefNamePrefix
+										b.refName, b.metadataRefName = s.refName, s.metaRefName
 
 										for _, s := range []struct {
 											refNameFn func() (git.ReferenceName, error)

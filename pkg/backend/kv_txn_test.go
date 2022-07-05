@@ -223,7 +223,7 @@ var _ = Describe("copyResponseHeaderFrom", func() {
 	}
 })
 
-var _ = FDescribe("backend", func() {
+var _ = Describe("backend", func() {
 	var (
 		b   *backend
 		ctx context.Context
@@ -234,6 +234,7 @@ var _ = FDescribe("backend", func() {
 		var gitImpl = git2go.New()
 
 		b = &backend{
+			log: getTestLogger(),
 			commitConfig: commitConfig{
 				committerName:  "trishanku",
 				committerEmail: "trishanku@heaven.com",
@@ -536,7 +537,7 @@ var _ = FDescribe("backend", func() {
 									TargetUnion: &etcdserverpb.Compare_Value{Value: []byte("2")},
 								}},
 								matchErr:     Succeed(),
-								matchCompare: BeFalse(),
+								matchCompare: BeTrue(),
 							},
 							check{
 								spec:     spec,
@@ -547,7 +548,7 @@ var _ = FDescribe("backend", func() {
 									TargetUnion: &etcdserverpb.Compare_Value{Value: []byte("2")},
 								}},
 								matchErr:     Succeed(),
-								matchCompare: BeFalse(),
+								matchCompare: BeTrue(),
 							},
 							check{
 								spec:     spec,
@@ -558,7 +559,7 @@ var _ = FDescribe("backend", func() {
 									TargetUnion: &etcdserverpb.Compare_Value{Value: []byte("2")},
 								}},
 								matchErr:     Succeed(),
-								matchCompare: BeFalse(),
+								matchCompare: BeTrue(),
 							},
 						)
 					}
@@ -1651,7 +1652,7 @@ var _ = FDescribe("backend", func() {
 		}
 	})
 
-	FDescribe("doTxnRequestOps", func() {
+	Describe("doTxnRequestOps", func() {
 		type check struct {
 			spec                                        string
 			ctxFn                                       ContextFunc
@@ -1738,7 +1739,7 @@ var _ = FDescribe("backend", func() {
 						commitTreeFn:              commitStrategy.commitTreeFn,
 						matchErr:                  matchErr,
 						matchMetaMutated:          matchMetaMutated,
-						expectMetaHead:            commitStrategy.expectMetaHeadFn(nmh, ndh, matchDataMutated == BeTrue()),
+						expectMetaHead:            commitStrategy.expectMetaHeadFn(nmh, ndh, reflect.DeepEqual(matchDataMutated, BeTrue())),
 						matchDataMutated:          matchDataMutated,
 						matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(ndh)),
 						matchResponse:             matchResponse,
@@ -2275,8 +2276,7 @@ var _ = FDescribe("backend", func() {
 										Target:      etcdserverpb.Compare_VALUE,
 										TargetUnion: &etcdserverpb.Compare_Value{},
 									}},
-									Success: []*etcdserverpb.RequestOp{{}},
-									Failure: []*etcdserverpb.RequestOp{
+									Success: []*etcdserverpb.RequestOp{
 										{Request: &etcdserverpb.RequestOp_RequestPut{RequestPut: &etcdserverpb.PutRequest{
 											Key:    []byte("a/2"),
 											Value:  []byte("2"),
@@ -2286,6 +2286,7 @@ var _ = FDescribe("backend", func() {
 											Key: []byte("a/2"),
 										}}},
 									},
+									Failure: []*etcdserverpb.RequestOp{{}}, // Compare now succeeds for missing keys.
 								}}},
 								{Request: &etcdserverpb.RequestOp_RequestRange{RequestRange: &etcdserverpb.RangeRequest{
 									Key:               []byte("\x00"),
@@ -2299,8 +2300,7 @@ var _ = FDescribe("backend", func() {
 										Target:      etcdserverpb.Compare_LEASE,
 										TargetUnion: &etcdserverpb.Compare_Lease{Lease: 100},
 									}},
-									Success: []*etcdserverpb.RequestOp{{}},
-									Failure: []*etcdserverpb.RequestOp{
+									Success: []*etcdserverpb.RequestOp{
 										{Request: &etcdserverpb.RequestOp_RequestPut{RequestPut: &etcdserverpb.PutRequest{
 											Key:    []byte("b/3"),
 											Value:  []byte("3"),
@@ -2311,6 +2311,7 @@ var _ = FDescribe("backend", func() {
 											Key: []byte("b/3"),
 										}}},
 									},
+									Failure: []*etcdserverpb.RequestOp{{}},
 								}}},
 								{Request: &etcdserverpb.RequestOp_RequestRange{RequestRange: &etcdserverpb.RangeRequest{
 									Key:            []byte("\x00"),
@@ -2484,7 +2485,7 @@ var _ = FDescribe("backend", func() {
 									}}},
 									{Response: &etcdserverpb.ResponseOp_ResponseTxn{ResponseTxn: &etcdserverpb.TxnResponse{
 										Header:    newHeader,
-										Succeeded: false,
+										Succeeded: true,
 										Responses: []*etcdserverpb.ResponseOp{
 											{Response: &etcdserverpb.ResponseOp_ResponsePut{ResponsePut: &etcdserverpb.PutResponse{
 												Header: newHeader,
@@ -2526,7 +2527,7 @@ var _ = FDescribe("backend", func() {
 									}}},
 									{Response: &etcdserverpb.ResponseOp_ResponseTxn{ResponseTxn: &etcdserverpb.TxnResponse{
 										Header:    newHeader,
-										Succeeded: false,
+										Succeeded: true,
 										Responses: []*etcdserverpb.ResponseOp{
 											{Response: &etcdserverpb.ResponseOp_ResponsePut{ResponsePut: &etcdserverpb.PutResponse{
 												Header: newHeader,
@@ -2866,6 +2867,15 @@ var _ = FDescribe("backend", func() {
 
 						{
 							var (
+								pm = &TreeDef{
+									Blobs: map[string][]byte{
+										etcdserverpb.Compare_CREATE.String():  []byte("1"),
+										etcdserverpb.Compare_LEASE.String():   []byte("1"),
+										etcdserverpb.Compare_MOD.String():     []byte("1"),
+										etcdserverpb.Compare_VERSION.String(): []byte("1"),
+									},
+								}
+
 								cm = &TreeDef{
 									Blobs: map[string][]byte{
 										etcdserverpb.Compare_CREATE.String():  []byte("2"),
@@ -2913,7 +2923,7 @@ var _ = FDescribe("backend", func() {
 										Tree: TreeDef{
 											Blobs: map[string][]byte{metadataPathRevision: []byte("1")},
 											Subtrees: map[string]TreeDef{
-												"1": *cm.DeepCopy(),
+												"1": *pm.DeepCopy(),
 											},
 										},
 									}},
@@ -2935,19 +2945,18 @@ var _ = FDescribe("backend", func() {
 										Blobs: map[string][]byte{metadataPathRevision: []byte(revisionToString(newRevision))},
 										Subtrees: map[string]TreeDef{
 											"1": *nm1.DeepCopy(),
-											"a": {Subtrees: map[string]TreeDef{"2": *nm2.DeepCopy()}},
+											"a": *cm.DeepCopy(),
 											"b": *nm2.DeepCopy(),
-											"c": {Subtrees: map[string]TreeDef{"4": *nm1.DeepCopy(), "5": *nm2.DeepCopy()}},
+											"c": {Subtrees: map[string]TreeDef{"3": *cm.DeepCopy(), "4": *cm.DeepCopy()}},
 										},
 									},
 								},
 								&CommitDef{
 									Message: "3",
 									Tree: TreeDef{
-										Blobs: map[string][]byte{"1": []byte("10"), "b": []byte("b")},
+										Blobs: map[string][]byte{"1": []byte("10"), "a": []byte("a"), "b": []byte("b")},
 										Subtrees: map[string]TreeDef{
-											"a": {Blobs: map[string][]byte{"2": []byte("2")}},
-											"c": {Blobs: map[string][]byte{"4": []byte("40"), "5": []byte("50")}},
+											"c": {Blobs: map[string][]byte{"3": []byte("3"), "4": []byte("4")}},
 										},
 									},
 								},
@@ -2967,9 +2976,14 @@ var _ = FDescribe("backend", func() {
 										Lease: newRevision,
 									}}},
 									{Request: &etcdserverpb.RequestOp_RequestPut{RequestPut: &etcdserverpb.PutRequest{
-										Key:   []byte("b"),
-										Value: []byte("b"),
-										Lease: newRevision,
+										Key:    []byte("b"),
+										Value:  []byte("b"),
+										Lease:  newRevision,
+										PrevKv: true,
+									}}},
+									{Request: &etcdserverpb.RequestOp_RequestRange{RequestRange: &etcdserverpb.RangeRequest{
+										Key:      []byte("\x00"),
+										RangeEnd: []byte("\x00"),
 									}}},
 								},
 								&etcdserverpb.TxnResponse{},
@@ -2978,7 +2992,132 @@ var _ = FDescribe("backend", func() {
 								BeTrue(),
 								BeTrue(),
 								nil,
-								&etcdserverpb.TxnResponse{},
+								&etcdserverpb.TxnResponse{
+									Responses: []*etcdserverpb.ResponseOp{
+										{Response: &etcdserverpb.ResponseOp_ResponseRange{ResponseRange: &etcdserverpb.RangeResponse{
+											Header: &etcdserverpb.ResponseHeader{
+												ClusterId: clusterID,
+												MemberId:  memberID,
+												Revision:  2,
+												RaftTerm:  2,
+											},
+											Count: 5,
+											Kvs: []*mvccpb.KeyValue{
+												{
+													Key:            []byte("1"),
+													Value:          []byte("1"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+												{
+													Key:            []byte("a"),
+													Value:          []byte("a"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+												{
+													Key:            []byte("b/2"),
+													Value:          []byte("2"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+												{
+													Key:            []byte("c/3"),
+													Value:          []byte("3"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+												{
+													Key:            []byte("c/4"),
+													Value:          []byte("4"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+											},
+										}}},
+										{Response: &etcdserverpb.ResponseOp_ResponseRange{ResponseRange: &etcdserverpb.RangeResponse{
+											Header: &etcdserverpb.ResponseHeader{
+												ClusterId: clusterID,
+												MemberId:  memberID,
+												Revision:  1,
+												RaftTerm:  1,
+											},
+											Count: 1,
+											Kvs: []*mvccpb.KeyValue{
+												{
+													Key:            []byte("1"),
+													Value:          []byte("1"),
+													CreateRevision: 1,
+													ModRevision:    1,
+													Version:        1,
+													Lease:          1,
+												},
+											},
+										}}},
+										{Response: &etcdserverpb.ResponseOp_ResponsePut{ResponsePut: &etcdserverpb.PutResponse{
+											Header: newHeader,
+										}}},
+										{Response: &etcdserverpb.ResponseOp_ResponsePut{ResponsePut: &etcdserverpb.PutResponse{
+											Header: newHeader,
+										}}},
+										{Response: &etcdserverpb.ResponseOp_ResponseRange{ResponseRange: &etcdserverpb.RangeResponse{
+											Header: newHeader,
+											Count:  5,
+											Kvs: []*mvccpb.KeyValue{
+												{
+													Key:            []byte("1"),
+													Value:          []byte("10"),
+													CreateRevision: 2,
+													ModRevision:    newRevision,
+													Version:        newRevision,
+													Lease:          newRevision,
+												},
+												{
+													Key:            []byte("a"),
+													Value:          []byte("a"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+												{
+													Key:            []byte("b"),
+													Value:          []byte("b"),
+													CreateRevision: newRevision,
+													ModRevision:    newRevision,
+													Version:        1,
+													Lease:          newRevision,
+												},
+												{
+													Key:            []byte("c/3"),
+													Value:          []byte("3"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+												{
+													Key:            []byte("c/4"),
+													Value:          []byte("4"),
+													CreateRevision: 2,
+													ModRevision:    2,
+													Version:        2,
+													Lease:          2,
+												},
+											},
+										}}},
+									},
+								},
 							)
 						}
 					}

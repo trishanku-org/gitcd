@@ -17,11 +17,13 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/spf13/cobra"
+	"github.com/trishanku/gitcd/pkg/git"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -86,4 +88,17 @@ func getLogger() *logr.Logger {
 
 func getContext() context.Context {
 	return signals.SetupSignalHandler()
+}
+
+func getReferenceNameFor(m map[string]string, key string) (git.ReferenceName, error) {
+	var (
+		s  string
+		ok bool
+	)
+
+	if s, ok = m[key]; !ok {
+		return "", fmt.Errorf("no metadata reference specified for %q", key)
+	}
+
+	return git.ReferenceName(s), nil
 }
