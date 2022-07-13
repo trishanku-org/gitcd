@@ -57,13 +57,13 @@ docker-build:
 docker-run:
 	docker run ${DOCKER_RUN_OPTS} "${IMAGE_TAG}" ${RUN_ARGS}
 
-start-docker-gitcd-kube-apiserver:
+start-docker-gitcd-kube:
 	hack/kube/start.sh
 
-stop-docker-gitcd-kube-apiserver:
+stop-docker-gitcd-kube:
 	hack/kube/stop.sh
 
-cleanup-docker-gitcd-kube-apiserver:
+cleanup-docker-gitcd-kube:
 	hack/kube/cleanup.sh
 
 start-docker-registry: docker-build

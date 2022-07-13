@@ -5,6 +5,7 @@ function start_gitcd_container {
     shift
 
     local data_refs=""
+    local meta_refs=""
     local ports=""
     local listen_urls=""
     local advertise_urls=""
@@ -20,22 +21,31 @@ function start_gitcd_container {
         local branch=$(dirname "$info")
         local port=$(basename "$info")
 
-        docker run -i --rm -v "${container_name}:/backend" -w /backend bitnami/git:2 git branch "$branch" main
+        if [ ! "$branch" == "main" ]; then
+            docker run -i --rm -v "${container_name}:/backend" -w /backend bitnami/git:2 git branch "$branch" main
+        fi
         
         data_refs="${data_refs},${branch}=refs/heads/${branch}"
+        meta_refs="${meta_refs},${branch}=refs/gitcd/metadata/${branch}"
         ports="${ports} -p ${port}:${port}"
         listen_urls="${listen_urls},${branch}=http://0.0.0.0:${port}"
         advertise_urls="${advertise_urls},${branch}=http://127.0.0.1:${port}"
     done
 
     data_refs=$(echo "$data_refs" | sed 's/,//')
+    meta_refs=$(echo "$meta_refs" | sed 's/,//')
     listen_urls=$(echo "$listen_urls" | sed 's/,//')
     advertise_urls=$(echo "$advertise_urls" | sed 's/,//')
 
     echo
     echo "Starting container ${container_name} ${listen_urls}."
 
-    docker run --rm -v "${container_name}:/backend" trishanku/gitcd:latest init --repo=/backend "--data-reference-names=${data_refs}"
+    docker run --rm -v "${container_name}:/backend" \
+        trishanku/gitcd:latest \
+        init \
+        --repo=/backend \
+        "--data-reference-names=${data_refs}" \
+        "--metadata-reference-names=${meta_refs}"
 
     echo docker run --name "$container_name" \
         -d -v "${container_name}:/backend" \
@@ -44,6 +54,7 @@ function start_gitcd_container {
         serve \
             --repo=/backend \
             "--data-reference-names=${data_refs}" \
+            "--metadata-reference-names=${meta_refs}" \
             "--listen-urls=${listen_urls}" \
             "--advertise-client-urls=${advertise_urls}" \
             --debug \
@@ -190,11 +201,11 @@ function kind_create_cluster {
 # start_gitcd /tmp/trishanku/gitcd-nodes 2579
 # start_gitcd /tmp/trishanku/gitcd-leases 2679
 start_etcd_container etcd-events 2379
-# start_gitcd_container gitcd-main 2479
-# start_gitcd_container gitcd-nodes 2579
-# start_gitcd_container gitcd-leases 2679
-# start_gitcd_container gitcd-priorityclasses 2779
-# start_gitcd_container gitcd-pods 2879
-# start_gitcd_container gitcd-configmaps 2979
-start_gitcd_container gitcd main/2479 nodes/2579 leases/2679 priorityclasses/2779 pods/2879 configmaps/2979
+start_gitcd_container gitcd-main main/2479
+start_gitcd_container gitcd-nodes nodes/2579
+start_gitcd_container gitcd-leases leases/2679
+start_gitcd_container gitcd-priorityclasses priorityclasses/2779
+start_gitcd_container gitcd-pods pods/2879
+start_gitcd_container gitcd-configmaps configmaps/2979
+# start_gitcd_container gitcd main/2479 nodes/2579 leases/2679 priorityclasses/2779 pods/2879 configmaps/2979
 kind_create_cluster

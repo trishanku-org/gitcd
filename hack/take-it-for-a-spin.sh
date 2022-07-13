@@ -193,8 +193,8 @@ echo '$ DOCKER_RUN_OPTS="--rm -v gitcd-backend:/tmp/trishanku/gitcd --name gitcd
 DOCKER_RUN_OPTS="--rm -v gitcd-backend:/tmp/trishanku/gitcd --name gitcd" RUN_ARGS=init make docker-run
 echo
 echo '# Check that the metadata has been prepared.'
-echo '$ docker run --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 git log refs/gitcd/metadata/refs/heads/main -n 2'
-docker run --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 git log refs/gitcd/metadata/refs/heads/main -n 2
+echo '$ docker run --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 git log refs/gitcd/metadata/main -n 2'
+docker run --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 git log refs/gitcd/metadata/main -n 2
 echo
 echo '# Check that the main branch is unmodified.'
 echo '$ docker run --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 git log main -n 2'
@@ -252,8 +252,8 @@ echo 'Please ensure that these ports are available before running these steps.'
 echo
 echo '```sh'
 echo '# Start a local Kind Kubernetes cluster with Gitcd as the backend.'
-echo '$ make start-docker-gitcd-kube-apiserver'
-make start-docker-gitcd-kube-apiserver
+echo '$ make start-docker-gitcd-kube'
+make start-docker-gitcd-kube
 echo
 echo '# Check that Kind and Gitcd containers are running.'
 echo '$ docker ps -n 8'
@@ -288,13 +288,13 @@ echo '$ kubectl get pods --all-namespaces'
 kubectl get pods --all-namespaces
 echo
 echo '# Run a pod to say hello.'
-echo '$ kubectl run -i -t hello --image=busybox:1 --restart=Never --rm echo ' "'Hello, World!'"
-kubectl run -i -t hello --image=busybox:1 --restart=Never --rm echo 'Hello, World!'
+echo '$ kubectl run -i -t hello --image=busybox:1 --restart=Never --rm --pod-running-timeout=3m echo ' "'Hello, World!'"
+kubectl run -i -t hello --image=busybox:1 --restart=Never --rm --pod-running-timeout=3m echo 'Hello, World!'
 echo
 echo '# Inspect the Kubernetes content in the backend Git repo.'
-echo '$ echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
+echo '$ echo "git reset --hard && git checkout refs/gitcd/metadata/nodes && git checkout nodes" | \
     docker run -i --rm -v gitcd-nodes:/backend -w /backend bitnami/git:2 sh'
-echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
+echo "git reset --hard && git checkout refs/gitcd/metadata/nodes && git checkout nodes" | \
     docker run -i --rm -v gitcd-nodes:/backend -w /backend bitnami/git:2 sh
 echo
 echo '$ docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane'
@@ -310,10 +310,10 @@ echo '#### Cleanup'
 echo
 echo '```sh'
 echo '# Stop kube-apiserver and Gitcd containers.'
-echo '$ make stop-docker-gitcd-kube-apiserver'
-make stop-docker-gitcd-kube-apiserver
+echo '$ make stop-docker-gitcd-kube'
+make stop-docker-gitcd-kube
 echo
 echo '# Clean up kube-apiserver and Gitcd container and volumes.'
-echo '$ make cleanup-docker-gitcd-kube-apiserver'
-make cleanup-docker-gitcd-kube-apiserver
+echo '$ make cleanup-docker-gitcd-kube'
+make cleanup-docker-gitcd-kube
 echo '```'
