@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"reflect"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -1157,6 +1158,264 @@ var _ = Describe("backend", func() {
 						}
 					})
 				}(prefix)
+			}
+		})
+
+		Describe("loadKeyValue", func() {
+			const (
+				createRevision = int64(iota + 1)
+				lease
+				modRevision
+				version
+			)
+
+			var (
+				emptyTree             = &TreeDef{}
+				emptyCreateRevision   = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_CREATE.String(): {}}}
+				treeCreateRevision    = &TreeDef{Subtrees: map[string]TreeDef{etcdserverpb.Compare_CREATE.String(): {}}}
+				stringCreateRevision  = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_CREATE.String(): []byte("a")}}
+				onlyCreateRevision    = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_CREATE.String(): []byte(revisionToString(createRevision))}}
+				missingCreateRevision = &TreeDef{
+					Blobs: map[string][]byte{
+						etcdserverpb.Compare_LEASE.String():   []byte(revisionToString(lease)),
+						etcdserverpb.Compare_MOD.String():     []byte(revisionToString(modRevision)),
+						etcdserverpb.Compare_VERSION.String(): []byte(revisionToString(version)),
+					},
+				}
+				emptyLease = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_LEASE.String(): {}}}
+				treeLease  = &TreeDef{
+					Blobs:    map[string][]byte{etcdserverpb.Compare_CREATE.String(): []byte(revisionToString(createRevision))},
+					Subtrees: map[string]TreeDef{etcdserverpb.Compare_LEASE.String(): {}},
+				}
+				stringLease  = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_LEASE.String(): []byte("a")}}
+				onlyLease    = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_LEASE.String(): []byte(revisionToString(lease))}}
+				missingLease = &TreeDef{
+					Blobs: map[string][]byte{
+						etcdserverpb.Compare_CREATE.String():  []byte(revisionToString(createRevision)),
+						etcdserverpb.Compare_MOD.String():     []byte(revisionToString(modRevision)),
+						etcdserverpb.Compare_VERSION.String(): []byte(revisionToString(version)),
+					},
+				}
+				emptyModRevision = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_MOD.String(): {}}}
+				treeModRevision  = &TreeDef{
+					Blobs: map[string][]byte{
+						etcdserverpb.Compare_CREATE.String(): []byte(revisionToString(createRevision)),
+						etcdserverpb.Compare_LEASE.String():  []byte(revisionToString(lease)),
+					},
+					Subtrees: map[string]TreeDef{etcdserverpb.Compare_MOD.String(): {}},
+				}
+				stringModRevision  = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_MOD.String(): []byte("a")}}
+				onlyModRevision    = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_MOD.String(): []byte(revisionToString(modRevision))}}
+				missingModRevision = &TreeDef{
+					Blobs: map[string][]byte{
+						etcdserverpb.Compare_CREATE.String():  []byte(revisionToString(createRevision)),
+						etcdserverpb.Compare_LEASE.String():   []byte(revisionToString(lease)),
+						etcdserverpb.Compare_VERSION.String(): []byte(revisionToString(version)),
+					},
+				}
+				emptyVersion = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_VERSION.String(): {}}}
+				treeVersion  = &TreeDef{
+					Blobs: map[string][]byte{
+						etcdserverpb.Compare_CREATE.String(): []byte(revisionToString(createRevision)),
+						etcdserverpb.Compare_LEASE.String():  []byte(revisionToString(lease)),
+						etcdserverpb.Compare_MOD.String():    []byte(revisionToString(modRevision)),
+					},
+					Subtrees: map[string]TreeDef{etcdserverpb.Compare_VERSION.String(): {}},
+				}
+				stringVersion  = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_VERSION.String(): []byte("a")}}
+				onlyVersion    = &TreeDef{Blobs: map[string][]byte{etcdserverpb.Compare_VERSION.String(): []byte(revisionToString(1))}}
+				missingVersion = &TreeDef{
+					Blobs: map[string][]byte{
+						etcdserverpb.Compare_CREATE.String(): []byte(revisionToString(createRevision)),
+						etcdserverpb.Compare_LEASE.String():  []byte(revisionToString(lease)),
+						etcdserverpb.Compare_MOD.String():    []byte(revisionToString(modRevision)),
+					},
+				}
+				valid = &TreeDef{
+					Blobs: map[string][]byte{
+						etcdserverpb.Compare_CREATE.String():  []byte(revisionToString(createRevision)),
+						etcdserverpb.Compare_LEASE.String():   []byte(revisionToString(lease)),
+						etcdserverpb.Compare_MOD.String():     []byte(revisionToString(modRevision)),
+						etcdserverpb.Compare_VERSION.String(): []byte(revisionToString(version)),
+					},
+				}
+
+				t                 git.Tree
+				key, value        []byte
+				matchErr, matchKV types.GomegaMatcher
+			)
+
+			JustBeforeEach(func() {
+				var (
+					kv  *mvccpb.KeyValue
+					err error
+				)
+
+				kv, err = b.loadKeyValue(ctx, t, key, value)
+				Expect(err).To(matchErr)
+				Expect(kv).To(matchKV)
+			})
+
+			AfterEach(func() {
+				if t != nil {
+					Expect(t.Close()).To(Succeed())
+				}
+			})
+
+			for _, s := range []struct {
+				ctxFn             ContextFunc
+				td                *TreeDef
+				k, v              []byte
+				matchErr, matchKV types.GomegaMatcher
+			}{
+				{ctxFn: CanceledContext, td: emptyTree, matchErr: MatchError(context.Canceled), matchKV: BeNil()},
+				{td: emptyTree, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: emptyCreateRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: treeCreateRevision, matchErr: MatchError(NewUnsupportedObjectType(git.ObjectTypeTree)), matchKV: BeNil()},
+				{td: stringCreateRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: onlyCreateRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: missingCreateRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: emptyLease, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: treeLease, matchErr: MatchError(NewUnsupportedObjectType(git.ObjectTypeTree)), matchKV: BeNil()},
+				{td: stringLease, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: onlyLease, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{
+					td:       missingLease,
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						CreateRevision: createRevision,
+						ModRevision:    modRevision,
+						Version:        version,
+					}),
+				},
+				{
+					td:       missingLease,
+					k:        []byte("missingLeaseKey"),
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						Key:            []byte("missingLeaseKey"),
+						CreateRevision: createRevision,
+						ModRevision:    modRevision,
+						Version:        version,
+					}),
+				},
+				{
+					td:       missingLease,
+					v:        []byte("missingLeaseValue"),
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						CreateRevision: createRevision,
+						ModRevision:    modRevision,
+						Value:          []byte("missingLeaseValue"),
+						Version:        version,
+					}),
+				},
+				{
+					td:       missingLease,
+					k:        []byte("missingLeaseKey"),
+					v:        []byte("missingLeaseValue"),
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						Key:            []byte("missingLeaseKey"),
+						CreateRevision: createRevision,
+						ModRevision:    modRevision,
+						Value:          []byte("missingLeaseValue"),
+						Version:        version,
+					}),
+				},
+				{td: emptyModRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: treeModRevision, matchErr: MatchError(NewUnsupportedObjectType(git.ObjectTypeTree)), matchKV: BeNil()},
+				{td: stringModRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: onlyModRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: missingModRevision, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: emptyVersion, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: treeVersion, matchErr: MatchError(NewUnsupportedObjectType(git.ObjectTypeTree)), matchKV: BeNil()},
+				{td: stringVersion, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: onlyVersion, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{td: missingVersion, matchErr: HaveOccurred(), matchKV: BeNil()},
+				{
+					td:       valid,
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						CreateRevision: createRevision,
+						Lease:          lease,
+						ModRevision:    modRevision,
+						Version:        version,
+					}),
+				},
+				{
+					td:       valid,
+					k:        []byte("validKey"),
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						Key:            []byte("validKey"),
+						CreateRevision: createRevision,
+						Lease:          lease,
+						ModRevision:    modRevision,
+						Version:        version,
+					}),
+				},
+				{
+					td:       valid,
+					v:        []byte("validValue"),
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						CreateRevision: createRevision,
+						Lease:          lease,
+						ModRevision:    modRevision,
+						Value:          []byte("validValue"),
+						Version:        version,
+					}),
+				},
+				{
+					td:       valid,
+					k:        []byte("validKey"),
+					v:        []byte("validValue"),
+					matchErr: Succeed(),
+					matchKV: Equal(&mvccpb.KeyValue{
+						Key:            []byte("validKey"),
+						CreateRevision: createRevision,
+						Lease:          lease,
+						ModRevision:    modRevision,
+						Value:          []byte("validValue"),
+						Version:        version,
+					}),
+				},
+			} {
+				func(ctxFn ContextFunc, td *TreeDef, k, v []byte, mErr, mKV types.GomegaMatcher) {
+					Describe(fmt.Sprintf("td=%v, k=%v, v=%v", td, k, v), func() {
+						BeforeEach(func() {
+							if td != nil {
+								Expect(func() (err error) {
+									var id git.ObjectID
+
+									if id, err = CreateTreeFromDef(ctx, b.repo, td); err != nil {
+										return
+									}
+
+									t, err = b.repo.ObjectGetter().GetTree(ctx, id)
+									return
+								}()).To(Succeed())
+								Expect(GetTreeDef(ctx, b.repo, t.ID())).To(PointTo(GetTreeDefMatcher(td)))
+							}
+
+							key = k
+							value = v
+							matchErr = mErr
+							matchKV = mKV
+
+							if ctxFn != nil {
+								ctx = ctxFn(ctx)
+							}
+						})
+
+						if reflect.DeepEqual(matchErr, Succeed()) {
+							ItShouldSucceed()
+						} else {
+							ItShouldFail()
+						}
+					})
+				}(s.ctxFn, s.td, s.k, s.v, s.matchErr, s.matchKV)
 			}
 		})
 

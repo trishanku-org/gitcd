@@ -198,7 +198,6 @@ func (b *backend) getMetadataFor(ctx context.Context, metaRoot git.Tree, k strin
 	return
 }
 
-// TODO test
 func (b *backend) loadKeyValue(ctx context.Context, t git.Tree, k, v []byte) (kv *mvccpb.KeyValue, err error) {
 	var createRevision, lease, modRevision, version int64
 
