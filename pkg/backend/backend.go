@@ -622,7 +622,6 @@ func setHeaderRevision(h *etcdserverpb.ResponseHeader, mutated bool, newRevision
 	}
 }
 
-// TODO test
 func perfCounter() func() time.Duration {
 	var t = time.Now()
 

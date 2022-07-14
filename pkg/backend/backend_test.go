@@ -3695,3 +3695,31 @@ var _ = Describe("setHeaderRevision", func() {
 		}(s)
 	}
 })
+
+var _ = Describe("perfCounter", func() {
+	var pcFn func() time.Duration
+
+	for _, start := range []time.Duration{0, 3 * time.Millisecond, 123 * time.Millisecond, 2 * time.Second} {
+		func(start time.Duration) {
+			Describe(fmt.Sprintf("start=%s", start.String()), func() {
+				BeforeEach(func() {
+					if start > 0 {
+						time.Sleep(start)
+					}
+
+					pcFn = perfCounter()
+				})
+
+				for _, d := range []time.Duration{3 * time.Microsecond, 7 * time.Millisecond, 321 * time.Millisecond} {
+					func(d time.Duration) {
+						It(fmt.Sprintf("duration=%s", d.String()), func() {
+							time.Sleep(d)
+
+							Expect(pcFn()).To(BeNumerically(">=", d))
+						})
+					}(d)
+				}
+			})
+		}(start)
+	}
+})
