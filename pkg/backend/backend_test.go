@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -3534,6 +3535,114 @@ var _ = Describe("newClosedOpenInterval", func() {
 				Expect(newClosedOpenInterval(start, end)).To(matchInterval)
 			})
 		}(s.start, s.end, s.matchInterval)
+	}
+})
+
+var _ = Describe("tickWatchDispatchTicker", func() {
+	var (
+		b        *backend
+		ctx      context.Context
+		cancelFn context.CancelFunc
+	)
+
+	BeforeEach(func() {
+		b = &backend{log: getTestLogger()}
+		ctx, cancelFn = context.WithCancel(context.Background())
+	})
+
+	AfterEach(func() {
+		cancelFn()
+	})
+
+	for _, s := range []struct {
+		spec                                                 string
+		ctxFn                                                ContextFunc
+		createWatchDispatchTicker, bufferWatchDispatchTicker bool
+		matchErr, matchWatchDispatchTicker                   types.GomegaMatcher
+	}{
+		{spec: "nil watchDispatchTicker", matchErr: Succeed()},
+		{spec: "nil watchDispatchTicker with expired context", ctxFn: CanceledContext, matchErr: Succeed()},
+		{
+			spec:                      "expired context",
+			ctxFn:                     CanceledContext,
+			createWatchDispatchTicker: true,
+			matchErr:                  MatchError(context.Canceled),
+			matchWatchDispatchTicker:  Not(Receive()),
+		},
+		{
+			spec:                      "expired context",
+			ctxFn:                     CanceledContext,
+			createWatchDispatchTicker: true,
+			bufferWatchDispatchTicker: true,
+			matchErr:                  Or(Succeed(), MatchError(context.Canceled)),
+			matchWatchDispatchTicker:  Or(Receive(), Not(Receive())),
+		},
+		{
+			spec:                      "long-lived context",
+			createWatchDispatchTicker: true,
+			matchErr:                  MatchError(context.DeadlineExceeded),
+			matchWatchDispatchTicker:  Not(Receive()),
+		},
+		{
+			spec:                      "long-lived context",
+			createWatchDispatchTicker: true,
+			bufferWatchDispatchTicker: true,
+			matchErr:                  Succeed(),
+			matchWatchDispatchTicker:  Receive(),
+		},
+	} {
+		func(
+			spec string,
+			ctxFn ContextFunc,
+			createWatchDispatchTicker, bufferWatchDispatchTicker bool,
+			matchErr, matchWatchDispatchTicker types.GomegaMatcher,
+		) {
+			Describe(fmt.Sprintf(
+				"%s: canceled context=%t, createWatchDispatchTicker=%t, bufferWatchDispatchTicker=%t",
+				spec,
+				ctxFn != nil,
+				createWatchDispatchTicker,
+				bufferWatchDispatchTicker,
+			), func() {
+				var (
+					watchDispatchTicker      chan time.Time
+					closeWatchDispatchTicker bool
+				)
+
+				BeforeEach(func() {
+					if createWatchDispatchTicker {
+						if bufferWatchDispatchTicker {
+							watchDispatchTicker = make(chan time.Time, 1)
+						} else {
+							watchDispatchTicker = make(chan time.Time)
+						}
+
+						closeWatchDispatchTicker = true
+
+						b.watchDispatchTicker = watchDispatchTicker
+					}
+
+					if ctxFn != nil {
+						ctx = ctxFn(ctx)
+					}
+				})
+
+				AfterEach(func() {
+					if closeWatchDispatchTicker {
+						close(watchDispatchTicker)
+					}
+
+					b.watchDispatchTicker = nil
+				})
+
+				It(ItSpecForMatchError(matchErr), func() {
+					Expect(b.tickWatchDispatchTicker(ctx)).To(matchErr)
+					if matchWatchDispatchTicker != nil {
+						Eventually(watchDispatchTicker).Should(matchWatchDispatchTicker)
+					}
+				})
+			})
+		}(s.spec, s.ctxFn, s.createWatchDispatchTicker, s.bufferWatchDispatchTicker, s.matchErr, s.matchWatchDispatchTicker)
 	}
 })
 

@@ -589,7 +589,6 @@ func (b *backend) advanceReferences(
 
 const watchDispatchTickTimeout = 10 * time.Millisecond
 
-// TODO test
 func (b *backend) tickWatchDispatchTicker(ctx context.Context) error {
 	var (
 		now      time.Time
