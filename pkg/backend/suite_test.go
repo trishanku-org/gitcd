@@ -27,6 +27,8 @@ func TestBackend(t *testing.T) {
 
 type metaHeadFunc func(context.Context, git.Repository) (git.Commit, error)
 
+type expectMetaHeadTreeFunc func(ctx context.Context, repo git.Repository, newMetaHead *TreeDef, spec string)
+
 type expectMetaHeadFunc func(ctx context.Context, repo git.Repository, newMetaHead *CommitDef, spec string)
 
 func metaHeadFrom(metaHead, dataHead *CommitDef) metaHeadFunc {
@@ -113,7 +115,7 @@ func metaHeadInheritFrom(metaHead, dataHead *CommitDef) metaHeadFunc {
 				dp *CommitDef
 			)
 
-			if i < len(dataHead.Parents) {
+			if dataHead != nil && i < len(dataHead.Parents) {
 				dp = &dataHead.Parents[i]
 			}
 
@@ -153,9 +155,43 @@ func deepCopyWithoutMetadataDataPath(mcd *CommitDef) *CommitDef {
 	return mcd
 }
 
-func expectMetaHead(em, ed *CommitDef) expectMetaHeadFunc {
+func expectMetaHeadTree(em *TreeDef, ed *CommitDef) expectMetaHeadTreeFunc {
+	return func(ctx context.Context, repo git.Repository, am *TreeDef, spec string) {
+		var dID git.ObjectID
+
+		Expect(func() (err error) {
+			if bData, ok := am.Blobs[metadataPathData]; ok {
+				dID, err = git.NewObjectID(string(bData))
+			}
+
+			return
+		}()).To(Succeed(), spec)
+
+		em, am = em.DeepCopy(), am.DeepCopy()
+		delete(em.Blobs, metadataPathData)
+		delete(am.Blobs, metadataPathData)
+
+		Expect(*am).To(GetTreeDefMatcher(em), spec)
+
+		if ed == nil {
+			Expect(dID).To(Equal(git.ObjectID{}), spec)
+		} else {
+			Expect(dID).ToNot(Equal(git.ObjectID{}), spec)
+			Expect(*GetCommitDefByID(ctx, repo, dID)).To(GetCommitDefMatcher(ed), fmt.Sprintf("%s-data", spec))
+		}
+	}
+}
+
+func expectMetaHead(em, ed *CommitDef, expectData bool) expectMetaHeadFunc {
 	return func(ctx context.Context, repo git.Repository, am *CommitDef, spec string) {
 		var dID git.ObjectID
+
+		Expect(am).ToNot(BeNil(), spec)
+
+		if expectData {
+			Expect(am.Tree.Blobs).ToNot(BeEmpty(), spec)
+			Expect(am.Tree.Blobs).To(HaveKey(metadataPathData), spec)
+		}
 
 		Expect(func() (err error) {
 			if bData, ok := am.Tree.Blobs[metadataPathData]; ok {
@@ -184,7 +220,7 @@ func expectMetaHeadInherit(em, ed *CommitDef, dataMutated bool) expectMetaHeadFu
 
 		emNoParents.Parents, amNoParents.Parents = nil, nil
 
-		expectMetaHead(emNoParents, ed)(ctx, repo, amNoParents, spec)
+		expectMetaHead(emNoParents, ed, false)(ctx, repo, amNoParents, spec)
 
 		Expect(am.Parents).To(HaveLen(len(em.Parents)), spec)
 
@@ -195,9 +231,9 @@ func expectMetaHeadInherit(em, ed *CommitDef, dataMutated bool) expectMetaHeadFu
 
 			if dataMutated {
 				Expect(ed.Parents).To(HaveLen(1), spec)
-				expectMetaHead(&em.Parents[0], &ed.Parents[0])(ctx, repo, &am.Parents[0], fmt.Sprintf("%s-data-mutated", spec))
+				expectMetaHead(&em.Parents[0], &ed.Parents[0], false)(ctx, repo, &am.Parents[0], fmt.Sprintf("%s-data-mutated", spec))
 			} else {
-				expectMetaHead(&em.Parents[0], ed)(ctx, repo, &am.Parents[0], fmt.Sprintf("%s-data-not-mutated", spec))
+				expectMetaHead(&em.Parents[0], ed, false)(ctx, repo, &am.Parents[0], fmt.Sprintf("%s-data-not-mutated", spec))
 			}
 		}
 	}

@@ -918,7 +918,7 @@ var _ = Describe("backend", func() {
 							ctx = s.ctxFn(ctx)
 						}
 
-						id, err = b.readOjectID(ctx, t, s.path)
+						id, err = b.readObjectID(ctx, t, s.path)
 						Expect(err).To(s.matchErr)
 						Expect(id).To(s.matchID)
 					})

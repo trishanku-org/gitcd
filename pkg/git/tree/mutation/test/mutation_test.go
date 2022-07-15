@@ -2014,4 +2014,107 @@ var _ = Describe("TreeMutation", func() {
 			}(s)
 		}
 	})
+
+	Describe("IsConflict", func() { // isConflict is also tested indirectly here because it is an internal function.
+		type check struct {
+			tm                      *mutation.TreeMutation
+			p                       string
+			matchErr, matchConflict types.GomegaMatcher
+		}
+
+		var (
+			tm = &mutation.TreeMutation{
+				Entries: map[string]mutation.MutateTreeEntryFunc{"1": nop, "4": nop},
+				Subtrees: map[string]*mutation.TreeMutation{
+					"a": {
+						Entries: map[string]mutation.MutateTreeEntryFunc{"3": nop, "6": nop},
+						Subtrees: map[string]*mutation.TreeMutation{
+							"i": {Entries: map[string]mutation.MutateTreeEntryFunc{"8": nop, "10": nop}},
+							"j": {Entries: map[string]mutation.MutateTreeEntryFunc{"2": nop, "5": nop}},
+						},
+					},
+					"b": {
+						Entries: map[string]mutation.MutateTreeEntryFunc{"7": nop, "9": nop},
+						Subtrees: map[string]*mutation.TreeMutation{
+							"p": {Entries: map[string]mutation.MutateTreeEntryFunc{"3": nop, "8": nop}},
+							"q": {Entries: map[string]mutation.MutateTreeEntryFunc{"0": nop, "7": nop}},
+						},
+					},
+				},
+			}
+		)
+
+		for _, c := range []check{
+			{matchErr: MatchError(rpctypes.ErrGRPCEmptyKey), matchConflict: BeFalse()},
+			{p: "a", matchErr: Succeed(), matchConflict: BeFalse()},
+			{p: "a/b", matchErr: Succeed(), matchConflict: BeFalse()},
+			{p: "a/b/c", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "1", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "1/a/b/c/d", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "4", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "4/2/1/2/3", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "2", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "2/1/2/a/b", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/3", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/3/1/2/a", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/6", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/6/a/b/c/d", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/4", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a/4/a/b/1/2", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a/i", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/i/8", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/i/8/1/a/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/i/10", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/i/10/2/a/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/i/9", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a/i/9/3/a/b", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a/j", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/j/2", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/j/2/a/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/j/5", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/j/5/a/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "a/j/6", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a/j/6/a/b", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a/x", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "a/x/1/2", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "z/1", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/7", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/7/2/a", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/9", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/9/b/c/d", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/2", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b/2/b/1/2", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b/p", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/p/3", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/p/3/1/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/p/8", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/p/8/2/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/p/5", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b/p/5/3/b", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b/q", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/q/0", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/q/0/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/q/7", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/q/7/b", matchErr: Succeed(), matchConflict: BeTrue()},
+			{tm: tm, p: "b/q/1", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b/q/1/b", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b/y", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "b/y/d/5", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "z", matchErr: Succeed(), matchConflict: BeFalse()},
+			{tm: tm, p: "z/2/1/a/b", matchErr: Succeed(), matchConflict: BeFalse()},
+		} {
+			func(c check) {
+				Describe(fmt.Sprintf("tm exists=%t, p=%s", c.tm != nil, c.p), func() {
+					It(ItSpecForMatchError(c.matchErr), func() {
+						var conflict, err = mutation.IsConflict(c.tm, c.p)
+
+						Expect(err).To(c.matchErr)
+						Expect(conflict).To(c.matchConflict)
+					})
+				})
+			}(c)
+		}
+	})
 })

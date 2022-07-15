@@ -159,7 +159,7 @@ func revisionToString(revision int64) string {
 	return strconv.FormatInt(revision, 10)
 }
 
-func (b *backend) readOjectID(ctx context.Context, t git.Tree, path string) (git.ObjectID, error) {
+func (b *backend) readObjectID(ctx context.Context, t git.Tree, path string) (git.ObjectID, error) {
 	var (
 		v   []byte
 		err error
@@ -294,7 +294,7 @@ func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead g
 func (b *backend) getDataCommitForMetadata(ctx context.Context, metaRoot git.Tree) (dataP git.Commit, err error) {
 	var id git.ObjectID
 
-	if id, err = b.readOjectID(ctx, metaRoot, metadataPathData); err != nil {
+	if id, err = b.readObjectID(ctx, metaRoot, metadataPathData); err != nil {
 		return
 	}
 

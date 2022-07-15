@@ -1280,7 +1280,7 @@ var _ = Describe("backend", func() {
 
 				emNoParents.Parents, amNoParents.Parents = nil, nil
 
-				expectMetaHead(emNoParents, ed)(ctx, repo, amNoParents, spec)
+				expectMetaHead(emNoParents, ed, true)(ctx, repo, amNoParents, spec)
 
 				Expect(am.Parents).To(HaveLen(len(em.Parents)), spec)
 
@@ -1355,7 +1355,7 @@ var _ = Describe("backend", func() {
 											metaHeadFn:                metaHeadFrom(cmh, cdh),
 											dataHead:                  cdh,
 											matchErr:                  MatchError("context canceled"),
-											expectMetaHead:            expectMetaHead(cmh, cdh),
+											expectMetaHead:            expectMetaHead(cmh, cdh, true),
 											matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(cdh)),
 											matchResponse:             BeNil(),
 										}
@@ -1401,7 +1401,7 @@ var _ = Describe("backend", func() {
 											metaHeadFn:                metaHeadFrom(cmh, cdh),
 											dataHead:                  cdh,
 											matchErr:                  HaveOccurred(),
-											expectMetaHead:            expectMetaHead(cmh, cdh),
+											expectMetaHead:            expectMetaHead(cmh, cdh, true),
 											matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(cdh)),
 											matchResponse:             BeNil(),
 										}
@@ -1418,7 +1418,7 @@ var _ = Describe("backend", func() {
 											dataHead:                  cdh,
 											req:                       &etcdserverpb.RangeRequest{},
 											matchErr:                  HaveOccurred(),
-											expectMetaHead:            expectMetaHead(cmh, cdh),
+											expectMetaHead:            expectMetaHead(cmh, cdh, true),
 											matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(cdh)),
 											matchResponse:             BeNil(),
 										}
@@ -1435,7 +1435,7 @@ var _ = Describe("backend", func() {
 											dataHead:                  cdh,
 											req:                       &etcdserverpb.RangeRequest{Key: []byte("1")},
 											matchErr:                  HaveOccurred(),
-											expectMetaHead:            expectMetaHead(cmh, cdh),
+											expectMetaHead:            expectMetaHead(cmh, cdh, true),
 											matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(cdh)),
 											matchResponse:             BeNil(),
 										}

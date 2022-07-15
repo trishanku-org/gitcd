@@ -1,4 +1,3 @@
-// TODO test
 package backend
 
 import (
@@ -10,6 +9,7 @@ import (
 	"github.com/trishanku/gitcd/pkg/git"
 	"github.com/trishanku/gitcd/pkg/git/tree/mutation"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
+	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 )
 
 type InitOpts struct {
@@ -95,7 +95,7 @@ func (b *backend) loadDataMetadataMapping(ctx context.Context, metaHead git.Comm
 
 		defer t.Close()
 
-		if dID, err = b.readOjectID(ctx, t, metadataPathData); err != nil {
+		if dID, err = b.readObjectID(ctx, t, metadataPathData); err != nil {
 			return
 		}
 
@@ -135,10 +135,6 @@ func (b *backend) createStartingMetadata(ctx context.Context, revision int64, ve
 		mtb       git.TreeBuilder
 		dID, mtID git.ObjectID
 	)
-
-	// defer func() {
-	// 	b.log.V(-1).Info("Initialized", "revision", revision, "data commit", dID, "metadata commit", mID, "error", err)
-	// }()
 
 	if dID, err = b.createEmptyCommit(ctx, revision); err != nil {
 		return
@@ -194,7 +190,7 @@ func (b *backend) mutateMetadataForDataChange(
 	metaT, oldDataT, newDataT git.Tree,
 	newDataHeadID git.ObjectID,
 	newRevision int64,
-) (mutated bool, newMetaTID git.ObjectID, err error) {
+) (metaMutated bool, newMetaTID git.ObjectID, err error) {
 	var (
 		diff                   git.Diff
 		deleteFn               = mutation.DeleteEntry
@@ -202,6 +198,10 @@ func (b *backend) mutateMetadataForDataChange(
 		createRevisionMutateFn = b.mutateRevisionIfNotExistsTo(newRevision)
 		versionMutateFn        = b.incrementRevision()
 		mtm                    *mutation.TreeMutation
+		mtms                   []*mutation.TreeMutation // Multiple mutations in case of conflicts.
+		t                      git.Tree
+		tMutated               bool
+		tID                    git.ObjectID
 	)
 
 	if diff, err = b.repo.TreeDiff(ctx, oldDataT, newDataT); err != nil {
@@ -214,7 +214,15 @@ func (b *backend) mutateMetadataForDataChange(
 		var (
 			mutations = make(map[string]mutation.MutateTreeEntryFunc, 3)
 			p         = change.Path()
+			conflict  bool
 		)
+
+		if conflict, err = mutation.IsConflict(mtm, p); err != nil {
+			return
+		} else if conflict { // Enqueue the current mutations and start a new mutation.
+			mtms = append(mtms, mtm)
+			mtm = nil
+		}
 
 		switch change.Type() {
 		case git.DiffChangeTypeDeleted:
@@ -250,7 +258,36 @@ func (b *backend) mutateMetadataForDataChange(
 		}
 	}
 
-	mutated, newMetaTID, err = mutation.MutateTree(ctx, b.repo, metaT, mtm, true)
+	if mtm != nil { // Enqueue the current mutations.
+		mtms = append(mtms, mtm)
+	}
+
+	// Apply the enqueued mutations.
+	t = metaT
+
+	for i, tm := range mtms {
+		if mutation.IsMutationNOP(tm) {
+			continue
+		}
+
+		if i > 0 && tMutated {
+			// Load the mutated tree from the previous mutation.
+			if t, err = b.repo.ObjectGetter().GetTree(ctx, tID); err != nil {
+				return
+			}
+
+			defer t.Close()
+		}
+
+		if tMutated, tID, err = mutation.MutateTree(ctx, b.repo, t, tm, true); err != nil {
+			return
+		}
+
+		if tMutated {
+			metaMutated, newMetaTID = true, tID
+		}
+	}
+
 	return
 }
 
@@ -384,7 +421,9 @@ func (b *backend) initMetadata(ctx context.Context, startRevision int64, version
 	if metaHead, err = b.getMetadataHead(ctx); b.errors.IgnoreNotFound(err) != nil {
 		return
 	} else if err == nil && !force {
-		return // Skip if we find existing metadata and init is not forced.
+		// Skip if we find existing metadata and init is not forced.
+		err = rpctypes.ErrGRPCMemberExist
+		return
 	}
 
 	if dataHead, err = b.getDataHead(ctx); b.errors.IgnoreNotFound(err) != nil {
@@ -422,7 +461,7 @@ func (b *backend) initMetadata(ctx context.Context, startRevision int64, version
 		return
 	}
 
-	if dID, err = b.readOjectID(ctx, metaT, metadataPathData); err != nil {
+	if dID, err = b.readObjectID(ctx, metaT, metadataPathData); err != nil {
 		return
 	}
 

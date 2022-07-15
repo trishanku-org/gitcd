@@ -328,6 +328,7 @@ var _ = Describe("backend", func() {
 				checks []check,
 				spec string,
 				currentMetaHead, currentDataHead *CommitDef,
+				expectData bool,
 				prevKv *mvccpb.KeyValue,
 				prefix, p string,
 				v []byte,
@@ -359,8 +360,10 @@ var _ = Describe("backend", func() {
 								nh.Parents = ch.Parents
 							}
 						},
-						commitTreeFn:     replace,
-						expectMetaHeadFn: func(nmh, ndh *CommitDef, dataMutated bool) expectMetaHeadFunc { return expectMetaHead(nmh, ndh) },
+						commitTreeFn: replace,
+						expectMetaHeadFn: func(nmh, ndh *CommitDef, dataMutated bool) expectMetaHeadFunc {
+							return expectMetaHead(nmh, ndh, expectData)
+						},
 					},
 					{
 						spec: "inherit",
@@ -604,6 +607,7 @@ var _ = Describe("backend", func() {
 							checks,
 							"no metadata, no data, add",
 							nil, nil,
+							false,
 							nil,
 							prefix, p, []byte("1"),
 							int64(2),
@@ -616,6 +620,7 @@ var _ = Describe("backend", func() {
 							checks,
 							"empty data, add",
 							&CommitDef{Message: "1"}, &CommitDef{Message: "d"},
+							true,
 							nil,
 							prefix, p, []byte("1"),
 							int64(4),
@@ -635,6 +640,7 @@ var _ = Describe("backend", func() {
 								},
 							),
 							existingShallowDataWithoutKey,
+							true,
 							nil,
 							prefix, p, []byte("1"),
 							int64(4),
@@ -657,6 +663,7 @@ var _ = Describe("backend", func() {
 								},
 							),
 							existingShallowDataWithoutKey,
+							true,
 							nil,
 							prefix, p, []byte("1"),
 							int64(4),
@@ -679,6 +686,7 @@ var _ = Describe("backend", func() {
 								},
 							),
 							existing2LevelDataWithoutKey,
+							true,
 							nil,
 							prefix, p, []byte("1"),
 							int64(4),
@@ -701,6 +709,7 @@ var _ = Describe("backend", func() {
 								},
 							),
 							existing3LevelDataWithoutKey,
+							true,
 							nil,
 							prefix, p, []byte("1"),
 							int64(4),
@@ -720,6 +729,7 @@ var _ = Describe("backend", func() {
 								},
 							),
 							dh,
+							true,
 							nil,
 							prefix, p, []byte("10"),
 							int64(4),
@@ -741,6 +751,7 @@ var _ = Describe("backend", func() {
 								},
 							),
 							dh,
+							true,
 							&mvccpb.KeyValue{
 								Key:            []byte(path.Join(prefix, p)),
 								CreateRevision: 1,
@@ -769,6 +780,7 @@ var _ = Describe("backend", func() {
 								},
 							),
 							dh,
+							true,
 							&mvccpb.KeyValue{
 								Key:            []byte(path.Join(prefix, p)),
 								CreateRevision: 1,
@@ -810,6 +822,7 @@ var _ = Describe("backend", func() {
 									},
 								),
 								dh,
+								true,
 								&mvccpb.KeyValue{
 									Key:            []byte(path.Join(prefix, p)),
 									CreateRevision: newRevision,
@@ -876,7 +889,7 @@ var _ = Describe("backend", func() {
 							commitTreeFn:              replace,
 							matchErr:                  Succeed(),
 							matchMetaMutated:          BeTrue(),
-							expectMetaHead:            expectMetaHead(nmh, ndh),
+							expectMetaHead:            expectMetaHead(nmh, ndh, true),
 							matchDataMutated:          BeTrue(),
 							matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(ndh)),
 							matchResponse:             Equal(&etcdserverpb.PutResponse{}),
@@ -1008,6 +1021,7 @@ var _ = Describe("backend", func() {
 				checks []check,
 				spec string,
 				currentMetaHead, currentDataHead *CommitDef,
+				expectData bool,
 				prevKv *mvccpb.KeyValue,
 				prefix, p string,
 				v []byte,
@@ -1047,7 +1061,7 @@ var _ = Describe("backend", func() {
 
 					if currentMetaHead != nil {
 						newMetaHead.Parents = []CommitDef{*safeCopy(currentMetaHead)}
-						expectMH = expectMetaHead(currentMetaHead, currentDataHead)
+						expectMH = expectMetaHead(currentMetaHead, currentDataHead, expectData)
 					}
 
 					if currentDataHead != nil {
@@ -1104,7 +1118,7 @@ var _ = Describe("backend", func() {
 					revision = oldRevision
 
 					if currentMetaHead != nil {
-						expectMH = expectMetaHead(safeCopy(currentMetaHead), safeCopy(currentDataHead))
+						expectMH = expectMetaHead(safeCopy(currentMetaHead), safeCopy(currentDataHead), expectData)
 					}
 
 					if currentDataHead != nil {
@@ -1219,7 +1233,7 @@ var _ = Describe("backend", func() {
 											ctxFn:                     CanceledContext,
 											metaHeadFn:                metaHeadFrom(cmh, nil),
 											matchErr:                  MatchError("context canceled"),
-											expectMetaHead:            expectMetaHead(cmh, nil),
+											expectMetaHead:            expectMetaHead(cmh, nil, false),
 											matchDataHeadCommitDefPtr: BeNil(),
 											matchResponse:             BeNil(),
 										}
@@ -1235,7 +1249,7 @@ var _ = Describe("backend", func() {
 											metaHeadFn:                metaHeadFrom(cmh, cdh),
 											dataHead:                  cdh,
 											matchErr:                  MatchError("context canceled"),
-											expectMetaHead:            expectMetaHead(cmh, cdh),
+											expectMetaHead:            expectMetaHead(cmh, cdh, false),
 											matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(cdh)),
 											matchResponse:             BeNil(),
 										}
@@ -1259,7 +1273,7 @@ var _ = Describe("backend", func() {
 											spec:                      "metadata without data",
 											metaHeadFn:                metaHeadFrom(cmh, nil),
 											matchErr:                  HaveOccurred(),
-											expectMetaHead:            expectMetaHead(cmh, nil),
+											expectMetaHead:            expectMetaHead(cmh, nil, false),
 											matchDataHeadCommitDefPtr: BeNil(),
 											matchResponse: Equal(&etcdserverpb.PutResponse{
 												Header: &etcdserverpb.ResponseHeader{
@@ -1296,7 +1310,7 @@ var _ = Describe("backend", func() {
 											metaHeadFn:                metaHeadFrom(cmh, cdh),
 											dataHead:                  cdh,
 											matchErr:                  MatchError(rpctypes.ErrGRPCEmptyKey),
-											expectMetaHead:            expectMetaHead(cmh, cdh),
+											expectMetaHead:            expectMetaHead(cmh, cdh, true),
 											matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(cdh)),
 											matchResponse: Equal(&etcdserverpb.PutResponse{
 												Header: &etcdserverpb.ResponseHeader{
@@ -1318,7 +1332,7 @@ var _ = Describe("backend", func() {
 											dataHead:                  cdh,
 											req:                       &etcdserverpb.PutRequest{},
 											matchErr:                  MatchError(rpctypes.ErrGRPCEmptyKey),
-											expectMetaHead:            expectMetaHead(cmh, cdh),
+											expectMetaHead:            expectMetaHead(cmh, cdh, true),
 											matchDataHeadCommitDefPtr: PointTo(GetCommitDefMatcher(cdh)),
 											matchResponse: Equal(&etcdserverpb.PutResponse{
 												Header: &etcdserverpb.ResponseHeader{
@@ -1335,6 +1349,7 @@ var _ = Describe("backend", func() {
 										checks,
 										"no metadata, no data, add",
 										nil, nil,
+										false,
 										nil,
 										"", p, []byte("1"),
 										0, 1,
@@ -1353,6 +1368,7 @@ var _ = Describe("backend", func() {
 										checks,
 										"no revision, empty data, add",
 										&CommitDef{Message: "1"}, &CommitDef{Message: "d"},
+										true,
 										nil,
 										"", p, []byte("1"),
 										0, 1,
@@ -1378,6 +1394,7 @@ var _ = Describe("backend", func() {
 											},
 										),
 										existingShallowDataWithoutKey,
+										true,
 										nil,
 										"", p, []byte("1"),
 										0, 1,
@@ -1410,6 +1427,7 @@ var _ = Describe("backend", func() {
 											},
 										),
 										existingShallowDataWithoutKey,
+										true,
 										nil,
 										"", p, []byte("1"),
 										1, 2,
@@ -1442,6 +1460,7 @@ var _ = Describe("backend", func() {
 											},
 										),
 										existing2LevelDataWithoutKey,
+										true,
 										nil,
 										"", p, []byte("1"),
 										1, 2,
@@ -1474,6 +1493,7 @@ var _ = Describe("backend", func() {
 											},
 										),
 										existing3LevelDataWithoutKey,
+										true,
 										nil,
 										"", p, []byte("1"),
 										1, 2,
@@ -1503,6 +1523,7 @@ var _ = Describe("backend", func() {
 											},
 										),
 										dh,
+										true,
 										nil,
 										"", p, []byte("10"),
 										1, 2,
@@ -1534,6 +1555,7 @@ var _ = Describe("backend", func() {
 											},
 										),
 										dh,
+										true,
 										&mvccpb.KeyValue{
 											Key:            []byte(p),
 											CreateRevision: 1,
@@ -1572,6 +1594,7 @@ var _ = Describe("backend", func() {
 											},
 										),
 										dh,
+										true,
 										&mvccpb.KeyValue{
 											Key:            []byte(p),
 											CreateRevision: 1,

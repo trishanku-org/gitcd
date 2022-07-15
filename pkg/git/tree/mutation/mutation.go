@@ -288,3 +288,52 @@ func IsMutationNOP(tm *TreeMutation) bool {
 
 	return true
 }
+
+func IsConflict(tm *TreeMutation, p string) (conflict bool, err error) {
+	var ps = util.SplitPath(p)
+
+	if len(ps) == 0 {
+		err = rpctypes.ErrGRPCEmptyKey
+		return
+	}
+
+	conflict, err = isConflict(tm, ps)
+	return
+}
+
+func isConflict(tm *TreeMutation, ps util.PathSlice) (conflict bool, err error) {
+	var entryName string
+
+	if tm == nil {
+		return
+	}
+
+	if len(ps) <= 0 {
+		conflict = true // Path conflicts tm.
+		return
+	}
+
+	entryName = ps[0]
+
+	if len(tm.Entries) > 0 {
+		if _, conflict = tm.Entries[entryName]; conflict {
+			return
+		}
+	}
+
+	if len(tm.Subtrees) > 0 {
+		var (
+			stm *TreeMutation
+			ok  bool
+		)
+
+		if stm, ok = tm.Subtrees[entryName]; !ok {
+			return
+		}
+
+		conflict, err = isConflict(stm, ps[1:])
+		return
+	}
+
+	return
+}

@@ -1707,7 +1707,7 @@ var _ = Describe("backend", func() {
 							}
 						},
 						commitTreeFn:     replace,
-						expectMetaHeadFn: func(nmh, ndh *CommitDef, dataMutated bool) expectMetaHeadFunc { return expectMetaHead(nmh, ndh) },
+						expectMetaHeadFn: func(nmh, ndh *CommitDef, dataMutated bool) expectMetaHeadFunc { return expectMetaHead(nmh, ndh, true) },
 					},
 					{
 						spec: "inherit",
