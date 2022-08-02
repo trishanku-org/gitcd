@@ -162,6 +162,77 @@ var _ = Describe("closedOpenInterval", func() {
 	}
 })
 
+var _ = Describe("closedOpenInterval#merge", func() {
+	for _, s := range []struct {
+		o, n, e *closedOpenInterval
+	}{
+		{o: &closedOpenInterval{}, n: &closedOpenInterval{}, e: &closedOpenInterval{}},
+		{o: &closedOpenInterval{}, n: &closedOpenInterval{start: key("\x00")}, e: &closedOpenInterval{}},
+		{o: &closedOpenInterval{}, n: &closedOpenInterval{start: key("a")}, e: &closedOpenInterval{}},
+		{o: &closedOpenInterval{}, n: &closedOpenInterval{end: key("\x00")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{}, n: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{}, n: &closedOpenInterval{start: key("\x00"), end: key("x")}, e: &closedOpenInterval{end: key("x")}},
+		{o: &closedOpenInterval{}, n: &closedOpenInterval{start: key("a"), end: key("b")}, e: &closedOpenInterval{end: key("b")}},
+		{o: &closedOpenInterval{start: key("\x00")}, n: &closedOpenInterval{}, e: &closedOpenInterval{}},
+		{o: &closedOpenInterval{start: key("\x00")}, n: &closedOpenInterval{start: key("\x00")}, e: &closedOpenInterval{start: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00")}, n: &closedOpenInterval{start: key("a")}, e: &closedOpenInterval{start: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00")}, n: &closedOpenInterval{end: key("\x00")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00")}, n: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, e: &closedOpenInterval{start: key("\x00"), end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00")}, n: &closedOpenInterval{start: key("\x00"), end: key("x")}, e: &closedOpenInterval{start: key("\x00"), end: key("x")}},
+		{o: &closedOpenInterval{start: key("\x00")}, n: &closedOpenInterval{start: key("a"), end: key("b")}, e: &closedOpenInterval{start: key("\x00"), end: key("b")}},
+		{o: &closedOpenInterval{end: key("\x00")}, n: &closedOpenInterval{}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{end: key("\x00")}, n: &closedOpenInterval{start: key("\x00")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{end: key("\x00")}, n: &closedOpenInterval{start: key("a")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{end: key("\x00")}, n: &closedOpenInterval{end: key("\x00")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{end: key("\x00")}, n: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{end: key("\x00")}, n: &closedOpenInterval{start: key("\x00"), end: key("x")}, e: &closedOpenInterval{end: key("x")}},
+		{o: &closedOpenInterval{end: key("\x00")}, n: &closedOpenInterval{start: key("a"), end: key("b")}, e: &closedOpenInterval{end: key("b")}},
+		{o: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, n: &closedOpenInterval{}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, n: &closedOpenInterval{start: key("\x00")}, e: &closedOpenInterval{start: key("\x00"), end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, n: &closedOpenInterval{start: key("a")}, e: &closedOpenInterval{start: key("\x00"), end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, n: &closedOpenInterval{end: key("\x00")}, e: &closedOpenInterval{end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, n: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, e: &closedOpenInterval{start: key("\x00"), end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, n: &closedOpenInterval{start: key("\x00"), end: key("x")}, e: &closedOpenInterval{start: key("\x00"), end: key("x")}},
+		{o: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, n: &closedOpenInterval{start: key("a"), end: key("b")}, e: &closedOpenInterval{start: key("\x00"), end: key("b")}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{}, e: &closedOpenInterval{}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{start: key("\x00")}, e: &closedOpenInterval{start: key("\x00")}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{start: key("a")}, e: &closedOpenInterval{start: key("a")}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{end: key("c")}, e: &closedOpenInterval{end: key("c")}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, e: &closedOpenInterval{start: key("\x00"), end: key("\x00")}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{start: key("\x00"), end: key("x")}, e: &closedOpenInterval{start: key("\x00"), end: key("x")}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{start: key("a"), end: key("b")}, e: &closedOpenInterval{start: key("a"), end: key("b")}},
+		{o: &closedOpenInterval{start: key("p")}, n: &closedOpenInterval{start: key("q"), end: key("r")}, e: &closedOpenInterval{start: key("p"), end: key("r")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{start: key("\x00")}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{start: key("a")}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{end: key("\x00")}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{end: key("r")}, e: &closedOpenInterval{end: key("r")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{start: key("\x00"), end: key("x")}, e: &closedOpenInterval{end: key("x")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{start: key("a"), end: key("b")}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{end: key("q")}, n: &closedOpenInterval{start: key("a"), end: key("q/1")}, e: &closedOpenInterval{end: key("q/1")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("\x00")}, e: &closedOpenInterval{start: key("\x00"), end: key("q")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("q")}, e: &closedOpenInterval{start: key("p"), end: key("q")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("a")}, e: &closedOpenInterval{start: key("a"), end: key("q")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{end: key("\x00")}, e: &closedOpenInterval{end: key("q")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("\x00"), end: key("\x00")}, e: &closedOpenInterval{start: key("\x00"), end: key("q")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("\x00"), end: key("x")}, e: &closedOpenInterval{start: key("\x00"), end: key("x")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("a"), end: key("b")}, e: &closedOpenInterval{start: key("a"), end: key("q")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("o/1"), end: key("q/1")}, e: &closedOpenInterval{start: key("o/1"), end: key("q/1")}},
+		{o: &closedOpenInterval{start: key("p"), end: key("q")}, n: &closedOpenInterval{start: key("p/1"), end: key("p/2")}, e: &closedOpenInterval{start: key("p"), end: key("q")}},
+	} {
+		func(o, n, e *closedOpenInterval) {
+			It(fmt.Sprintf("old=%#v, new=%#v, expected=%#v", o, n, e), func() {
+				var a = o.merge(n)
+
+				Expect(a).To(BeIdenticalTo(o))
+				Expect(a).To(Equal(e))
+			})
+		}(s.o, s.n, s.e)
+	}
+})
+
 var _ = Describe("keyPrefix", func() {
 	var kp *keyPrefix
 
