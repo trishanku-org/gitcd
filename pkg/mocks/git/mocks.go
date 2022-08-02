@@ -1847,20 +1847,6 @@ func (mr *MockRepositoryMockRecorder) CommitWalker() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitWalker", reflect.TypeOf((*MockRepository)(nil).CommitWalker))
 }
 
-// ForEachReferenceName mocks base method.
-func (m *MockRepository) ForEachReferenceName(arg0 context.Context, arg1 git.ReferenceNameReceiverFunc) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ForEachReferenceName", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ForEachReferenceName indicates an expected call of ForEachReferenceName.
-func (mr *MockRepositoryMockRecorder) ForEachReferenceName(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForEachReferenceName", reflect.TypeOf((*MockRepository)(nil).ForEachReferenceName), arg0, arg1)
-}
-
 // Merger mocks base method.
 func (m *MockRepository) Merger(arg0 git.Errors) git.Merger {
 	m.ctrl.T.Helper()

@@ -429,7 +429,6 @@ type RemoteCollection interface {
 type Repository interface {
 	io.Closer
 
-	ForEachReferenceName(context.Context, ReferenceNameReceiverFunc) error
 	References() (ReferenceCollection, error)
 	Remotes() (RemoteCollection, error)
 

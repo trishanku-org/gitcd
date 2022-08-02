@@ -97,7 +97,7 @@ func (i *closedOpenInterval) String() string {
 	return fmt.Sprintf("[%s, %s)", i.start.String(), i.end.String())
 }
 
-// Merge expands the interval to include the supplied interval and returnes it. TODO test
+// Merge expands the interval to include the supplied interval and returnes it.
 func (i *closedOpenInterval) merge(s *closedOpenInterval) *closedOpenInterval {
 	if i.GetStartInclusive().Cmp(s.GetStartInclusive()) == cmpResultMore {
 		i.start = s.start
