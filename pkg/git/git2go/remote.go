@@ -37,7 +37,7 @@ func (r *remote) Fetch(ctx context.Context, refSpecs []git.RefSpec) (err error) 
 // remoteCollection implements the RemoteCollection interface defined in the parent git package.
 type remoteCollection impl.RemoteCollection
 
-var _ git.RemoteCollection = &remoteCollection{}
+var _ git.RemoteCollection = (*remoteCollection)(nil)
 
 func (rc *remoteCollection) impl() *impl.RemoteCollection { return (*impl.RemoteCollection)(rc) }
 func (rc *remoteCollection) Close() error                 { return free(rc.impl()) }
