@@ -14,6 +14,7 @@ import (
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 )
 
+// TODO Test
 type PullOptionFunc func(*puller) error
 
 func NewPull(optFns ...PullOptionFunc) (err error) {

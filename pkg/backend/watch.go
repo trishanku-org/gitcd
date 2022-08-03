@@ -17,6 +17,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
+//TODO Test
 type WatchOptionFunc func(etcdserverpb.WatchServer) error
 
 func NewWatchServer(optFns ...WatchOptionFunc) (ws etcdserverpb.WatchServer, err error) {

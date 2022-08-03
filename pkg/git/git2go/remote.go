@@ -7,8 +7,6 @@ import (
 	"github.com/trishanku/gitcd/pkg/git"
 )
 
-// TODO test
-
 // remote implements the Remote interface defined in the parent git package.
 type remote impl.Remote
 
