@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/onsi/ginkgo"
 	"github.com/trishanku/gitcd/pkg/git"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/mvccpb"
@@ -104,7 +106,7 @@ func (opts watchOpts) WithContext(ctx context.Context) WatchOptionFunc {
 // watch defines the interface to interact with individual watches.
 type watch interface {
 	Context() context.Context
-	Cancel(*etcdserverpb.ResponseHeader, error) error
+	Cancel(*etcdserverpb.ResponseHeader, error)
 	ProgressNotify() bool
 	PrevKv() bool
 	WatchId() int64
@@ -262,10 +264,13 @@ func (rw *revisionWatcher) getDataRootForMetadata(ctx context.Context, metaRoot 
 }
 
 func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
-	var nmt, ndt, omt, odt git.Tree
+	var (
+		nmt, ndt, omt, odt git.Tree
+		eventsLoaded       bool
+	)
 
 	defer func() {
-		if err != nil && !errors.Is(err, rpctypes.ErrGRPCFutureRev) {
+		if ctx.Err() != nil || (!eventsLoaded && err != nil) { // Watches are canceled properly in dispatchEvents.
 			rw.cancelAllWatches(ctx, err)
 		}
 	}()
@@ -284,8 +289,6 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 	if nmt, omt, err = rw.getRevisionAndPredecessorMetadata(ctx); err != nil {
 		return
 	}
-
-	rw.events = nil
 
 	for _, s := range []struct {
 		m    git.Tree
@@ -309,9 +312,11 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 
 	rw.events = nil
 
-	if err = rw.loadEvents(ctx, "", nmt, ndt, omt, odt); err != nil {
+	if err = rw.loadEvents(ctx, nmt, ndt, omt, odt); err != nil {
 		return
 	}
+
+	eventsLoaded = true
 
 	err = rw.dispatchEvents(ctx)
 	return
@@ -376,12 +381,12 @@ func (rw *revisionWatcher) getDeletionKeyValueLoader(prevKvFn kvLoaderFunc) kvLo
 
 func (rw *revisionWatcher) loadEvents(
 	ctx context.Context,
-	parentPath string,
 	nmt, ndt, omt, odt git.Tree,
 ) (err error) {
 	var (
-		b    = rw.backend
-		diff git.Diff
+		b      = rw.backend
+		diff   git.Diff
+		events []*mvccpb.Event
 	)
 
 	if nmt == nil && omt == nil {
@@ -394,7 +399,7 @@ func (rw *revisionWatcher) loadEvents(
 
 	defer diff.Close()
 
-	err = diff.ForEachDiffChange(ctx, func(ctx context.Context, change git.DiffChange) (done bool, err error) {
+	if err = diff.ForEachDiffChange(ctx, func(ctx context.Context, change git.DiffChange) (done bool, err error) {
 		var (
 			p  = change.Path()
 			k  string
@@ -425,11 +430,20 @@ func (rw *revisionWatcher) loadEvents(
 		}
 
 		if ev != nil {
-			rw.events = append(rw.events, ev)
+			events = append(events, ev)
 		}
 
 		return
-	})
+	}); err != nil {
+		return
+	}
+
+	if len(events) > 0 {
+		// Sort deletes first to facilitate watchers to re-apply replace (delete, add) changes in the watch event order.
+		sort.SliceStable(events, func(i, j int) bool { return events[i].Type > events[j].Type })
+
+		rw.events = append(rw.events, events...)
+	}
 
 	return
 }
@@ -443,21 +457,27 @@ func (rw *revisionWatcher) dispatchEvents(ctx context.Context) (err error) {
 	var (
 		eventsNoPrevKv []*mvccpb.Event
 		header         = rw.backend.newResponseHeaderWithRevision(rw.revision)
+		errs           []error
 	)
+
+	defer func() {
+		if errs != nil {
+			err = utilerrors.NewAggregate(errs)
+		}
+	}()
 
 	for _, w := range rw.watches {
 		if err = ctx.Err(); err != nil {
+			errs = append(errs, err)
 			return
 		}
 
-		if w.Context().Err() != nil {
+		if err = w.Context().Err(); err != nil {
+			errs = append(errs, err)
 			continue
 		}
 
-		var (
-			events = rw.events
-			werr   error
-		)
+		var events = rw.events
 
 		if !w.PrevKv() {
 			if len(eventsNoPrevKv) != len(rw.events) {
@@ -469,8 +489,9 @@ func (rw *revisionWatcher) dispatchEvents(ctx context.Context) (err error) {
 			events = eventsNoPrevKv
 		}
 
-		if werr = w.FilterAndSend(header, events); werr != nil {
-			w.Cancel(header, err)
+		if err = w.FilterAndSend(header, events); err != nil {
+			errs = append(errs, err)
+			w.Cancel(header, err) // TODO log cancel error.
 		}
 	}
 
@@ -527,7 +548,7 @@ func (wm *watchManager) groupQueue(q []*revisionWatcher) (groupedQ []*revisionWa
 			mr[rw.changesOnly] = rw
 		} else {
 			mrw.interval.merge(rw.interval)
-			mrw.watches = getActiveWatches(rw.watches)
+			mrw.watches = append(mrw.watches, getActiveWatches(rw.watches)...)
 		}
 	}
 
@@ -544,6 +565,10 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 	type message struct {
 		next *revisionWatcher
 		err  error
+	}
+
+	if err = parentCtx.Err(); err != nil {
+		return
 	}
 
 	var (
@@ -574,11 +599,15 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 				ch <- &message{next: next, err: err}
 			}()
 
+			defer ginkgo.GinkgoRecover()
+
 			if err = rw.Run(ctx); err == nil {
 				next = rw.next()
 			} else if errors.Is(err, rpctypes.ErrGRPCFutureRev) {
 				next = rw // Retry later
 			}
+
+			// Watches should already be canceled in rw.Run.
 		}(rw)
 	}
 
@@ -613,6 +642,9 @@ func (wm *watchManager) Run(ctx context.Context) (err error) {
 	}()
 
 	defer func() {
+		wm.Lock()
+		defer wm.Unlock()
+
 		if wm.cancelFn != nil {
 			wm.cancelFn()
 			wm.ctx, wm.cancelFn = nil, nil
@@ -676,8 +708,14 @@ func (wm *watchManager) Watch(stream etcdserverpb.Watch_WatchServer) (err error)
 	wm.log.V(-1).Info("Watching")
 	defer func() { wm.log.V(-1).Info("Stopping watch", "error", err) }()
 
+	go w.sendCancels(ctx)
+
 	for err == nil {
 		var req *etcdserverpb.WatchRequest
+
+		if err = ctx.Err(); err != nil {
+			break
+		}
 
 		if req, err = stream.Recv(); err != nil {
 			break
@@ -689,7 +727,7 @@ func (wm *watchManager) Watch(stream etcdserverpb.Watch_WatchServer) (err error)
 		case req.GetCreateRequest() != nil:
 			err = w.accept(ctx, req.GetCreateRequest())
 		case req.GetCancelRequest() != nil:
-			err = w.cancel(ctx, req.GetCancelRequest().GetWatchId(), nil)
+			w.cancel(ctx, req.GetCancelRequest().GetWatchId(), nil)
 		default:
 			// TODO Handle WatchProgressRequest
 		}
@@ -698,14 +736,17 @@ func (wm *watchManager) Watch(stream etcdserverpb.Watch_WatchServer) (err error)
 	return
 }
 
+// TODO Refactor watchManager and watchServer to avoid cyclic dependency.
 type watchServer struct {
 	sync.Mutex
 
 	stream etcdserverpb.Watch_WatchServer
 	mgr    *watchManager
 
-	watches map[int64]watch
+	watches map[int64]*watchImpl
 	watchID int64
+
+	sendCancelCh chan *watchImpl
 }
 
 // register registers the cancelFn with a new watch ID which can be passed to unregister later.
@@ -725,7 +766,7 @@ func (ws *watchServer) registerWatch(ctx context.Context, req *etcdserverpb.Watc
 	wi.ctx, wi.cancelFn = context.WithCancel(ctx)
 
 	if ws.watches == nil {
-		ws.watches = make(map[int64]watch)
+		ws.watches = make(map[int64]*watchImpl)
 	}
 
 	ws.watches[req.WatchId] = wi
@@ -738,6 +779,108 @@ func (ws *watchServer) unregisterWatch(w watch) {
 	defer ws.Unlock()
 
 	delete(ws.watches, w.WatchId())
+}
+
+func (ws *watchServer) sendCancels(ctx context.Context) {
+	var log = ws.mgr.log.WithName("sendCancels")
+
+	for {
+		var (
+			w   *watchImpl
+			ok  bool
+			err error
+		)
+
+		select {
+		case <-ctx.Done():
+			return
+		case w, ok = <-ws.sendCancelCh:
+			if !ok {
+				return
+			}
+
+			if w == nil {
+				continue
+			}
+
+			if err = ws.sendCancel(ctx, w); err != nil {
+				log.Error(err, "Error sending watch cancel request", "watchId", w.WatchId())
+			}
+
+			log.Info("Sent watch cancel request", "watchId", w.WatchId())
+		}
+	}
+}
+
+func (ws *watchServer) sendCancel(ctx context.Context, w *watchImpl) (err error) {
+	var (
+		watchID        int64
+		ok, unregister bool
+		watchCtxErr    error
+		cancelHeader   *etcdserverpb.ResponseHeader
+		cancelReason   string
+	)
+
+	if w == nil {
+		return
+	}
+
+	watchID = w.WatchId()
+
+	func() {
+		ws.Lock()
+		defer ws.Unlock()
+
+		_, ok = ws.watches[watchID]
+	}()
+
+	defer func() {
+		if unregister {
+			ws.unregisterWatch(w)
+		}
+	}()
+
+	if !ok {
+		return
+	}
+
+	w.Lock()
+	defer w.Unlock()
+
+	if w.cancelSent {
+		return
+	}
+
+	if watchCtxErr = w.ctx.Err(); watchCtxErr == nil {
+		return // Send cancel only if context is done.
+	}
+
+	unregister = true // If the context is done, then the watch must be unregistered.
+
+	if cancelHeader = w.cancelHeader; cancelHeader == nil {
+		func() {
+			var b = w.watchServer.mgr.backend
+
+			b.RLock()
+			defer b.RUnlock()
+
+			cancelHeader = w.watchServer.mgr.backend.newResponseHeader(ctx)
+		}()
+	}
+
+	if cancelReason = w.cancelReason; len(cancelReason) <= 0 {
+		cancelReason = watchCtxErr.Error()
+	}
+
+	err = w.stream.Send(&etcdserverpb.WatchResponse{
+		Header:       cancelHeader,
+		WatchId:      w.req.WatchId,
+		Canceled:     true,
+		CancelReason: cancelReason,
+	})
+
+	w.cancelSent = true // TODO Retry
+	return
 }
 
 func isWatchNOP(req *etcdserverpb.WatchCreateRequest) bool {
@@ -851,14 +994,13 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 	return
 }
 
-func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) (err error) {
+func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) {
 	var (
 		w   watch
 		log = ws.mgr.log.WithName("cancel")
 	)
 
 	log.V(-1).Info("cancelling", "watchId", watchID, "cause", cause)
-	defer func() { log.V(-1).Info("returned", "error", err) }()
 
 	func() {
 		ws.Mutex.Lock()
@@ -874,16 +1016,20 @@ func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) (
 	ws.mgr.backend.RLock()
 	defer ws.mgr.backend.RUnlock()
 
-	err = w.Cancel(ws.mgr.backend.newResponseHeader(ctx), cause)
-	return
+	w.Cancel(ws.mgr.backend.newResponseHeader(ctx), cause)
 }
 
 type watchImpl struct {
-	watchServer *watchServer
-	ctx         context.Context
-	cancelFn    context.CancelFunc
-	req         *etcdserverpb.WatchCreateRequest
-	stream      etcdserverpb.Watch_WatchServer
+	sync.Mutex
+
+	watchServer  *watchServer
+	ctx          context.Context
+	cancelFn     context.CancelFunc
+	req          *etcdserverpb.WatchCreateRequest
+	stream       etcdserverpb.Watch_WatchServer
+	cancelHeader *etcdserverpb.ResponseHeader
+	cancelReason string
+	cancelSent   bool
 }
 
 var _ watch = (*watchImpl)(nil)
@@ -892,18 +1038,26 @@ func (w *watchImpl) Context() context.Context {
 	return w.ctx
 }
 
-func (w *watchImpl) Cancel(header *etcdserverpb.ResponseHeader, err error) error {
-	var reason = "watch closed"
+func (w *watchImpl) Cancel(header *etcdserverpb.ResponseHeader, err error) {
+	const defaultCancelReason = "watch closed"
 
-	defer w.watchServer.unregisterWatch(w)
+	w.Lock()
+	defer w.Unlock()
+
+	if w.cancelSent {
+		return
+	}
 
 	w.cancelFn()
 
+	w.cancelHeader = header
 	if err != nil {
-		reason = err.Error()
+		w.cancelReason = err.Error()
+	} else {
+		w.cancelReason = defaultCancelReason
 	}
 
-	return w.stream.Send(&etcdserverpb.WatchResponse{Header: header, WatchId: w.req.WatchId, Canceled: true, CancelReason: reason})
+	w.watchServer.sendCancelCh <- w
 }
 
 func (w *watchImpl) PrevKv() bool {

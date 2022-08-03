@@ -166,6 +166,12 @@ func GetTreeDef(ctx context.Context, repo git.Repository, id git.ObjectID) (td *
 
 	defer t.Close()
 
+	td = GetTreeDefByTree(ctx, repo, t)
+
+	return
+}
+
+func GetTreeDefByTree(ctx context.Context, repo git.Repository, t git.Tree) (td *TreeDef) {
 	td = &TreeDef{Blobs: map[string][]byte{}, Subtrees: map[string]TreeDef{}}
 
 	gomega.Expect(func() (err error) {

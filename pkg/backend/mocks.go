@@ -37,11 +37,9 @@ func (m *Mockwatch) EXPECT() *MockwatchMockRecorder {
 }
 
 // Cancel mocks base method.
-func (m *Mockwatch) Cancel(arg0 *etcdserverpb.ResponseHeader, arg1 error) error {
+func (m *Mockwatch) Cancel(arg0 *etcdserverpb.ResponseHeader, arg1 error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cancel", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "Cancel", arg0, arg1)
 }
 
 // Cancel indicates an expected call of Cancel.
