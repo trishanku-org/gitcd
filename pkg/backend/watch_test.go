@@ -5476,9 +5476,10 @@ var _ = Describe("watchManager", func() {
 								BeforeEach(func() {
 									wm.backend.metadataRefName = s.metaRefName
 
-									if s.metaHead != nil {
+									// TODO
+									// if s.metaHead != nil {
 
-									}
+									// }
 
 									queue = prepareRevisionWatchers(s.ctxFn, s.queue)
 
