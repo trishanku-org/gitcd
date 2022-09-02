@@ -252,8 +252,8 @@ echo 'Please ensure that these ports are available before running these steps.'
 echo
 echo '```sh'
 echo '# Start a local Kind Kubernetes cluster with Gitcd as the backend.'
-echo '$ make start-docker-gitcd-kube'
-make start-docker-gitcd-kube
+echo '$ make start-docker-gitcd-kind'
+make start-docker-gitcd-kind
 echo
 echo '# Check that Kind and Gitcd containers are running.'
 echo '$ docker ps -n 8'
@@ -310,10 +310,10 @@ echo '#### Cleanup'
 echo
 echo '```sh'
 echo '# Stop kube-apiserver and Gitcd containers.'
-echo '$ make stop-docker-gitcd-kube'
-make stop-docker-gitcd-kube
+echo '$ make stop-docker-gitcd-kind'
+make stop-docker-gitcd-kind
 echo
 echo '# Clean up kube-apiserver and Gitcd container and volumes.'
-echo '$ make cleanup-docker-gitcd-kube'
-make cleanup-docker-gitcd-kube
+echo '$ make cleanup-docker-gitcd-kind'
+make cleanup-docker-gitcd-kind
 echo '```'

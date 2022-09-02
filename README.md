@@ -630,8 +630,8 @@ Please ensure that these ports are available before running these steps.
 
 ```sh
 # Start a local Kind Kubernetes cluster with Gitcd as the backend.
-$ make start-docker-gitcd-kube
-hack/kube/start.sh
+$ make start-docker-gitcd-kind
+hack/kubernetes/kind/start.sh
 
 Starting container etcd-events on port 2379.
 etcd-events
@@ -704,7 +704,7 @@ Starting container gitcd-configmaps configmaps=http://0.0.0.0:2979.
 9dded473170cd653a3f4de60879cd0bd2cd6dc24493991a1e2fee523e5e4ce7e
 http://127.0.0.1:2979, 0, v0.0.1-dev, 153 kB, true, false, 1, 1, 1, 
 
-Creating a local Kubernetes cluster using Kind configuration in ./hack/kube/kind-config.yaml.
+Creating a local Kubernetes cluster using Kind configuration in ./hack/kubernetes/kind/kind-config.yaml.
 Creating cluster "trishanku" ...
  • Ensuring node image (kindest/node:v1.21.1) 🖼  ...
  ✓ Ensuring node image (kindest/node:v1.21.1) 🖼
@@ -1022,8 +1022,8 @@ $ diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/regi
 
 ```sh
 # Stop kube-apiserver and Gitcd containers.
-$ make stop-docker-gitcd-kube
-hack/kube/stop.sh
+$ make stop-docker-gitcd-kind
+hack/kubernetes/kind/stop.sh
 + kind delete cluster --name trishanku
 Deleting cluster "trishanku" ...
 + docker stop etcd-events gitcd-main gitcd-nodes gitcd-leases gitcd-priorityclasses gitcd-pods gitcd-configmaps
@@ -1036,8 +1036,8 @@ gitcd-pods
 gitcd-configmaps
 
 # Clean up kube-apiserver and Gitcd container and volumes.
-$ make cleanup-docker-gitcd-kube
-hack/kube/cleanup.sh
+$ make cleanup-docker-gitcd-kind
+hack/kubernetes/kind/cleanup.sh
 + stop_containers etcd-events gitcd-main gitcd-nodes gitcd-leases gitcd-priorityclasses gitcd-pods gitcd-configmaps
 + for container_name in '"$@"'
 + docker stop etcd-events
