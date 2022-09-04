@@ -145,8 +145,8 @@ fi
 
 echo "Using INTERNAL_SERVER_URL=${INTERNAL_SERVER_URL} and EXTERNAL_SERVER_URL=${EXTERNAL_SERVER_URL}"
 
-generate_kubeconfig kube-controller-manager system:kube-controller-manager "$EXTERNAL_SERVER_URL"
-generate_kubeconfig kube-scheduler system:kube-scheduler "$EXTERNAL_SERVER_URL"
-generate_kubeconfig admin admin "$EXTERNAL_SERVER_URL"
+generate_kubeconfig kube-controller-manager system:kube-controller-manager "$INTERNAL_SERVER_URL"
+generate_kubeconfig kube-scheduler system:kube-scheduler "$INTERNAL_SERVER_URL"
+generate_kubeconfig admin admin "$INTERNAL_SERVER_URL"
 generate_kubeconfig kube-proxy system:kube-proxy "$EXTERNAL_SERVER_URL"
 generate_kubeconfig worker-0 system:node:worker-0 "$EXTERNAL_SERVER_URL"
