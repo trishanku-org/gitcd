@@ -122,8 +122,7 @@ docker run --name kubectl \
   -v "${SECRETS_VOLUME_NAME}:/secrets" \
   -u 0 \
   $KUBECTL_IMG cluster-info \
-    --kubeconfig=/secrets/admin.kubeconfig \
-    --server=https://${INTERNAL_IP}:6443
+    --kubeconfig=/secrets/admin.kubeconfig
 
 if docker inspect $KUBE_CONTROLLER_MANAGER_CONTAINER_NAME > /dev/null 2>&1; then
   echo "Container ${KUBE_CONTROLLER_MANAGER_CONTAINER_NAME} already exists."
@@ -148,12 +147,12 @@ else
       --v=2
 fi
 
+SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
+DIRNAME=$(dirname "$SOURCE_PATH")
+
 if docker inspect $KUBE_SCHEDULER_CONTAINER_NAME > /dev/null 2>&1; then
   echo "Container ${KUBE_SCHEDULER_CONTAINER_NAME} already exists."
 else
-  SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
-  DIRNAME=$(dirname "$SOURCE_PATH")
-
   docker volume create $KUBE_SCHEDULER_VOLUME_NAME
 
   docker run --name busybox \
@@ -173,3 +172,12 @@ else
       --config=/configs/kube-scheduler.yaml \
       --v=2
 fi
+
+cat "${DIRNAME}/configs/kubelet-rbac.yaml" | \
+  docker run --name kubelet \
+    -i --rm  \
+    -v "${SECRETS_VOLUME_NAME}:/secrets" \
+    -u 0 \
+    $KUBECTL_IMG apply \
+      -f - \
+      --kubeconfig=/secrets/admin.kubeconfig
