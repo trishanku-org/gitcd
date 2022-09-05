@@ -1,0 +1,1 @@
+--controllers=statefulset --concurrent-statefulset-syncs=1

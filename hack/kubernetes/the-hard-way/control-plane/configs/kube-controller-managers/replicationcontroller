@@ -1,0 +1,1 @@
+--controllers=replicationcontroller --concurrent-rc-syncs=1

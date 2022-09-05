@@ -1,0 +1,1 @@
+--controllers=endpointslice --concurrent-service-endpoint-syncs=1

@@ -4,3 +4,4 @@ clientConnection:
   kubeconfig: "/secrets/kube-scheduler.kubeconfig"
 leaderElection:
   leaderElect: true
+parallelism: 1

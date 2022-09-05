@@ -124,31 +124,44 @@ docker run --name kubectl \
   $KUBECTL_IMG cluster-info \
     --kubeconfig=/secrets/admin.kubeconfig
 
-if docker inspect $KUBE_CONTROLLER_MANAGER_CONTAINER_NAME > /dev/null 2>&1; then
-  echo "Container ${KUBE_CONTROLLER_MANAGER_CONTAINER_NAME} already exists."
-else
-  docker run --name $KUBE_CONTROLLER_MANAGER_CONTAINER_NAME \
-    -d --restart=unless-stopped \
-    -v ${SECRETS_VOLUME_NAME}:/secrets \
-    --entrypoint "" \
-    $KUBE_CONTROLLER_MANAGER_IMG \
-    kube-controller-manager \
-      --bind-address=0.0.0.0 \
-      --cluster-cidr=10.200.0.0/16 \
-      --cluster-name=kubernetes \
-      --cluster-signing-cert-file=/secrets/ca.pem \
-      --cluster-signing-key-file=/secrets/ca-key.pem \
-      --kubeconfig=/secrets/kube-controller-manager.kubeconfig \
-      --leader-elect=true \
-      --root-ca-file=/secrets/ca.pem \
-      --service-account-private-key-file=/secrets/service-account-key.pem \
-      --service-cluster-ip-range=10.32.0.0/24 \
-      --use-service-account-credentials=true \
-      --v=2
-fi
+function start_kube_controller_manager {
+  local kcm_controller=$1
+  local controller=$(basename $kcm_controller)
+  local CONTAINER_NAME="${KUBE_CONTROLLER_MANAGER_CONTAINER_NAME}-${controller}"
+
+  echo "Starting container $CONTAINER_NAME."
+
+  if docker inspect $CONTAINER_NAME > /dev/null 2>&1; then
+    echo "Container ${CONTAINER_NAME} already exists."
+  else
+    docker run --name $CONTAINER_NAME \
+      -d --restart=unless-stopped \
+      -v ${SECRETS_VOLUME_NAME}:/secrets \
+      --entrypoint "" \
+      $KUBE_CONTROLLER_MANAGER_IMG \
+      kube-controller-manager \
+        --bind-address=0.0.0.0 \
+        --cluster-cidr=10.200.0.0/16 \
+        --cluster-name=kubernetes \
+        --cluster-signing-cert-file=/secrets/ca.pem \
+        --cluster-signing-key-file=/secrets/ca-key.pem \
+        --kubeconfig=/secrets/kube-controller-manager.kubeconfig \
+        --leader-elect=false \
+        --root-ca-file=/secrets/ca.pem \
+        --service-account-private-key-file=/secrets/service-account-key.pem \
+        --service-cluster-ip-range=10.32.0.0/24 \
+        --use-service-account-credentials=true \
+        --v=2 \
+        $(cat "$kcm_controller")
+  fi
+}
 
 SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
 DIRNAME=$(dirname "$SOURCE_PATH")
+
+for kcm_controller in "${DIRNAME}/configs/kube-controller-managers/"*; do
+  start_kube_controller_manager "$kcm_controller"
+done
 
 if docker inspect $KUBE_SCHEDULER_CONTAINER_NAME > /dev/null 2>&1; then
   echo "Container ${KUBE_SCHEDULER_CONTAINER_NAME} already exists."
