@@ -17,6 +17,8 @@ KUBE_CONTROLLER_MANAGER_CONTAINER_NAME=kube-controller-manager
 KUBE_SCHEDULER_CONTAINER_NAME=kube-scheduler
 KUBE_SCHEDULER_VOLUME_NAME="kubernetes-the-hard-way-scheduler"
 
+BUSYBOX_IMG=busybox:1
+
 if [ "$LOCAL_IP" == "" ]; then
   LOCAL_IP="127.0.0.1"
 fi
@@ -172,7 +174,7 @@ else
     --rm \
     -v "${DIRNAME}/configs:/configs-src" \
     -v "${KUBE_SCHEDULER_VOLUME_NAME}:/configs-dst" \
-    busybox \
+    $BUSYBOX_IMG \
     cp /configs-src/kube-scheduler.yaml /configs-dst
 
   docker run --name $KUBE_SCHEDULER_CONTAINER_NAME \

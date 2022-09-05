@@ -90,7 +90,7 @@ docker run  --name cfssl \
         $CFSSL cfssljson -bare worker-0
 
 #Generate kubeconfigs
-KUBECTL=bitnami/kubectl:1.21
+KUBECTL=bitnami/kubectl:1.21.14
 
 function generate_kubeconfig {
   local component="$1"
