@@ -45,20 +45,29 @@ run: check
 		-ldflags "-X github.com/trishanku/gitcd/pkg/backend.Version=${BACKEND_VERSION}" \
 		main.go ${RUN_ARGS}
 
-build-secrets-volume: 
+build-kubernetes-secrets-volume: 
 	./hack/kubernetes/the-hard-way/secrets/generate.sh
 
-cleanup-secrets-volume:
+cleanup-kubernetes-secrets-volume:
 	./hack/kubernetes/the-hard-way/secrets/cleanup.sh
 
-start-docker-control-plane:
+start-kubernetes-docker-control-plane:
 	./hack/kubernetes/the-hard-way/control-plane/start.sh
 
-stop-docker-control-plane:
+stop-kubernetes-docker-control-plane:
 	./hack/kubernetes/the-hard-way/control-plane/stop.sh
 
-cleanup-docker-control-plane:
+cleanup-kubernetes-docker-control-plane:
 	./hack/kubernetes/the-hard-way/control-plane/cleanup.sh
+
+start-trishanku-docker-control-plane:
+	./hack/trishanku/the-hard-way/control-plane/start.sh
+
+stop-trishanku-docker-control-plane:
+	./hack/trishanku/the-hard-way/control-plane/stop.sh
+
+cleanup-trishanku-docker-control-plane:
+	./hack/trishanku/the-hard-way/control-plane/cleanup.sh
 
 temp-cert: ensure-bin-dir
 	openssl req -newkey rsa:4096 -x509 -sha256 -days 1 -nodes -extensions v3_req \
