@@ -108,6 +108,13 @@ func (pullOpts) WithNoFetch(noFetch bool) PullOptionFunc {
 	}
 }
 
+func (pullOpts) WithPushAfterMerge(pushAfterMerge bool) PullOptionFunc {
+	return func(p *puller) error {
+		p.pushAfterMerge = pushAfterMerge
+		return nil
+	}
+}
+
 func (pullOpts) WithTicker(ticker <-chan time.Time) PullOptionFunc {
 	return func(p *puller) error {
 		p.ticker = ticker
@@ -156,8 +163,9 @@ type puller struct {
 	remoteDataRefName git.ReferenceName
 	remoteMetaRefName git.ReferenceName
 
-	noFastForward bool
-	noFetch       bool
+	noFastForward  bool
+	noFetch        bool
+	pushAfterMerge bool
 
 	ticker <-chan time.Time
 	log    logr.Logger
@@ -192,6 +200,22 @@ func (p *puller) fetch(ctx context.Context) (err error) {
 	defer remote.Close()
 
 	err = remote.Fetch(ctx, nil)
+	return
+}
+
+func (p *puller) push(ctx context.Context) (err error) {
+	var remote git.Remote
+
+	p.backend.RLock()
+	defer p.backend.RUnlock()
+
+	if remote, err = p.getRemote(ctx); err != nil {
+		return
+	}
+
+	defer remote.Close()
+
+	err = remote.Push(ctx, nil)
 	return
 }
 
@@ -514,7 +538,13 @@ func (p *puller) merge(ctx context.Context) (err error) {
 	)
 
 	log.V(-1).Info("Merging")
-	defer func() { log.V(-1).Info("Merged", "error", err, "dataMutated", dataMutated, "metaMutated", metaMutated) }()
+	defer func() {
+		if err == nil && p.pushAfterMerge {
+			err = p.push(ctx)
+		}
+
+		log.V(-1).Info("Merged", "error", err, "dataMutated", dataMutated, "metaMutated", metaMutated, "pushAfterMerge", p.pushAfterMerge)
+	}()
 
 	p.backend.RLock()
 	defer p.backend.RUnlock()

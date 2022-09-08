@@ -416,6 +416,7 @@ type Remote interface {
 
 	Name() RemoteName
 	Fetch(ctx context.Context, refSpecs []RefSpec) error
+	Push(ctx context.Context, refSpecs []RefSpec) error
 }
 
 // RemoteCollection defines access to the remotes of a Git repository.

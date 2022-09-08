@@ -121,11 +121,11 @@ type serverInfo struct {
 	clientURLs               []*url.URL
 	clusterId, memberId      uint64
 
-	remoteName                           git.RemoteName
-	remoteDataRefName, remoteMetaRefName git.ReferenceName
-	mergeConflictResolution              git.MergeConfictResolution
-	mergeRetentionPolicy                 git.MergeRetentionPolicy
-	noFastForward, noFetch               bool
+	remoteName                             git.RemoteName
+	remoteDataRefName, remoteMetaRefName   git.ReferenceName
+	mergeConflictResolution                git.MergeConfictResolution
+	mergeRetentionPolicy                   git.MergeRetentionPolicy
+	noFastForward, noFetch, pushAfterMerge bool
 }
 
 var _ commonPullerInfo = (*serverInfo)(nil)
@@ -138,6 +138,7 @@ func (s *serverInfo) RemoteMetaRefName() *git.ReferenceName           { return &
 func (s *serverInfo) MergeRetentionPolicy() *git.MergeRetentionPolicy { return &s.mergeRetentionPolicy }
 func (s *serverInfo) NoFastForward() *bool                            { return &s.noFastForward }
 func (s *serverInfo) NoFetch() *bool                                  { return &s.noFetch }
+func (s *serverInfo) PushAfterMerge() *bool                           { return &s.pushAfterMerge }
 
 func (s *serverInfo) MergeConflictResolution() *git.MergeConfictResolution {
 	return &s.mergeConflictResolution
@@ -597,6 +598,7 @@ func schedulePull(
 		backend.PullOptions.WithMergeRetentionPolicy(*pi.MergeRetentionPolicy()),
 		backend.PullOptions.WithNoFastForward(*pi.NoFastForward()),
 		backend.PullOptions.WithNoFetch(*pi.NoFetch()),
+		backend.PullOptions.WithPushAfterMerge(*pi.PushAfterMerge()),
 		backend.PullOptions.WithTicker(ticker),
 		backend.PullOptions.WithLogger(log),
 		backend.PullOptions.WithContext(ctx),
@@ -683,6 +685,7 @@ type serveFlagsImpl struct {
 	mergeRetentionPoliciesExclude map[string]string
 	noFastForwards                map[string]string
 	noFetches                     map[string]string
+	pushAfterMerges               map[string]string
 	pullTickerDuration            time.Duration
 }
 
@@ -711,6 +714,7 @@ func (s *serveFlagsImpl) getRemoteDataRefNames() *map[string]string { return &s.
 func (s *serveFlagsImpl) getRemoteMetaRefNames() *map[string]string { return &s.remoteMetaRefNames }
 func (s *serveFlagsImpl) getNoFastForwards() *map[string]string     { return &s.noFastForwards }
 func (s *serveFlagsImpl) getNoFetches() *map[string]string          { return &s.noFetches }
+func (s *serveFlagsImpl) getPushAfterMerges() *map[string]string    { return &s.pushAfterMerges }
 
 func (s *serveFlagsImpl) getMergeConflictResolutions() *map[string]string {
 	return &s.mergeConflictResolutions
