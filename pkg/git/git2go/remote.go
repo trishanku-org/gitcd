@@ -29,7 +29,15 @@ func (r *remote) Fetch(ctx context.Context, refSpecs []git.RefSpec) (err error) 
 		rs[i] = string(refSpec)
 	}
 
-	return r.impl().Fetch(rs, nil, "")
+	return r.impl().Fetch(
+		rs,
+		&impl.FetchOptions{
+			RemoteCallbacks: impl.RemoteCallbacks{
+				CredentialsCallback: NewCredentialUserpass,
+			},
+		},
+		"",
+	)
 }
 
 // remoteCollection implements the RemoteCollection interface defined in the parent git package.
