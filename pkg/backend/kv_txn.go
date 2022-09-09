@@ -402,8 +402,8 @@ func (b *backend) Txn(ctx context.Context, req *etcdserverpb.TxnRequest) (res *e
 		perf                         = perfCounter()
 	)
 
-	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
+	log.V(-1).Info("txn received", "request", req)
+	defer func() { log.V(-1).Info("txn returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	b.Lock()
 	defer b.Unlock()

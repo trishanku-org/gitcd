@@ -288,8 +288,8 @@ func (b *backend) Put(ctx context.Context, req *etcdserverpb.PutRequest) (res *e
 		perf                         = perfCounter()
 	)
 
-	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
+	log.V(-1).Info("put received", "request", req)
+	defer func() { log.V(-1).Info("put returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	b.Lock()
 	defer b.Unlock()

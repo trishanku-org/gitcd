@@ -131,8 +131,8 @@ func (b *backend) Range(ctx context.Context, req *etcdserverpb.RangeRequest) (re
 		perf     = perfCounter()
 	)
 
-	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
+	log.V(-1).Info("range received", "request", req)
+	defer func() { log.V(-1).Info("range returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	b.RLock()
 	defer b.RUnlock()

@@ -221,7 +221,7 @@ func organizeServerInfo() (sis []*serverInfo, err error) {
 func newSemiAutomaticTicker(d time.Duration, closers []io.Closer) (sat semiAutomaticTicker, cs []io.Closer) {
 	var ticker = time.NewTicker(d)
 
-	sat = make(semiAutomaticTicker, 1)
+	sat = make(semiAutomaticTicker, serveFlags.watchDispatchChannelSize)
 
 	closers = append(closers, funcCloser(sat.Stop), funcCloser(ticker.Stop))
 	cs = closers
@@ -564,6 +564,7 @@ func registerWatchServer(ctx context.Context, kvs etcdserverpb.KVServer, ticker 
 		backend.WatchOptions.WithBackend(kvs),
 		backend.WatchOptions.WithLogger(log),
 		backend.WatchOptions.WithTicker(ticker),
+		backend.WatchOptions.WithCancelChannelSize(serveFlags.watchCancelChannelSize),
 		backend.WatchOptions.WithContext(ctx),
 	); err != nil {
 		return
@@ -617,6 +618,8 @@ const (
 	defaultMemberId                    = uint64(0)
 	defaultKeyPrefix                   = "/"
 	defaultListenURL                   = "http://0.0.0.0:2379/"
+	defaultWatchCancelChannelSize      = 10
+	defaultWatchDispatchChannelSize    = 10
 	defaultWatchDispatchTickerDuration = 10 * time.Second
 	defaultPullTickerDuration          = time.Duration(0)
 )
@@ -672,6 +675,8 @@ type serveFlagsImpl struct {
 	committerEmail              string
 	listenURL                   map[string]string
 	clientURLs                  map[string]string
+	watchDispatchChannelSize    int
+	watchCancelChannelSize      int
 	watchDispatchTickerDuration time.Duration
 	tlsCertFile                 string
 	tlsKeyFile                  string
@@ -763,6 +768,20 @@ func init() {
 		"advertise-client-urls",
 		map[string]string{"default": strings.Join(defaultClientURLs, ";")},
 		`URLs to advertise for clients to make requests to. Multiple URLs separated by ";" can be specified per backend.`,
+	)
+
+	serveCmd.Flags().IntVar(
+		&serveFlags.watchCancelChannelSize,
+		"watch-cancel-channel-size",
+		defaultWatchCancelChannelSize,
+		"Size of the channel to cancel watches.",
+	)
+
+	serveCmd.Flags().IntVar(
+		&serveFlags.watchDispatchChannelSize,
+		"watch-dispatch-channel-size",
+		defaultWatchDispatchChannelSize,
+		"Size of the channel to dispatch watches.",
 	)
 
 	serveCmd.Flags().DurationVar(

@@ -92,6 +92,13 @@ func (opts watchOpts) WithLogger(log logr.Logger) WatchOptionFunc {
 	})
 }
 
+func (opts watchOpts) WithCancelChannelSize(cancelChannelSize int) WatchOptionFunc {
+	return opts.doIt(func(wm *watchManager) (err error) {
+		wm.cancelChannelSize = cancelChannelSize
+		return nil
+	})
+}
+
 func (opts watchOpts) WithContext(ctx context.Context) WatchOptionFunc {
 	return opts.doIt(func(wm *watchManager) (err error) {
 		go func() {
@@ -501,9 +508,10 @@ func (rw *revisionWatcher) dispatchEvents(ctx context.Context) (err error) {
 type watchManager struct {
 	sync.Mutex
 
-	backend *backend
-	ticker  <-chan time.Time
-	log     logr.Logger
+	backend           *backend
+	ticker            <-chan time.Time
+	log               logr.Logger
+	cancelChannelSize int
 
 	ctx      context.Context
 	cancelFn context.CancelFunc
@@ -573,7 +581,7 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 
 	var (
 		ctx, cancelFn = context.WithCancel(parentCtx)
-		ch            = make(chan *message)
+		ch            = make(chan *message, len(q))
 		errs          []error
 	)
 
@@ -698,8 +706,9 @@ func (wm *watchManager) Watch(stream etcdserverpb.Watch_WatchServer) (err error)
 	var (
 		ctx, cancelFn = context.WithCancel(stream.Context())
 		w             = &watchServer{
-			stream: stream,
-			mgr:    wm,
+			stream:       stream,
+			mgr:          wm,
+			sendCancelCh: make(chan *watchImpl, wm.cancelChannelSize),
 		}
 	)
 
@@ -721,7 +730,7 @@ func (wm *watchManager) Watch(stream etcdserverpb.Watch_WatchServer) (err error)
 			break
 		}
 
-		wm.log.V(-1).Info("Received", "request", req)
+		wm.log.V(-1).Info("Processing", "request", req)
 
 		switch {
 		case req.GetCreateRequest() != nil:
@@ -731,6 +740,8 @@ func (wm *watchManager) Watch(stream etcdserverpb.Watch_WatchServer) (err error)
 		default:
 			// TODO Handle WatchProgressRequest
 		}
+
+		wm.log.V(-1).Info("Processed", "request", req)
 	}
 
 	return
@@ -944,7 +955,7 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 	)
 
 	log.V(-1).Info("accepting", "request", req)
-	defer func() { log.V(-1).Info("returned", "error", err) }()
+	defer func() { log.V(-1).Info("accept returned", "error", err) }()
 
 	b.RLock()
 	defer b.RUnlock()

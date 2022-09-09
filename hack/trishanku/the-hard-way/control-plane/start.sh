@@ -1,21 +1,23 @@
 #!/bin/bash
 
 SECRETS_VOLUME_NAME="kubernetes-the-hard-way-secrets"
-REMOTE_REPO="https://github.com/amshuman-kr/trishanku-the-hard-way"
-USER=
-PASSWORD=
+REPO_THE_REST="https://github.com/amshuman-kr/trishanku-the-hard-way-the-rest"
+REPO_NODES="https://github.com/amshuman-kr/trishanku-the-hard-way-nodes"
+REPO_LEASES="https://github.com/amshuman-kr/trishanku-the-hard-way-leases"
+REPO_PRIORITYCLASSES="https://github.com/amshuman-kr/trishanku-the-hard-way-priorityclasses"
+REPO_PODS="https://github.com/amshuman-kr/trishanku-the-hard-way-pods"
+REPO_CONFIGMAPS="https://github.com/amshuman-kr/trishanku-the-hard-way-configmaps"
 
 LABEL="trishanku=the-hard-way"
-ETCD_NAME="kubernetes-the-hard-way"
-ETCD_CONTAINER_NAME=etcd
 GIT_IMG=bitnami/git:2
 GITCD_IMG=trishanku/gitcd:latest
+ETCD_IMG=bitnami/etcd:3
 DATA_BRANCH_BLANK="main"
 METADATA_BRANCH_BLANK="gitcd/metadata/${DATA_BRANCH_BLANK}"
 
-KUBE_VERSION=v1.21.14
-KUBECTL_IMG=bitnami/kubectl:1.21.14
-KUBE_IMG_BASE=k8s.gcr.io
+KUBE_VERSION=v1.24.4
+KUBECTL_IMG=bitnami/kubectl:1.24.4
+KUBE_IMG_BASE=registry.k8s.io
 KUBE_APISERVER_IMG=${KUBE_IMG_BASE}/kube-apiserver:${KUBE_VERSION}
 KUBE_CONTROLLER_MANAGER_IMG=${KUBE_IMG_BASE}/kube-controller-manager:${KUBE_VERSION}
 KUBE_SCHEDULER_IMG=${KUBE_IMG_BASE}/kube-scheduler:${KUBE_VERSION}
@@ -27,8 +29,11 @@ KUBE_SCHEDULER_VOLUME_NAME="kubernetes-the-hard-way-scheduler"
 BUSYBOX_IMG=busybox:1
 
 function store_repo_credentials {
-  read -p "User for the repo ${REMOTE_REPO}: " USER
-  read -sp "Password for the repo ${REMOTE_REPO}: " PASSWORD
+  local USER=
+  local PASSWORD=
+
+  read -p "User for the repo ${REPO_THE_REST}: " USER
+  read -sp "Password for the repo ${REPO_THE_REST}: " PASSWORD
   echo
 
   cat <<EOF | \
@@ -56,53 +61,78 @@ CRED_SPEC_EOF
 EOF
 }
 
-function start_apiserver_with_gitcd {
-  local CONTAINER_PREFIX="$1"
-  local DATA_BRANCH_NAME="$2"
-  local MERGE_CONFLICT_RESOLUTIONS="$3"
-  local DOCKER_RUN_ARGS="$4"
-  local GITCD_CONTAINER_NAME="${CONTAINER_PREFIX}gitcd"
-  local GITCD_VOLUME_NAME="$GITCD_CONTAINER_NAME"
-  local METADATA_BRANCH_NAME="gitcd/metadata/${DATA_BRANCH_NAME}"
-  local DATA_REF_NAME="refs/heads/${DATA_BRANCH_NAME}"
-  local METADATA_REF_NAME="refs/heads/${METADATA_BRANCH_NAME}"
-  local REMOTE_NAME="origin"
-  local REMOTE_DATA_BRANCH_NAME="${REMOTE_NAME}/${DATA_BRANCH_NAME}"
-  local REMOTE_METADATA_BRANCH_NAME="${REMOTE_NAME}/${METADATA_BRANCH_NAME}"
-  local REMOTE_DATA_REF_NAME="refs/remotes/${REMOTE_DATA_BRANCH_NAME}"
-  local REMOTE_METADATA_REF_NAME="refs/remotes/${REMOTE_METADATA_BRANCH_NAME}"
-  local ENTRYPOINT_VOLUME_NAME="${GITCD_CONTAINER_NAME}-entrypoint"
-  local APISERVER_CONTAINER_NAME="${CONTAINER_PREFIX}kube-apiserver"
+function create_volume_if_not_exists {
+  local VOLUME="$1"
 
-  if docker inspect $GITCD_CONTAINER_NAME > /dev/null 2>&1; then
-    echo "Container ${GITCD_CONTAINER_NAME} already exists."
+  docker volume inspect "$VOLUME" > /dev/null 2>&1 || docker volume create --label "$LABEL" "$VOLUME"
+}
+
+function container_exists {
+  local CONTAINER="$1"
+
+  docker container inspect "$CONTAINER" > /dev/null 2>&1 
+}
+
+function start_etcd {
+  local CONTAINER="$1"
+  local CLUSTER_TOKEN="$2"
+  local DOCKER_RUN_ARGS="$3"
+  local VOLUME="$CONTAINER"
+
+  create_volume_if_not_exists "$VOLUME"
+  if container_exists "$CONTAINER"; then
+    docker container restart "$CONTAINER"
   else
-    docker volume create --label "$LABEL" "$GITCD_VOLUME_NAME"
+    docker run --name "$CONTAINER" \
+      -d --restart=unless-stopped \
+      --label "$LABEL" \
+      $DOCKER_RUN_ARGS \
+      -v "${VOLUME}:/var/lib/etcd" \
+      -u 0 \
+      --entrypoint "" \
+      $ETCD_IMG etcd \
+        --initial-cluster-token "$CLUSTER_TOKEN" \
+        --data-dir=/var/lib/etcd
+  fi
+}
 
+function start_gitcd {
+  local PORT="$1"
+  local CONTAINER_PREFIX="$2"
+  local REMOTE_REPO="$3"
+  local DATA_BRANCH="$4"
+  local MERGE_CONFLICT_RESOLUTIONS="$5"
+  local NETWORK_ARGS="$6"
+  local CONTAINER="${CONTAINER_PREFIX}${DATA_BRANCH}"
+  local VOLUME="${CONTAINER}"
+  local METADATA_BRANCH="gitcd/metadata/${DATA_BRANCH}"
+  local DATA_REF="refs/heads/${DATA_BRANCH}"
+  local METADATA_REF="refs/heads/${METADATA_BRANCH}"
+  local REMOTE="origin"
+  local REMOTE_DATA_BRANCH="${REMOTE}/${DATA_BRANCH}"
+  local REMOTE_METADATA_BRANCH="${REMOTE}/${METADATA_BRANCH}"
+  local REMOTE_DATA_REF="refs/remotes/${REMOTE_DATA_BRANCH}"
+  local REMOTE_METADATA_REF="refs/remotes/${REMOTE_METADATA_BRANCH}"
+  local ENTRYPOINT_VOLUME="${CONTAINER}-entrypoint"
+
+  create_volume_if_not_exists "$VOLUME"
+  if container_exists "$CONTAINER"; then
+    docker container restart "$CONTAINER"
+  else
     cat <<EOF | \
-      docker run --name "$GITCD_CONTAINER_NAME" \
+      docker run --name "$CONTAINER" \
         -i --rm \
         --label "$LABEL" \
-        -v "${GITCD_VOLUME_NAME}:/backend" \
+        -v "${VOLUME}:/backend" \
         -v "${SECRETS_VOLUME_NAME}:/secrets" \
         $GIT_IMG bash
 for file in /secrets/.gitconfig /secrets/.git-credentials; do
   ln -s \$file ~/\$(basename \$file)
 done
+
 git clone $REMOTE_REPO /backend
-EOF
-  
-    cat << EOF | \
-      docker run --name "$GITCD_CONTAINER_NAME" \
-        -i --rm \
-        --label "$LABEL" \
-        -v "${GITCD_VOLUME_NAME}:/backend" \
-        -v "${SECRETS_VOLUME_NAME}:/secrets" \
-        -w /backend \
-        $GIT_IMG bash
-for file in /secrets/.gitconfig /secrets/.git-credentials; do
-  ln -s \$file ~/\$(basename \$file)
-done
+
+cd /backend
 
 function prepare_branch {
   local BRANCH="\$1"
@@ -120,17 +150,16 @@ function prepare_branch {
   fi
 }
 
-prepare_branch "$DATA_BRANCH_NAME" "$REMOTE_DATA_BRANCH_NAME" "${REMOTE_NAME}/${DATA_BRANCH_BLANK}" "$REMOTE_NAME"
-prepare_branch "$METADATA_BRANCH_NAME" "$REMOTE_METADATA_BRANCH_NAME" "${REMOTE_NAME}/${METADATA_BRANCH_BLANK}" "$REMOTE_NAME"
+prepare_branch "$DATA_BRANCH" "$REMOTE_DATA_BRANCH" "${REMOTE}/${DATA_BRANCH_BLANK}" "$REMOTE"
+prepare_branch "$METADATA_BRANCH" "$REMOTE_METADATA_BRANCH" "${REMOTE}/${METADATA_BRANCH_BLANK}" "$REMOTE"
 EOF
 
-    docker volume create --label "$LABEL" "$ENTRYPOINT_VOLUME_NAME"
-
+    create_volume_if_not_exists "$ENTRYPOINT_VOLUME"
     cat <<EOF | \
-      docker run --name "$GITCD_CONTAINER_NAME" \
+      docker run --name "$CONTAINER" \
         -i --rm \
         --label "$LABEL" \
-        -v "${ENTRYPOINT_VOLUME_NAME}:/entrypoint" \
+        -v "${ENTRYPOINT_VOLUME}:/entrypoint" \
         $BUSYBOX_IMG sh
 cat <<INNER_EOF > /entrypoint/entrypoint.sh
 #!/bin/sh
@@ -142,34 +171,55 @@ done
 
 exec /gitcd serve \
   --repo=/backend \
-  --data-reference-names=default=${DATA_REF_NAME} \
-  --metadata-reference-names=default=${METADATA_REF_NAME} \
+  --data-reference-names=default=${DATA_REF} \
+  --metadata-reference-names=default=${METADATA_REF} \
   --key-prefixes=default=/registry \
   --pull-ticker-duration=20s \
   --push-after-merges=default=true \
   --merge-conflict-resolutions=${MERGE_CONFLICT_RESOLUTIONS} \
-  --remote-names=default=${REMOTE_NAME} \
-  --remote-data-reference-names=default=${REMOTE_DATA_REF_NAME} \
-  --remote-meta-reference-names=default=${REMOTE_METADATA_REF_NAME}
+  --remote-names=default=${REMOTE} \
+  --remote-data-reference-names=default=${REMOTE_DATA_REF} \
+  --remote-meta-reference-names=default=${REMOTE_METADATA_REF} \
+  --listen-urls=default=http://0.0.0.0:${PORT}/ \
+  --advertise-client-urls=default=http://127.0.0.1:${PORT}/
 INNER_EOF
 
 chmod +x /entrypoint/entrypoint.sh
 EOF
 
-    docker run --name "$GITCD_CONTAINER_NAME" \
+    docker run --name "$CONTAINER" \
       -d --restart=unless-stopped \
       --label "$LABEL" \
-      $DOCKER_RUN_ARGS \
-      -v "${GITCD_VOLUME_NAME}:/backend" \
+      ${NETWORK_ARGS} \
+      -v "${VOLUME}:/backend" \
       -v "${SECRETS_VOLUME_NAME}:/secrets" \
-      -v "${ENTRYPOINT_VOLUME_NAME}:/entrypoint" \
+      -v "${ENTRYPOINT_VOLUME}:/entrypoint" \
       --entrypoint= \
       $GITCD_IMG /entrypoint/entrypoint.sh
+  fi
+}
 
-    if [ "$LOCAL_IP" == "" ]; then
-      LOCAL_IP="127.0.0.1"
-    fi
+function start_apiserver {
+  local CONTAINER_PREFIX="$1"
+  local DATA_BRANCH="$2"
+  local MERGE_CONFLICT_RESOLUTIONS="$3"
+  local DOCKER_RUN_ARGS="$4"
+  local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${DATA_BRANCH}"
+  local GITCD_CONTAINER_PREFIX="$CONTAINER_PREFIX"
+  local NETWORK_ARGS="--network=container:${ETCD_EVENTS_CONTAINER}"
+  local APISERVER_CONTAINER="${CONTAINER_PREFIX}kube-apiserver-${DATA_BRANCH}"
 
+  start_etcd "$ETCD_EVENTS_CONTAINER" "$DATA_BRANCH" "$DOCKER_RUN_ARGS"
+  start_gitcd "2479" "${GITCD_CONTAINER_PREFIX}the-rest-" "$REPO_THE_REST" "main" "default=2" "$NETWORK_ARGS"
+  # start_gitcd "2579" "${GITCD_CONTAINER_PREFIX}nodes-" "$REPO_NODES" "main" "default=2" "$NETWORK_ARGS"
+  # start_gitcd "2679" "${GITCD_CONTAINER_PREFIX}leases-" "$REPO_LEASES" "main" "default=2" "$NETWORK_ARGS"
+  # start_gitcd "2779" "${GITCD_CONTAINER_PREFIX}priorityclasses-" "$REPO_PRIORITYCLASSES" "main" "default=2" "$NETWORK_ARGS"
+  # start_gitcd "2879" "${GITCD_CONTAINER_PREFIX}pods-" "$REPO_PODS" "main" "default=2" "$NETWORK_ARGS"
+  # start_gitcd "2979" "${GITCD_CONTAINER_PREFIX}configmaps-" "$REPO_CONFIGMAPS" "main" "default=2" "$NETWORK_ARGS"
+
+  if container_exists "$APISERVER_CONTAINER"; then
+    docker container restart "$APISERVER_CONTAINER"
+  else
     if [ "$INTERNAL_IP" == "" ]; then
       INTERNAL_IP="$(ifconfig | awk '/inet / {split($2,var,"/*"); print var[1]}' | grep -v 127.0.0.1 | head -n 1)"
     fi
@@ -178,17 +228,17 @@ EOF
       KUBERNETES_PUBLIC_ADDRESS="$INTERNAL_IP"
     fi
 
-    docker run --name $APISERVER_CONTAINER_NAME \
-      -d --restart=unless-stopped \
+    docker run --name "$APISERVER_CONTAINER" \
+      -d --restart=no \
       --label "$LABEL" \
-      "--network=container:$GITCD_CONTAINER_NAME" \
+      "$NETWORK_ARGS" \
       -v ${SECRETS_VOLUME_NAME}:/secrets \
       --entrypoint "" \
       $KUBE_APISERVER_IMG \
       kube-apiserver \
         --advertise-address=${INTERNAL_IP} \
         --allow-privileged=true \
-        --apiserver-count=3 \
+        --apiserver-count=1 \
         --audit-log-maxage=30 \
         --audit-log-maxbackup=3 \
         --audit-log-maxsize=100 \
@@ -197,15 +247,18 @@ EOF
         --bind-address=0.0.0.0 \
         --client-ca-file=/secrets/ca.pem \
         --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota \
-        --etcd-cafile=/secrets/ca.pem \
-        --etcd-certfile=/secrets/kubernetes.pem \
+        --enable-garbage-collector=false \
         --etcd-compaction-interval=0 \
-        --etcd-keyfile=/secrets/kubernetes-key.pem \
-        --etcd-servers=http://${LOCAL_IP}:2379 \
+        --etcd-count-metric-poll-period=0 \
+        --etcd-db-metric-poll-interval=0 \
+        --etcd-healthcheck-timeout=10s \
+        --etcd-servers=http://127.0.0.1:2479 \
+        --etcd-servers-overrides=/events#http://127.0.0.1:2379 \
         --event-ttl=1h \
         --kubelet-certificate-authority=/secrets/ca.pem \
         --kubelet-client-certificate=/secrets/kubernetes.pem \
         --kubelet-client-key=/secrets/kubernetes-key.pem \
+        --lease-reuse-duration-seconds=120 \
         --runtime-config='api/all=true' \
         --service-account-key-file=/secrets/service-account.pem \
         --service-account-signing-key-file=/secrets/service-account-key.pem \
@@ -222,5 +275,5 @@ EOF
 }
 
 # store_repo_credentials
-start_apiserver_with_gitcd "trishanku-the-hard-way-main-" "main" "default=2" "-p 6443:6443"
+start_apiserver "trishanku-the-hard-way-" "main" "default=2" "-p 2379-2380 -p 6443:6443"
 # start_apiserver_with_gitcd "trishanku-the-hard-way-test-" "test" "default=2"

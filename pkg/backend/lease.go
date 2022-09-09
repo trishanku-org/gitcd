@@ -31,8 +31,8 @@ func (l *leaseImpl) LeaseGrant(ctx context.Context, req *etcdserverpb.LeaseGrant
 		perf = perfCounter()
 	)
 
-	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
+	log.V(-1).Info("lease received", "request", req)
+	defer func() { log.V(-1).Info("lease returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	l.backend.RLock()
 	defer l.backend.RUnlock()

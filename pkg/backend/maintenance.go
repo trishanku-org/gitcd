@@ -50,8 +50,8 @@ func (m *maintenanceImpl) Status(ctx context.Context, req *etcdserverpb.StatusRe
 		perf = perfCounter()
 	)
 
-	log.V(-1).Info("received", "request", req)
-	defer func() { log.V(-1).Info("returned", "response", res, "error", err, "duration", perf().String()) }()
+	log.V(-1).Info("status received", "request", req)
+	defer func() { log.V(-1).Info("status returned", "response", res, "error", err, "duration", perf().String()) }()
 
 	b.RLock()
 	defer b.RUnlock()
