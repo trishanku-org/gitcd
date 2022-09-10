@@ -259,7 +259,7 @@ func (p *puller) push(ctx context.Context) (err error) {
 
 	defer remote.Close()
 
-	p.log.Info("Fetching", "refSpecs", refSpecs)
+	p.log.Info("Pushing", "refSpecs", refSpecs)
 
 	err = remote.Push(ctx, refSpecs)
 
