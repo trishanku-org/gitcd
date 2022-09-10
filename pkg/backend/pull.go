@@ -116,6 +116,20 @@ func (pullOpts) WithPushAfterMerge(pushAfterMerge bool) PullOptionFunc {
 	}
 }
 
+func (pullOpts) WithDataPushRefSpec(dataPushRefSpec git.RefSpec) PullOptionFunc {
+	return func(p *puller) error {
+		p.dataPushRefSpec = dataPushRefSpec
+		return nil
+	}
+}
+
+func (pullOpts) WithMetadataPushRefSpec(metadataPushRefSpec git.RefSpec) PullOptionFunc {
+	return func(p *puller) error {
+		p.metadataPushRefSpec = metadataPushRefSpec
+		return nil
+	}
+}
+
 func (pullOpts) WithTicker(ticker <-chan time.Time) PullOptionFunc {
 	return func(p *puller) error {
 		p.ticker = ticker
@@ -168,6 +182,9 @@ type puller struct {
 	noFetch        bool
 	pushAfterMerge bool
 
+	dataPushRefSpec     git.RefSpec
+	metadataPushRefSpec git.RefSpec
+
 	ticker <-chan time.Time
 	log    logr.Logger
 }
@@ -188,7 +205,7 @@ func (p *puller) getRemote(ctx context.Context) (r git.Remote, err error) {
 	return
 }
 
-func (p *puller) getRefSpecs() (refSpecs []git.RefSpec, err error) {
+func (p *puller) getFetchRefSpecs() (refSpecs []git.RefSpec, err error) {
 	var dataRefName, metaRefName git.ReferenceName
 
 	for _, s := range []struct {
@@ -224,7 +241,7 @@ func (p *puller) fetch(ctx context.Context) (err error) {
 	p.backend.RLock()
 	defer p.backend.RUnlock()
 
-	if refSpecs, err = p.getRefSpecs(); err != nil {
+	if refSpecs, err = p.getFetchRefSpecs(); err != nil {
 		return
 	}
 
@@ -240,6 +257,32 @@ func (p *puller) fetch(ctx context.Context) (err error) {
 	return
 }
 
+func (p *puller) getPushRefSpecs() (refSpecs []git.RefSpec, err error) {
+	for _, s := range []struct {
+		refSpec          git.RefSpec
+		defaultRefNameFn func() (git.ReferenceName, error)
+	}{
+		{refSpec: p.dataPushRefSpec, defaultRefNameFn: p.backend.getDataRefName},
+		{refSpec: p.metadataPushRefSpec, defaultRefNameFn: p.backend.getMetadataRefName},
+	} {
+		var refSpec = s.refSpec
+
+		if len(refSpec) <= 0 {
+			var refName git.ReferenceName
+
+			if refName, err = s.defaultRefNameFn(); err != nil {
+				return
+			}
+
+			refSpec = git.RefSpec(refName)
+		}
+
+		refSpecs = append(refSpecs, refSpec)
+	}
+
+	return
+}
+
 func (p *puller) push(ctx context.Context) (err error) {
 	var (
 		remote   git.Remote
@@ -249,7 +292,7 @@ func (p *puller) push(ctx context.Context) (err error) {
 	p.backend.RLock()
 	defer p.backend.RUnlock()
 
-	if refSpecs, err = p.getRefSpecs(); err != nil {
+	if refSpecs, err = p.getPushRefSpecs(); err != nil {
 		return
 	}
 

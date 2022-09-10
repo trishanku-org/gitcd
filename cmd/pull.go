@@ -123,6 +123,8 @@ type commonPullerInfo interface {
 	NoFastForward() *bool
 	NoFetch() *bool
 	PushAfterMerge() *bool
+	DataPushRefSpec() *git.RefSpec
+	MetadataPushRefSpec() *git.RefSpec
 }
 
 type pullerInfo struct {
@@ -131,6 +133,7 @@ type pullerInfo struct {
 	mergeConflictResolution                                        git.MergeConfictResolution
 	mergeRetentionPolicy                                           git.MergeRetentionPolicy
 	noFastForward, noFetch, pushAfterMerge                         bool
+	dataPushRefSpec, metadataPushRefSpec                           git.RefSpec
 }
 
 var _ commonPullerInfo = (*pullerInfo)(nil)
@@ -144,6 +147,8 @@ func (p *pullerInfo) MergeRetentionPolicy() *git.MergeRetentionPolicy { return &
 func (p *pullerInfo) NoFastForward() *bool                            { return &p.noFastForward }
 func (p *pullerInfo) NoFetch() *bool                                  { return &p.noFetch }
 func (p *pullerInfo) PushAfterMerge() *bool                           { return &p.pushAfterMerge }
+func (p *pullerInfo) DataPushRefSpec() *git.RefSpec                   { return &p.dataPushRefSpec }
+func (p *pullerInfo) MetadataPushRefSpec() *git.RefSpec               { return &p.metadataPushRefSpec }
 
 func (p *pullerInfo) MergeConflictResolution() *git.MergeConfictResolution {
 	return &p.mergeConflictResolution
@@ -284,6 +289,8 @@ type commonPullFlags interface {
 	getNoFastForwards() *map[string]string
 	getNoFetches() *map[string]string
 	getPushAfterMerges() *map[string]string
+	getDataPushRefSpecs() *map[string]string
+	getMetadataPushRefSpecs() *map[string]string
 }
 
 const (
@@ -356,6 +363,19 @@ func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
 		map[string]string{"default": strconv.FormatBool(defaultPushAfterMerges)},
 		"Enable this if backend data and metadata should be pushed to remotes after merging merging from remotes.",
 	)
+
+	flags.StringToStringVar(
+		commonFlags.getDataPushRefSpecs(),
+		"data-push-refspecs",
+		nil,
+		"Git refspecs to use while pushing data reference to remote. By default, --data-reference-names configuration is used as if push.default=simple was configured.",
+	)
+	flags.StringToStringVar(
+		commonFlags.getDataPushRefSpecs(),
+		"metadata-push-refspecs",
+		nil,
+		"Git refspecs to use while pushing metadata reference to remote. By default, --metadata-reference-names configuration is used as if push.default=simple was configured.",
+	)
 }
 
 type pullFlagsImpl struct {
@@ -371,6 +391,8 @@ type pullFlagsImpl struct {
 	noFastForwards                         map[string]string
 	noFetch                                map[string]string
 	pushAfterMerges                        map[string]string
+	dataPushRefSpecs                       map[string]string
+	metadataPushRefSpecs                   map[string]string
 }
 
 var (
@@ -396,12 +418,14 @@ func (p *pullFlagsImpl) getCommitterEmail() *string          { return &p.committ
 func (p *pullFlagsImpl) getDataRefNames() *map[string]string { return &p.dataRefNames }
 func (p *pullFlagsImpl) getMetaRefNames() *map[string]string { return &p.metaRefNames }
 
-func (p *pullFlagsImpl) getRemoteNames() *map[string]string        { return &p.remoteNames }
-func (p *pullFlagsImpl) getRemoteDataRefNames() *map[string]string { return &p.remoteDataRefNames }
-func (p *pullFlagsImpl) getRemoteMetaRefNames() *map[string]string { return &p.remoteMetaRefNames }
-func (p *pullFlagsImpl) getNoFastForwards() *map[string]string     { return &p.noFastForwards }
-func (p *pullFlagsImpl) getNoFetches() *map[string]string          { return &p.noFetch }
-func (p *pullFlagsImpl) getPushAfterMerges() *map[string]string    { return &p.pushAfterMerges }
+func (p *pullFlagsImpl) getRemoteNames() *map[string]string          { return &p.remoteNames }
+func (p *pullFlagsImpl) getRemoteDataRefNames() *map[string]string   { return &p.remoteDataRefNames }
+func (p *pullFlagsImpl) getRemoteMetaRefNames() *map[string]string   { return &p.remoteMetaRefNames }
+func (p *pullFlagsImpl) getNoFastForwards() *map[string]string       { return &p.noFastForwards }
+func (p *pullFlagsImpl) getNoFetches() *map[string]string            { return &p.noFetch }
+func (p *pullFlagsImpl) getPushAfterMerges() *map[string]string      { return &p.pushAfterMerges }
+func (p *pullFlagsImpl) getDataPushRefSpecs() *map[string]string     { return &p.dataPushRefSpecs }
+func (p *pullFlagsImpl) getMetadataPushRefSpecs() *map[string]string { return &p.metadataPushRefSpecs }
 
 func (p *pullFlagsImpl) getMergeConflictResolutions() *map[string]string {
 	return &p.mergeConflictResolutions
