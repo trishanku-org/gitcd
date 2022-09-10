@@ -209,7 +209,7 @@ func (p *puller) getRefSpecs() (refSpecs []git.RefSpec, err error) {
 		{src: dataRefName, dst: p.remoteDataRefName},
 		{src: metaRefName, dst: p.remoteMetaRefName},
 	} {
-		refSpecs = append(refSpecs, git.RefSpec(fmt.Sprintf("%s:%s", s.src, s.dst)))
+		refSpecs = append(refSpecs, git.RefSpec(fmt.Sprintf("+%s:%s", s.src, s.dst)))
 	}
 
 	return
