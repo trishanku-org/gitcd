@@ -12,7 +12,7 @@ LABEL="trishanku=the-hard-way"
 GIT_IMG=bitnami/git:2
 GITCD_IMG=trishanku/gitcd:latest
 ETCD_IMG=bitnami/etcd:3
-DATA_BRANCH_BLANK="main"
+DATA_BRANCH_BLANK="blank"
 METADATA_BRANCH_BLANK="gitcd/metadata/${DATA_BRANCH_BLANK}"
 
 KUBE_VERSION=v1.24.4
@@ -175,7 +175,7 @@ exec /gitcd serve \
   --metadata-reference-names=default=${METADATA_REF} \
   --key-prefixes=default=/registry \
   --pull-ticker-duration=20s \
-  --push-after-merges=default=true \
+  --push-after-merges=default=false \
   --merge-conflict-resolutions=${MERGE_CONFLICT_RESOLUTIONS} \
   --remote-names=default=${REMOTE} \
   --remote-data-reference-names=default=${REMOTE_DATA_REF} \
@@ -254,7 +254,7 @@ function start_apiserver {
         --etcd-db-metric-poll-interval=0 \
         --etcd-healthcheck-timeout=10s \
         --etcd-servers=http://127.0.0.1:2479 \
-        --etcd-servers-overrides=/events#http://127.0.0.1:2379,coordination.k8s.io/leases#http://127.0.0.1:2379 \
+        --etcd-servers-overrides=/events#http://127.0.0.1:2379 \
         --event-ttl=1h \
         --kubelet-certificate-authority=/secrets/ca.pem \
         --kubelet-client-certificate=/secrets/kubernetes.pem \
