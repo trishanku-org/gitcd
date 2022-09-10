@@ -277,7 +277,9 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 	)
 
 	defer func() {
-		if ctx.Err() != nil || (!eventsLoaded && err != nil) { // Watches are canceled properly in dispatchEvents.
+		// TODO test
+		if ctx.Err() != nil || (!eventsLoaded && err != nil && !errors.Is(err, rpctypes.ErrGRPCFutureRev)) {
+			// Watches are canceled properly in dispatchEvents.
 			rw.cancelAllWatches(ctx, err)
 		}
 	}()
@@ -793,13 +795,10 @@ func (ws *watchServer) unregisterWatch(w watch) {
 }
 
 func (ws *watchServer) sendCancels(ctx context.Context) {
-	var log = ws.mgr.log.WithName("sendCancels")
-
 	for {
 		var (
-			w   *watchImpl
-			ok  bool
-			err error
+			w  *watchImpl
+			ok bool
 		)
 
 		select {
@@ -814,11 +813,7 @@ func (ws *watchServer) sendCancels(ctx context.Context) {
 				continue
 			}
 
-			if err = ws.sendCancel(ctx, w); err != nil {
-				log.Error(err, "Error sending watch cancel request", "watchId", w.WatchId())
-			}
-
-			log.Info("Sent watch cancel request", "watchId", w.WatchId())
+			ws.sendCancel(ctx, w) // Error is already logged.
 		}
 	}
 }
@@ -830,6 +825,8 @@ func (ws *watchServer) sendCancel(ctx context.Context, w *watchImpl) (err error)
 		watchCtxErr    error
 		cancelHeader   *etcdserverpb.ResponseHeader
 		cancelReason   string
+
+		log = ws.mgr.log.WithName("sendCancel")
 	)
 
 	if w == nil {
@@ -861,6 +858,10 @@ func (ws *watchServer) sendCancel(ctx context.Context, w *watchImpl) (err error)
 	if w.cancelSent {
 		return
 	}
+
+	defer func() {
+		log.Info("Sent cancel", "watch request", w.req, "cancelSent", w.cancelSent, "cancelReason", cancelReason, "error", err)
+	}()
 
 	if watchCtxErr = w.ctx.Err(); watchCtxErr == nil {
 		return // Send cancel only if context is done.

@@ -181,7 +181,8 @@ exec /gitcd serve \
   --remote-data-reference-names=default=${REMOTE_DATA_REF} \
   --remote-meta-reference-names=default=${REMOTE_METADATA_REF} \
   --listen-urls=default=http://0.0.0.0:${PORT}/ \
-  --advertise-client-urls=default=http://127.0.0.1:${PORT}/
+  --advertise-client-urls=default=http://127.0.0.1:${PORT}/ \
+  --watch-dispatch-channel-size=50
 INNER_EOF
 
 chmod +x /entrypoint/entrypoint.sh
@@ -253,13 +254,12 @@ function start_apiserver {
         --etcd-db-metric-poll-interval=0 \
         --etcd-healthcheck-timeout=10s \
         --etcd-servers=http://127.0.0.1:2479 \
-        --etcd-servers-overrides=/events#http://127.0.0.1:2379 \
+        --etcd-servers-overrides=/events#http://127.0.0.1:2379,coordination.k8s.io/leases#http://127.0.0.1:2379 \
         --event-ttl=1h \
         --kubelet-certificate-authority=/secrets/ca.pem \
         --kubelet-client-certificate=/secrets/kubernetes.pem \
         --kubelet-client-key=/secrets/kubernetes-key.pem \
         --lease-reuse-duration-seconds=120 \
-        --runtime-config='api/all=true' \
         --service-account-key-file=/secrets/service-account.pem \
         --service-account-signing-key-file=/secrets/service-account-key.pem \
         --service-account-issuer=https://${KUBERNETES_PUBLIC_ADDRESS}:6443 \
