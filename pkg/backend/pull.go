@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path"
 	"reflect"
 	"time"
@@ -187,11 +188,45 @@ func (p *puller) getRemote(ctx context.Context) (r git.Remote, err error) {
 	return
 }
 
+func (p *puller) getRefSpecs() (refSpecs []git.RefSpec, err error) {
+	var dataRefName, metaRefName git.ReferenceName
+
+	for _, s := range []struct {
+		pRefName *git.ReferenceName
+		fn       func() (git.ReferenceName, error)
+	}{
+		{pRefName: &dataRefName, fn: p.backend.getDataRefName},
+		{pRefName: &metaRefName, fn: p.backend.getMetadataRefName},
+	} {
+		if *s.pRefName, err = s.fn(); err != nil {
+			return
+		}
+	}
+
+	for _, s := range []struct {
+		src, dst git.ReferenceName
+	}{
+		{src: dataRefName, dst: p.remoteDataRefName},
+		{src: metaRefName, dst: p.remoteMetaRefName},
+	} {
+		refSpecs = append(refSpecs, git.RefSpec(fmt.Sprintf("%s:%s", s.src, s.dst)))
+	}
+
+	return
+}
+
 func (p *puller) fetch(ctx context.Context) (err error) {
-	var remote git.Remote
+	var (
+		remote   git.Remote
+		refSpecs []git.RefSpec
+	)
 
 	p.backend.RLock()
 	defer p.backend.RUnlock()
+
+	if refSpecs, err = p.getRefSpecs(); err != nil {
+		return
+	}
 
 	if remote, err = p.getRemote(ctx); err != nil {
 		return
@@ -199,15 +234,24 @@ func (p *puller) fetch(ctx context.Context) (err error) {
 
 	defer remote.Close()
 
-	err = remote.Fetch(ctx, nil)
+	p.log.Info("Fetching", "refSpecs", refSpecs)
+
+	err = remote.Fetch(ctx, refSpecs)
 	return
 }
 
 func (p *puller) push(ctx context.Context) (err error) {
-	var remote git.Remote
+	var (
+		remote   git.Remote
+		refSpecs []git.RefSpec
+	)
 
 	p.backend.RLock()
 	defer p.backend.RUnlock()
+
+	if refSpecs, err = p.getRefSpecs(); err != nil {
+		return
+	}
 
 	if remote, err = p.getRemote(ctx); err != nil {
 		return
@@ -215,7 +259,10 @@ func (p *puller) push(ctx context.Context) (err error) {
 
 	defer remote.Close()
 
-	err = remote.Push(ctx, nil)
+	p.log.Info("Fetching", "refSpecs", refSpecs)
+
+	err = remote.Push(ctx, refSpecs)
+
 	return
 }
 
