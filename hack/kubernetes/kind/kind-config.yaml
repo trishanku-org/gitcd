@@ -9,7 +9,7 @@ nodes:
     apiServer:
       extraArgs:
         etcd-compaction-interval: "0"
-        etcd-servers-overrides: "/events#http://192.168.1.7:2379,/nodes#http://192.168.1.7:2579,coordination.k8s.io/leases#http://192.168.1.7:2679,scheduling.k8s.io/priorityclasses#http://192.168.1.7:2779,/pods#http://192.168.1.7:2879,/configmaps#http://192.168.1.7:2979"
+        etcd-servers-overrides: "/events#http://192.168.1.11:2379"
         # max-requests-inflight: "0"
         # max-mutating-requests-inflight: "0"
         storage-media-type: application/yaml
@@ -17,6 +17,6 @@ nodes:
     etcd:
       external:
         endpoints:
-        - http://192.168.1.7:2479
+        - http://192.168.1.11:2479
       local: ~
     timeoutForControlPlane: 10m

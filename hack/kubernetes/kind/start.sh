@@ -193,7 +193,7 @@ function kind_create_cluster {
     echo
     echo 'Creating a local Kubernetes cluster using Kind configuration in ./hack/kube/kind-config.yaml.'
 
-    kind create cluster --config ./hack/kube/kind-config.yaml --verbosity=0 --retain
+    kind create cluster --config ./hack/kubernetes/kind/kind-config.yaml --verbosity=0 --retain
 }
 
 # start_etcd /tmp/trishanku/etcd-events
@@ -202,10 +202,10 @@ function kind_create_cluster {
 # start_gitcd /tmp/trishanku/gitcd-leases 2679
 start_etcd_container etcd-events 2379
 start_gitcd_container gitcd-main main/2479
-start_gitcd_container gitcd-nodes nodes/2579
-start_gitcd_container gitcd-leases leases/2679
-start_gitcd_container gitcd-priorityclasses priorityclasses/2779
-start_gitcd_container gitcd-pods pods/2879
-start_gitcd_container gitcd-configmaps configmaps/2979
+# start_gitcd_container gitcd-nodes nodes/2579
+# start_gitcd_container gitcd-leases leases/2679
+# start_gitcd_container gitcd-priorityclasses priorityclasses/2779
+# start_gitcd_container gitcd-pods pods/2879
+# start_gitcd_container gitcd-configmaps configmaps/2979
 # start_gitcd_container gitcd main/2479 nodes/2579 leases/2679 priorityclasses/2779 pods/2879 configmaps/2979
 kind_create_cluster
