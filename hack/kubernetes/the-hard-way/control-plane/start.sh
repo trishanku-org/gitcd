@@ -6,8 +6,8 @@ ETCD_NAME="kubernetes-the-hard-way"
 ETCD_CONTAINER_NAME=etcd
 ETCD_IMG=bitnami/etcd:3
 
-KUBE_VERSION=v1.21.14
-KUBECTL_IMG=bitnami/kubectl:1.21.14
+KUBE_VERSION=v1.24.4
+KUBECTL_IMG=bitnami/kubectl:1.24.4
 KUBE_IMG_BASE=k8s.gcr.io
 KUBE_APISERVER_IMG=${KUBE_IMG_BASE}/kube-apiserver:${KUBE_VERSION}
 KUBE_CONTROLLER_MANAGER_IMG=${KUBE_IMG_BASE}/kube-controller-manager:${KUBE_VERSION}

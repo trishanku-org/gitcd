@@ -61,10 +61,16 @@ CRED_SPEC_EOF
 EOF
 }
 
+function volume_exists {
+  local VOLUME="$1"
+
+  docker volume inspect "$VOLUME" > /dev/null 2>&1
+}
+
 function create_volume_if_not_exists {
   local VOLUME="$1"
 
-  docker volume inspect "$VOLUME" > /dev/null 2>&1 || docker volume create --label "$LABEL" "$VOLUME"
+  volume_exists "$VOLUME" || docker volume create --label "$LABEL" "$VOLUME"
 }
 
 function container_exists {
@@ -271,9 +277,117 @@ function start_apiserver {
         --v=2 \
         --watch-cache=false
 
+    echo "Waiting 10s for kube-apiserver to start up..." && sleep 10
+
+    docker run --name kubectl \
+      --rm  \
+      --label "$LABEL" \
+      "$NETWORK_ARGS" \
+      -v "${SECRETS_VOLUME_NAME}:/secrets" \
+      -u 0 \
+      $KUBECTL_IMG cluster-info \
+        --kubeconfig=/secrets/admin.kubeconfig
+
+    echo -n "Waiting 10s for gitcd to pull and push changes ones up..." && sleep 10 && echo
   fi
+}
+
+function start_kube_controller_manager {
+  local CONTAINER_PREFIX="$1"
+  local DATA_BRANCH="$2"
+  local DOCKER_RUN_ARGS="$3"
+  local CONTAINER="${CONTAINER_PREFIX}kube-controller-manager-${DATA_BRANCH}"
+
+  if container_exists "$CONTAINER"; then
+    docker container restart "$CONTAINER"
+  else
+    docker run --name $CONTAINER \
+      -d --restart=unless-stopped \
+      --label "$LABEL" \
+      $DOCKER_RUN_ARGS \
+      -v ${SECRETS_VOLUME_NAME}:/secrets \
+      --entrypoint "" \
+      $KUBE_CONTROLLER_MANAGER_IMG \
+      kube-controller-manager \
+        --bind-address=0.0.0.0 \
+        --cluster-cidr=10.200.0.0/16 \
+        --cluster-name=kubernetes \
+        --cluster-signing-cert-file=/secrets/ca.pem \
+        --cluster-signing-key-file=/secrets/ca-key.pem \
+        --kubeconfig=/secrets/kube-controller-manager.kubeconfig \
+        --leader-elect=false \
+        --root-ca-file=/secrets/ca.pem \
+        --service-account-private-key-file=/secrets/service-account-key.pem \
+        --service-cluster-ip-range=10.32.0.0/24 \
+        --use-service-account-credentials=true \
+        --concurrent-deployment-syncs=1 \
+        --concurrent-endpoint-syncs=1 \
+        --concurrent-service-endpoint-syncs=1 \
+        --concurrent-gc-syncs=1 \
+        --concurrent-namespace-syncs=1 \
+        --concurrent-replicaset-syncs=1 \
+        --concurrent-rc-syncs=1 \
+        --concurrent-resource-quota-syncs=1 \
+        --concurrent-service-syncs=1 \
+        --concurrent-serviceaccount-token-syncs=1 \
+        --concurrent-statefulset-syncs=1 \
+        --concurrent-ttl-after-finished-syncs=1 \
+        --v=2
+  fi
+}
+
+function start_kube_scheduler {
+  local CONTAINER_PREFIX="$1"
+  local DATA_BRANCH="$2"
+  local DOCKER_RUN_ARGS="$3"
+  local CONTAINER="${CONTAINER_PREFIX}kube-scheduler-${DATA_BRANCH}"
+  local VOLUME="$CONTAINER"
+  local SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
+  local DIRNAME=$(dirname "$SOURCE_PATH")
+
+  volume_exists "$VOLUME" || (docker volume create --label "$LABEL" "$VOLUME" && \
+    docker run --name busybox \
+      --rm \
+      --label "$LABEL" \
+      -v "${DIRNAME}/configs:/configs-src" \
+      -v "${VOLUME}:/configs-dst" \
+      $BUSYBOX_IMG \
+        cp /configs-src/kube-scheduler.yaml /configs-dst)
+
+  if container_exists "$CONTAINER"; then
+    docker container restart "$CONTAINER"
+  else
+    docker run --name "$CONTAINER" \
+      -d --restart=unless-stopped \
+      --label "$LABEL" \
+      $DOCKER_RUN_ARGS \
+      -v ${SECRETS_VOLUME_NAME}:/secrets \
+      -v ${VOLUME}:/configs \
+      --entrypoint "" \
+      $KUBE_SCHEDULER_IMG \
+      kube-scheduler \
+        --config=/configs/kube-scheduler.yaml \
+        --v=2
+  fi
+}
+
+function apply_kubelet_rbac {
+  local SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
+  local DIRNAME=$(dirname "$SOURCE_PATH")
+
+  cat "${DIRNAME}/configs/kubelet-rbac.yaml" | \
+  docker run --name kubelet \
+    -i --rm  \
+    -v "${SECRETS_VOLUME_NAME}:/secrets" \
+    -u 0 \
+    $KUBECTL_IMG apply \
+      -f - \
+      --kubeconfig=/secrets/admin.kubeconfig
 }
 
 # store_repo_credentials
 start_apiserver "trishanku-the-hard-way-" "main" "default=2" "-p 2379-2380 -p 6443:6443"
 # start_apiserver_with_gitcd "trishanku-the-hard-way-test-" "test" "default=2"
+start_kube_controller_manager "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
+start_kube_scheduler "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
+apply_kubelet_rbac
