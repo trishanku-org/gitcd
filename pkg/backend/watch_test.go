@@ -922,7 +922,7 @@ var _ = Describe("revisionWatcher", func() {
 						metaRefName:                    "refs/gitcd/metadata/main",
 						revision:                       revision2,
 						metaHead:                       mh,
-						matchErr:                       Succeed(),
+						matchErr:                       PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
 						matchMetaRootDefPtr:            PointTo(GetTreeDefMatcher(&mh.Parents[0].Tree)),
 						matchMetaPredecessorRootDefPtr: BeNil(),
 					}
@@ -1162,7 +1162,7 @@ var _ = Describe("revisionWatcher", func() {
 					metaHead:                       mh,
 					matchErr:                       Succeed(),
 					matchMetaRootDefPtr:            PointTo(GetTreeDefMatcher(&mh.Parents[2].Tree)),
-					matchMetaPredecessorRootDefPtr: BeNil(),
+					matchMetaPredecessorRootDefPtr: PointTo(GetTreeDefMatcher(&mh.Parents[2].Parents[1].Tree)),
 				},
 				{
 					metaRefName:                    "refs/gitcd/metadata/main",
@@ -2032,6 +2032,14 @@ var _ = Describe("revisionWatcher", func() {
 							Value:          []byte("shallow-update-mod-unmodified-1"),
 							Version:        revision2,
 						},
+						PrevKv: &mvccpb.KeyValue{
+							Key:            []byte("shallow-update-mod-unmodified"),
+							CreateRevision: revision1,
+							Lease:          revision1,
+							ModRevision:    revision1,
+							Value:          []byte("shallow-update-mod-unmodified"),
+							Version:        revision1,
+						},
 					},
 					{
 						Type: mvccpb.PUT,
@@ -2042,6 +2050,14 @@ var _ = Describe("revisionWatcher", func() {
 							ModRevision:    revision2,
 							Value:          []byte("shallow-update-1"),
 							Version:        revision2,
+						},
+						PrevKv: &mvccpb.KeyValue{
+							Key:            []byte("shallow-update"),
+							CreateRevision: revision1,
+							Lease:          revision1,
+							ModRevision:    revision1,
+							Value:          []byte("shallow-update"),
+							Version:        revision1,
 						},
 					},
 					{
@@ -2096,6 +2112,14 @@ var _ = Describe("revisionWatcher", func() {
 							Value:          []byte("update-mod-unmodified-1"),
 							Version:        revision2,
 						},
+						PrevKv: &mvccpb.KeyValue{
+							Key:            []byte("z/deep/update-mod-unmodified"),
+							CreateRevision: revision1,
+							Lease:          revision1,
+							ModRevision:    revision1,
+							Value:          []byte("update-mod-unmodified"),
+							Version:        revision1,
+						},
 					},
 					{
 						Type: mvccpb.PUT,
@@ -2106,6 +2130,14 @@ var _ = Describe("revisionWatcher", func() {
 							ModRevision:    revision2,
 							Value:          []byte("update-1"),
 							Version:        revision2,
+						},
+						PrevKv: &mvccpb.KeyValue{
+							Key:            []byte("z/deep/update"),
+							CreateRevision: revision1,
+							Lease:          revision1,
+							ModRevision:    revision1,
+							Value:          []byte("update"),
+							Version:        revision1,
 						},
 					},
 				}
@@ -2118,6 +2150,7 @@ var _ = Describe("revisionWatcher", func() {
 					keyPrefix             string
 					nmt, ndt, omt, odt    *TreeDef
 					revision              int64
+					changesOnly           bool
 					events                []*mvccpb.Event
 					matchErr, matchEvents types.GomegaMatcher
 				}
@@ -2242,6 +2275,7 @@ var _ = Describe("revisionWatcher", func() {
 									}},
 								},
 							},
+							changesOnly: true,
 							matchErr:    Succeed(),
 							matchEvents: BeNil(),
 						}
@@ -2494,6 +2528,7 @@ var _ = Describe("revisionWatcher", func() {
 								}},
 							}},
 							odt:         &TreeDef{},
+							changesOnly: true,
 							matchErr:    PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
 							matchEvents: BeNil(),
 						}
@@ -2514,6 +2549,7 @@ var _ = Describe("revisionWatcher", func() {
 								}},
 							}},
 							odt:         emptyTreeDef,
+							changesOnly: true,
 							matchErr:    PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
 							matchEvents: BeNil(),
 						}
@@ -2548,6 +2584,7 @@ var _ = Describe("revisionWatcher", func() {
 									etcdserverpb.Compare_MOD.String(): strRevision,
 								}},
 							}},
+							ndt: &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
 							omt: &TreeDef{Subtrees: map[string]TreeDef{
 								"1": {Blobs: map[string][]byte{
 									etcdserverpb.Compare_CREATE.String():  strRevision,
@@ -2555,6 +2592,34 @@ var _ = Describe("revisionWatcher", func() {
 									etcdserverpb.Compare_VERSION.String(): strRevision,
 								}},
 							}},
+							odt:         &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+							events:      events,
+							matchErr:    PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
+							matchEvents: Equal(events),
+						}
+					}(),
+					func() spec {
+						var (
+							revision    = int64(3)
+							strRevision = []byte(revisionToString(revision))
+							events      = []*mvccpb.Event{{}}
+						)
+
+						return spec{
+							spec: "shallow delete, ModVersion unmoidifed",
+							nmt: &TreeDef{Subtrees: map[string]TreeDef{
+								"1": {Blobs: map[string][]byte{
+									etcdserverpb.Compare_MOD.String(): strRevision,
+								}},
+							}},
+							omt: &TreeDef{Subtrees: map[string]TreeDef{
+								"1": {Blobs: map[string][]byte{
+									etcdserverpb.Compare_CREATE.String():  strRevision,
+									etcdserverpb.Compare_MOD.String():     strRevision,
+									etcdserverpb.Compare_VERSION.String(): strRevision,
+								}},
+							}},
+							changesOnly: true,
 							events:      events,
 							matchErr:    Succeed(),
 							matchEvents: Equal(events),
@@ -2581,8 +2646,35 @@ var _ = Describe("revisionWatcher", func() {
 									etcdserverpb.Compare_VERSION.String(): strRevision,
 								}},
 							}},
-							odt:      &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
-							matchErr: Succeed(),
+							odt:         &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+							matchErr:    Succeed(),
+							matchEvents: BeNil(),
+						}
+					}(),
+					func() spec {
+						var (
+							revision    = int64(3)
+							strRevision = []byte(revisionToString(revision))
+						)
+
+						return spec{
+							spec: "shallow delete, missing Lease",
+							nmt: &TreeDef{Subtrees: map[string]TreeDef{
+								"1": {Blobs: map[string][]byte{
+									etcdserverpb.Compare_CREATE.String():  strRevision,
+									etcdserverpb.Compare_VERSION.String(): strRevision,
+								}},
+							}},
+							omt: &TreeDef{Subtrees: map[string]TreeDef{
+								"1": {Blobs: map[string][]byte{
+									etcdserverpb.Compare_CREATE.String():  strRevision,
+									etcdserverpb.Compare_MOD.String():     strRevision,
+									etcdserverpb.Compare_VERSION.String(): strRevision,
+								}},
+							}},
+							odt:         &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+							changesOnly: true,
+							matchErr:    Succeed(),
 							matchEvents: Equal([]*mvccpb.Event{{
 								Type: mvccpb.DELETE,
 								Kv: &mvccpb.KeyValue{
@@ -2597,6 +2689,35 @@ var _ = Describe("revisionWatcher", func() {
 									Version:        revision,
 								},
 							}}),
+						}
+					}(),
+					func() spec {
+						var (
+							revision     = int64(3)
+							dRevision    = revision + 10
+							strRevision  = []byte(revisionToString(revision))
+							emptyTreeDef = &TreeDef{}
+							events       = []*mvccpb.Event{{}}
+						)
+
+						return spec{
+							spec:      "shallow delete, full metadata",
+							keyPrefix: "/registry/custom",
+							nmt:       emptyTreeDef,
+							ndt:       emptyTreeDef,
+							omt: &TreeDef{Subtrees: map[string]TreeDef{
+								"1": {Blobs: map[string][]byte{
+									etcdserverpb.Compare_CREATE.String():  strRevision,
+									etcdserverpb.Compare_MOD.String():     strRevision,
+									etcdserverpb.Compare_LEASE.String():   strRevision,
+									etcdserverpb.Compare_VERSION.String(): strRevision,
+								}},
+							}},
+							odt:         &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+							revision:    dRevision,
+							events:      events,
+							matchErr:    Succeed(),
+							matchEvents: Equal(events),
 						}
 					}(),
 					func() spec {
@@ -2620,10 +2741,11 @@ var _ = Describe("revisionWatcher", func() {
 									etcdserverpb.Compare_VERSION.String(): strRevision,
 								}},
 							}},
-							odt:      &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
-							revision: dRevision,
-							events:   []*mvccpb.Event{{}},
-							matchErr: Succeed(),
+							odt:         &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+							revision:    dRevision,
+							changesOnly: true,
+							events:      []*mvccpb.Event{{}},
+							matchErr:    Succeed(),
 							matchEvents: Equal([]*mvccpb.Event{
 								{},
 								{
@@ -2686,6 +2808,52 @@ var _ = Describe("revisionWatcher", func() {
 							}},
 							odt:         dt,
 							events:      events,
+							matchErr:    Succeed(),
+							matchEvents: Equal(events),
+						}
+					}(),
+					func() spec {
+						var (
+							revision    = int64(3)
+							strRevision = []byte(revisionToString(revision))
+							events      = []*mvccpb.Event{{}}
+							dt          = &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Blobs: map[string][]byte{
+										"1": []byte("1"),
+									}},
+								}},
+							}}
+						)
+
+						return spec{
+							spec: "deep delete, missing Version",
+							nmt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Subtrees: map[string]TreeDef{
+										"1": {Blobs: map[string][]byte{
+											etcdserverpb.Compare_CREATE.String():  strRevision,
+											etcdserverpb.Compare_LEASE.String():   strRevision,
+											etcdserverpb.Compare_VERSION.String(): strRevision,
+										}},
+									}},
+								}},
+							}},
+							ndt: dt,
+							omt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Subtrees: map[string]TreeDef{
+										"1": {Blobs: map[string][]byte{
+											etcdserverpb.Compare_CREATE.String(): strRevision,
+											etcdserverpb.Compare_MOD.String():    strRevision,
+											etcdserverpb.Compare_LEASE.String():  strRevision,
+										}},
+									}},
+								}},
+							}},
+							odt:         dt,
+							changesOnly: true,
+							events:      events,
 							matchErr:    PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
 							matchEvents: Equal(events),
 						}
@@ -2733,7 +2901,66 @@ var _ = Describe("revisionWatcher", func() {
 									}},
 								},
 							},
+							odt:      &TreeDef{},
+							matchErr: Succeed(),
+							matchEvents: Equal([]*mvccpb.Event{{
+								Type: mvccpb.PUT,
+								Kv: &mvccpb.KeyValue{
+									Key:            []byte("a/b/2"),
+									CreateRevision: revision,
+									Lease:          revision,
+									ModRevision:    revision,
+									Value:          []byte("2"),
+									Version:        revision,
+								},
+							}}),
+						}
+					}(),
+					func() spec {
+						var (
+							revision    = int64(3)
+							strRevision = []byte(revisionToString(revision))
+						)
+
+						return spec{
+							spec: "deep delete, missing value",
+							nmt: &TreeDef{
+								Subtrees: map[string]TreeDef{
+									"a": {Subtrees: map[string]TreeDef{
+										"b": {Subtrees: map[string]TreeDef{
+											"2": {Blobs: map[string][]byte{
+												etcdserverpb.Compare_CREATE.String():  strRevision,
+												etcdserverpb.Compare_MOD.String():     strRevision,
+												etcdserverpb.Compare_LEASE.String():   strRevision,
+												etcdserverpb.Compare_VERSION.String(): strRevision,
+											}},
+										}},
+									}},
+								},
+							},
+							ndt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Blobs: map[string][]byte{
+										"2": []byte("2"),
+									}},
+								}},
+							}},
+							omt: &TreeDef{
+								Subtrees: map[string]TreeDef{
+									"a": {Subtrees: map[string]TreeDef{
+										"b": {Subtrees: map[string]TreeDef{
+											"1": {Blobs: map[string][]byte{
+												etcdserverpb.Compare_CREATE.String():  strRevision,
+												etcdserverpb.Compare_MOD.String():     strRevision,
+												etcdserverpb.Compare_LEASE.String():   strRevision,
+												etcdserverpb.Compare_VERSION.String(): strRevision,
+											}},
+										}},
+									}},
+								},
+							},
 							odt:         &TreeDef{},
+							changesOnly: true,
 							matchErr:    PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
 							matchEvents: BeNil(),
 						}
@@ -2769,8 +2996,45 @@ var _ = Describe("revisionWatcher", func() {
 									}},
 								}},
 							}},
-							revision: dRevision,
-							matchErr: Succeed(),
+							revision:    dRevision,
+							matchErr:    Succeed(),
+							matchEvents: BeNil(),
+						}
+					}(),
+					func() spec {
+						var (
+							revision    = int64(4)
+							dRevision   = revision - 2
+							strRevision = []byte(revisionToString(revision))
+						)
+
+						return spec{
+							spec:      "deep delete, full metadata",
+							keyPrefix: "registry",
+							omt: &TreeDef{
+								Subtrees: map[string]TreeDef{
+									"a": {Subtrees: map[string]TreeDef{
+										"b": {Subtrees: map[string]TreeDef{
+											"1": {Blobs: map[string][]byte{
+												etcdserverpb.Compare_CREATE.String():  strRevision,
+												etcdserverpb.Compare_MOD.String():     strRevision,
+												etcdserverpb.Compare_LEASE.String():   strRevision,
+												etcdserverpb.Compare_VERSION.String(): strRevision,
+											}},
+										}},
+									}},
+								},
+							},
+							odt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Blobs: map[string][]byte{
+										"1": []byte("1"),
+									}},
+								}},
+							}},
+							revision:    dRevision,
+							changesOnly: true,
+							matchErr:    Succeed(),
 							matchEvents: Equal([]*mvccpb.Event{{
 								Type: mvccpb.DELETE,
 								Kv: &mvccpb.KeyValue{
@@ -2886,6 +3150,60 @@ var _ = Describe("revisionWatcher", func() {
 							revision2    = revision1 + 3
 							strRevision1 = []byte(revisionToString(revision1))
 							strRevision2 = []byte(revisionToString(revision2))
+						)
+
+						return spec{
+							spec: "shallow update, ModVersion unmoidifed",
+							nmt: &TreeDef{Subtrees: map[string]TreeDef{
+								"1": {Blobs: map[string][]byte{
+									etcdserverpb.Compare_CREATE.String():  strRevision2,
+									etcdserverpb.Compare_LEASE.String():   strRevision2,
+									etcdserverpb.Compare_MOD.String():     strRevision1,
+									etcdserverpb.Compare_VERSION.String(): strRevision2,
+								}},
+							}},
+							ndt: &TreeDef{Blobs: map[string][]byte{"1": []byte("11")}},
+							omt: &TreeDef{Subtrees: map[string]TreeDef{
+								"1": {Blobs: map[string][]byte{
+									etcdserverpb.Compare_CREATE.String():  strRevision1,
+									etcdserverpb.Compare_LEASE.String():   strRevision1,
+									etcdserverpb.Compare_MOD.String():     strRevision1,
+									etcdserverpb.Compare_VERSION.String(): strRevision1,
+								}},
+							}},
+							odt:      &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+							events:   []*mvccpb.Event{{}},
+							matchErr: Succeed(),
+							matchEvents: Equal([]*mvccpb.Event{
+								{},
+								{
+									Type: mvccpb.PUT,
+									Kv: &mvccpb.KeyValue{
+										Key:            []byte("1"),
+										CreateRevision: revision2,
+										Lease:          revision2,
+										ModRevision:    revision1,
+										Value:          []byte("11"),
+										Version:        revision2,
+									},
+									PrevKv: &mvccpb.KeyValue{
+										Key:            []byte("1"),
+										CreateRevision: revision1,
+										Lease:          revision1,
+										ModRevision:    revision1,
+										Value:          []byte("1"),
+										Version:        revision1,
+									},
+								},
+							}),
+						}
+					}(),
+					func() spec {
+						var (
+							revision1    = int64(5)
+							revision2    = revision1 + 3
+							strRevision1 = []byte(revisionToString(revision1))
+							strRevision2 = []byte(revisionToString(revision2))
 							events       = []*mvccpb.Event{{}}
 						)
 
@@ -2909,6 +3227,7 @@ var _ = Describe("revisionWatcher", func() {
 								}},
 							}},
 							odt:         &TreeDef{Blobs: map[string][]byte{"1": []byte("1")}},
+							changesOnly: true,
 							events:      events,
 							matchErr:    Succeed(),
 							matchEvents: Equal(events),
@@ -3023,6 +3342,66 @@ var _ = Describe("revisionWatcher", func() {
 							revision2    = revision1 + 1
 							strRevision1 = []byte(revisionToString(revision1))
 							strRevision2 = []byte(revisionToString(revision2))
+							dt           = &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Blobs: map[string][]byte{
+										"1": []byte("1"),
+									}},
+								}},
+							}}
+						)
+
+						return spec{
+							spec: "deep update, missing Version",
+							nmt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Subtrees: map[string]TreeDef{
+										"1": {Blobs: map[string][]byte{
+											etcdserverpb.Compare_CREATE.String():  strRevision2,
+											etcdserverpb.Compare_MOD.String():     strRevision2,
+											etcdserverpb.Compare_LEASE.String():   strRevision2,
+											etcdserverpb.Compare_VERSION.String(): strRevision2,
+										}},
+									}},
+								}},
+							}},
+							ndt: dt,
+							omt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Subtrees: map[string]TreeDef{
+										"1": {Blobs: map[string][]byte{
+											etcdserverpb.Compare_CREATE.String(): strRevision1,
+											etcdserverpb.Compare_MOD.String():    strRevision1,
+											etcdserverpb.Compare_LEASE.String():  strRevision1,
+										}},
+									}},
+								}},
+							}},
+							odt:      dt,
+							events:   []*mvccpb.Event{{}},
+							matchErr: Succeed(),
+							matchEvents: Equal([]*mvccpb.Event{
+								{},
+								{
+									Type: mvccpb.PUT,
+									Kv: &mvccpb.KeyValue{
+										Key:            []byte("a/b/1"),
+										CreateRevision: revision2,
+										Lease:          revision2,
+										ModRevision:    revision2,
+										Value:          []byte("1"),
+										Version:        revision2,
+									},
+								},
+							}),
+						}
+					}(),
+					func() spec {
+						var (
+							revision1    = int64(5)
+							revision2    = revision1 + 1
+							strRevision1 = []byte(revisionToString(revision1))
+							strRevision2 = []byte(revisionToString(revision2))
 							events       = []*mvccpb.Event{{}}
 							dt           = &TreeDef{Subtrees: map[string]TreeDef{
 								"a": {Subtrees: map[string]TreeDef{
@@ -3060,6 +3439,7 @@ var _ = Describe("revisionWatcher", func() {
 								}},
 							}},
 							odt:         dt,
+							changesOnly: true,
 							events:      events,
 							matchErr:    PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
 							matchEvents: Equal(events),
@@ -3117,6 +3497,73 @@ var _ = Describe("revisionWatcher", func() {
 									}},
 								}},
 							}},
+							matchErr: Succeed(),
+							matchEvents: Equal([]*mvccpb.Event{{
+								Type: mvccpb.PUT,
+								Kv: &mvccpb.KeyValue{
+									Key:            []byte("a/b/1"),
+									CreateRevision: revision2,
+									Lease:          revision2,
+									ModRevision:    revision2,
+									Value:          []byte("1"),
+									Version:        revision2,
+								},
+							}}),
+						}
+					}(),
+					func() spec {
+						var (
+							revision1    = int64(5)
+							revision2    = revision1 + 1
+							strRevision1 = []byte(revisionToString(revision1))
+							strRevision2 = []byte(revisionToString(revision2))
+						)
+
+						return spec{
+							spec: "deep update, missing value",
+							nmt: &TreeDef{
+								Subtrees: map[string]TreeDef{
+									"a": {Subtrees: map[string]TreeDef{
+										"b": {Subtrees: map[string]TreeDef{
+											"1": {Blobs: map[string][]byte{
+												etcdserverpb.Compare_CREATE.String():  strRevision2,
+												etcdserverpb.Compare_MOD.String():     strRevision2,
+												etcdserverpb.Compare_LEASE.String():   strRevision2,
+												etcdserverpb.Compare_VERSION.String(): strRevision2,
+											}},
+										}},
+									}},
+								},
+							},
+							ndt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Blobs: map[string][]byte{
+										"1": []byte("1"),
+									}},
+								}},
+							}},
+							omt: &TreeDef{
+								Subtrees: map[string]TreeDef{
+									"a": {Subtrees: map[string]TreeDef{
+										"b": {Subtrees: map[string]TreeDef{
+											"1": {Blobs: map[string][]byte{
+												etcdserverpb.Compare_CREATE.String():  strRevision1,
+												etcdserverpb.Compare_MOD.String():     strRevision1,
+												etcdserverpb.Compare_LEASE.String():   strRevision1,
+												etcdserverpb.Compare_VERSION.String(): strRevision1,
+											}},
+										}},
+									}},
+								},
+							},
+							odt: &TreeDef{Subtrees: map[string]TreeDef{
+								"a": {Subtrees: map[string]TreeDef{
+									"b": {Blobs: map[string][]byte{
+										"2": []byte("2"),
+									}},
+								}},
+							}},
+							changesOnly: true,
 							matchErr:    PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)})),
 							matchEvents: BeNil(),
 						}
@@ -3260,14 +3707,25 @@ var _ = Describe("revisionWatcher", func() {
 						odt:         &dhAll.Parents[0].Tree,
 						revision:    revision2,
 						matchErr:    Succeed(),
+						matchEvents: Equal(eventsNoChangesOnlyAll),
+					},
+					{
+						spec:        "different kinds of changes, full metadata",
+						nmt:         &mhAll.Tree,
+						ndt:         &dhAll.Tree,
+						omt:         &mhAll.Parents[0].Tree,
+						odt:         &dhAll.Parents[0].Tree,
+						revision:    revision2,
+						changesOnly: true,
+						matchErr:    Succeed(),
 						matchEvents: Equal(eventsChangesOnlyAll),
 					},
 				} {
 					func(s spec) {
 						Describe(
 							fmt.Sprintf(
-								"%s: expired context=%t, keyPrefix=%s, revision=%d, nmt=%v, ndt=%v, omt=%v, odt=%v, events=%v",
-								s.spec, s.ctxFn != nil, s.keyPrefix, s.revision, s.nmt, s.ndt, s.omt, s.odt, s.events,
+								"%s: expired context=%t, keyPrefix=%s, revision=%d, changesOnly=%t, nmt=%v, ndt=%v, omt=%v, odt=%v, events=%v",
+								s.spec, s.ctxFn != nil, s.keyPrefix, s.revision, s.changesOnly, s.nmt, s.ndt, s.omt, s.odt, s.events,
 							),
 							func() {
 								var nmt, ndt, omt, odt git.Tree
@@ -3275,6 +3733,7 @@ var _ = Describe("revisionWatcher", func() {
 								BeforeEach(func() {
 									rw.backend.keyPrefix.prefix = s.keyPrefix
 									rw.revision = s.revision
+									rw.changesOnly = s.changesOnly
 									rw.events = s.events
 
 									for _, s := range []struct {
@@ -4477,90 +4936,6 @@ var _ = Describe("revisionWatcher", func() {
 	})
 })
 
-var _ = Describe("buildEvent", func() {
-	type spec struct {
-		typ                     mvccpb.Event_EventType
-		kv, prevKV              *mvccpb.KeyValue
-		kvErr, prevKVErr        error
-		matchErr, matchEventPtr types.GomegaMatcher
-	}
-
-	var (
-		kv = &mvccpb.KeyValue{
-			Key:            []byte("key"),
-			Value:          []byte("value"),
-			CreateRevision: 10,
-			ModRevision:    11,
-			Lease:          12,
-			Version:        2,
-		}
-
-		kvErr = errors.New("kv error")
-
-		prevKV = &mvccpb.KeyValue{
-			Key:            []byte("prevKey"),
-			Value:          []byte("prevValue"),
-			CreateRevision: 8,
-			ModRevision:    9,
-			Lease:          10,
-			Version:        3,
-		}
-
-		prevKVErr = errors.New("prevKV error")
-	)
-
-	for _, s := range []spec{
-		{matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT})},
-		{typ: mvccpb.DELETE, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.DELETE})},
-		{typ: mvccpb.PUT, kvErr: kvErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, kv: kv, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT, Kv: kv})},
-		{typ: mvccpb.DELETE, kv: kv, kvErr: kvErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, prevKV: prevKV, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT, PrevKv: prevKV})},
-		{typ: mvccpb.DELETE, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, kvErr: kvErr, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, kvErr: kvErr, prevKV: prevKV, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.DELETE, kvErr: kvErr, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, kv: kv, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.DELETE, kv: kv, prevKV: prevKV, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.DELETE, Kv: kv, PrevKv: prevKV})},
-		{typ: mvccpb.DELETE, kv: kv, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, kv: kv, kvErr: kvErr, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.PUT, kv: kv, kvErr: kvErr, prevKV: prevKV, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-		{typ: mvccpb.DELETE, kv: kv, kvErr: kvErr, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
-	} {
-		func(s spec) {
-			Describe(
-				fmt.Sprintf(
-					"typ=%d, kv=%v, kvErr=%v, prevKV=%v, prefKVErr=%v",
-					s.typ, s.kv, s.kvErr, s.prevKV, s.prevKVErr,
-				),
-				func() {
-					It(ItSpecForMatchError(s.matchErr), func() {
-						var (
-							kvFn, prevKVFn kvLoaderFunc
-							ev             *mvccpb.Event
-							err            error
-						)
-
-						if s.kv != nil || s.kvErr != nil {
-							kvFn = func() (*mvccpb.KeyValue, error) { return s.kv, s.kvErr }
-						}
-
-						if s.prevKV != nil || s.prevKVErr != nil {
-							prevKVFn = func() (*mvccpb.KeyValue, error) { return s.prevKV, s.prevKVErr }
-						}
-
-						ev, err = buildEvent(s.typ, kvFn, prevKVFn)
-
-						Expect(err).To(s.matchErr, "err")
-						Expect(ev).To(s.matchEventPtr, "event")
-					})
-				},
-			)
-		}(s)
-	}
-})
-
 var _ = Describe("backend", func() {
 	var (
 		ctx context.Context
@@ -4590,6 +4965,99 @@ var _ = Describe("backend", func() {
 
 		if len(dir) > 0 {
 			Expect(os.RemoveAll(dir))
+		}
+	})
+
+	Describe("buildEvent", func() {
+		type spec struct {
+			typ                     mvccpb.Event_EventType
+			kv, prevKV              *mvccpb.KeyValue
+			kvErr, prevKVErr        error
+			ignorePrevKVError       bool
+			matchErr, matchEventPtr types.GomegaMatcher
+		}
+
+		var (
+			kv = &mvccpb.KeyValue{
+				Key:            []byte("key"),
+				Value:          []byte("value"),
+				CreateRevision: 10,
+				ModRevision:    11,
+				Lease:          12,
+				Version:        2,
+			}
+
+			kvErr = errors.New("kv error")
+
+			prevKV = &mvccpb.KeyValue{
+				Key:            []byte("prevKey"),
+				Value:          []byte("prevValue"),
+				CreateRevision: 8,
+				ModRevision:    9,
+				Lease:          10,
+				Version:        3,
+			}
+
+			prevKVErr = errors.New("prevKV error")
+		)
+
+		for _, s := range []spec{
+			{matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT})},
+			{typ: mvccpb.DELETE, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.DELETE})},
+			{typ: mvccpb.PUT, kvErr: kvErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, kv: kv, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT, Kv: kv})},
+			{typ: mvccpb.DELETE, kv: kv, kvErr: kvErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT})},
+			{typ: mvccpb.PUT, prevKV: prevKV, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT, PrevKv: prevKV})},
+			{typ: mvccpb.DELETE, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.DELETE, prevKV: prevKV, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.DELETE, PrevKv: prevKV})},
+			{typ: mvccpb.PUT, kvErr: kvErr, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, kvErr: kvErr, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, kvErr: kvErr, prevKV: prevKV, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.DELETE, kvErr: kvErr, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.DELETE, kvErr: kvErr, prevKV: prevKV, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, kv: kv, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, kv: kv, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.PUT, Kv: kv})},
+			{typ: mvccpb.DELETE, kv: kv, prevKV: prevKV, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.DELETE, Kv: kv, PrevKv: prevKV})},
+			{typ: mvccpb.DELETE, kv: kv, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(prevKVErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.DELETE, kv: kv, prevKV: prevKV, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: Succeed(), matchEventPtr: Equal(&mvccpb.Event{Type: mvccpb.DELETE, Kv: kv, PrevKv: prevKV})},
+			{typ: mvccpb.PUT, kv: kv, kvErr: kvErr, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, kv: kv, kvErr: kvErr, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.PUT, kv: kv, kvErr: kvErr, prevKV: prevKV, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.DELETE, kv: kv, kvErr: kvErr, prevKV: prevKV, prevKVErr: prevKVErr, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+			{typ: mvccpb.DELETE, kv: kv, kvErr: kvErr, prevKV: prevKV, prevKVErr: prevKVErr, ignorePrevKVError: true, matchErr: MatchError(kvErr), matchEventPtr: BeNil()},
+		} {
+			func(s spec) {
+				Describe(
+					fmt.Sprintf(
+						"typ=%d, kv=%v, kvErr=%v, prevKV=%v, prefKVErr=%v ignorePrevKVError=%t",
+						s.typ, s.kv, s.kvErr, s.prevKV, s.prevKVErr, s.ignorePrevKVError,
+					),
+					func() {
+						It(ItSpecForMatchError(s.matchErr), func() {
+							var (
+								kvFn, prevKVFn kvLoaderFunc
+								ev             *mvccpb.Event
+								err            error
+							)
+
+							if s.kv != nil || s.kvErr != nil {
+								kvFn = func() (*mvccpb.KeyValue, error) { return s.kv, s.kvErr }
+							}
+
+							if s.prevKV != nil || s.prevKVErr != nil {
+								prevKVFn = func() (*mvccpb.KeyValue, error) { return s.prevKV, s.prevKVErr }
+							}
+
+							ev, err = b.buildEvent(s.typ, kvFn, prevKVFn, s.ignorePrevKVError)
+
+							Expect(err).To(s.matchErr, "err")
+							Expect(ev).To(s.matchEventPtr, "event")
+						})
+					},
+				)
+			}(s)
 		}
 	})
 

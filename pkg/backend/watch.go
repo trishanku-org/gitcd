@@ -215,10 +215,6 @@ func (rw *revisionWatcher) getRevisionAndPredecessorMetadata(ctx context.Context
 		return
 	}
 
-	if !rw.changesOnly {
-		return
-	}
-
 	if err = metaCommit.ForEachParent(ctx, func(ctx context.Context, c git.Commit) (done bool, err error) {
 		var (
 			t        git.Tree
@@ -333,7 +329,7 @@ func (rw *revisionWatcher) Run(ctx context.Context) (err error) {
 
 type kvLoaderFunc func() (kv *mvccpb.KeyValue, err error)
 
-func buildEvent(typ mvccpb.Event_EventType, kvFn, prevKVFn kvLoaderFunc) (ev *mvccpb.Event, err error) {
+func (b *backend) buildEvent(typ mvccpb.Event_EventType, kvFn, prevKVFn kvLoaderFunc, ignorePrevKVError bool) (ev *mvccpb.Event, err error) {
 	var kv, prevKV *mvccpb.KeyValue
 
 	if kvFn != nil {
@@ -343,7 +339,13 @@ func buildEvent(typ mvccpb.Event_EventType, kvFn, prevKVFn kvLoaderFunc) (ev *mv
 	}
 
 	if prevKVFn != nil {
-		if prevKV, err = prevKVFn(); err != nil {
+		prevKV, err = prevKVFn()
+
+		if ignorePrevKVError {
+			err = nil // Forget the PrevKV error.
+		}
+
+		if err != nil {
 			return
 		}
 	}
@@ -402,7 +404,13 @@ func (rw *revisionWatcher) loadEvents(
 		return
 	}
 
-	if diff, err = b.repo.TreeDiff(ctx, omt, nmt); err != nil {
+	if rw.changesOnly {
+		diff, err = b.repo.TreeDiff(ctx, omt, nmt)
+	} else {
+		diff, err = b.repo.TreeDiff(ctx, nil, nmt)
+	}
+
+	if err != nil {
 		return
 	}
 
@@ -424,14 +432,20 @@ func (rw *revisionWatcher) loadEvents(
 
 		switch change.Type() {
 		case git.DiffChangeTypeAdded:
-			ev, err = buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), nil)
+			if omt == nil {
+				// No predecessor revision, no prevKV.
+				ev, err = b.buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), nil, false)
+			} else {
+				// Predecessor revision exists. PrevKV might exist if changeOnly == false.
+				ev, err = b.buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), b.getKeyValueLoader(ctx, k, omt, odt), true)
+			}
 		case git.DiffChangeTypeDeleted:
 			{
 				var prevKvFn = b.getKeyValueLoader(ctx, k, omt, odt)
-				ev, err = buildEvent(mvccpb.DELETE, rw.getDeletionKeyValueLoader(prevKvFn), prevKvFn)
+				ev, err = b.buildEvent(mvccpb.DELETE, rw.getDeletionKeyValueLoader(prevKvFn), prevKvFn, false)
 			}
 		default:
-			ev, err = buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), b.getKeyValueLoader(ctx, k, omt, odt))
+			ev, err = b.buildEvent(mvccpb.PUT, b.getKeyValueLoader(ctx, k, nmt, ndt), b.getKeyValueLoader(ctx, k, omt, odt), false)
 		}
 
 		if err != nil {
