@@ -372,12 +372,14 @@ function start_kube_scheduler {
 }
 
 function apply_kubelet_rbac {
+  local DOCKER_RUN_ARGS="$1"
   local SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
   local DIRNAME=$(dirname "$SOURCE_PATH")
 
   cat "${DIRNAME}/configs/kubelet-rbac.yaml" | \
   docker run --name kubelet \
     -i --rm  \
+    $DOCKER_RUN_ARGS \
     -v "${SECRETS_VOLUME_NAME}:/secrets" \
     -u 0 \
     $KUBECTL_IMG apply \
@@ -390,4 +392,4 @@ start_apiserver "trishanku-the-hard-way-" "main" "default=2" "-p 2379-2380 -p 64
 # start_apiserver_with_gitcd "trishanku-the-hard-way-test-" "test" "default=2"
 start_kube_controller_manager "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
 start_kube_scheduler "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
-apply_kubelet_rbac
+apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-main"
