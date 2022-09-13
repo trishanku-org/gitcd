@@ -727,6 +727,7 @@ func (s *serveFlagsImpl) getNoFetches() *map[string]string            { return &
 func (s *serveFlagsImpl) getPushAfterMerges() *map[string]string      { return &s.pushAfterMerges }
 func (s *serveFlagsImpl) getDataPushRefSpecs() *map[string]string     { return &s.dataPushRefSpecs }
 func (s *serveFlagsImpl) getMetadataPushRefSpecs() *map[string]string { return &s.metadataPushRefSpecs }
+func (s *serveFlagsImpl) getPullTickerDuration() *time.Duration       { return &s.pullTickerDuration }
 
 func (s *serveFlagsImpl) getMergeConflictResolutions() *map[string]string {
 	return &s.mergeConflictResolutions
@@ -818,11 +819,4 @@ func init() {
 	)
 
 	addCommonPullFlags(serveCmd.Flags(), serveFlags)
-
-	serveCmd.Flags().DurationVar(
-		&serveFlags.pullTickerDuration,
-		"pull-ticker-duration",
-		defaultPullTickerDuration,
-		"Interval duration to pull changes from remote. Set this to non-zero to schedule pull merges.",
-	)
 }

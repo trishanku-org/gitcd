@@ -18,10 +18,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -38,24 +40,30 @@ var pullCmd = &cobra.Command{
 	Long:  `Pull changes from remote into the backend.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		var (
-			log      = getLogger().WithName("pull")
-			ctx      context.Context
-			cancelFn context.CancelFunc
-			gitImpl  = git2go.New()
-			repo     git.Repository
-			errs     = gitImpl.Errors()
-			pis      []*pullerInfo
-			err      error
+			log        = getLogger().WithName("pull")
+			ctx        context.Context
+			cancelFn   context.CancelFunc
+			gitImpl    = git2go.New()
+			repo       git.Repository
+			errs       = gitImpl.Errors()
+			pis        []*pullerInfo
+			err        error
+			closers    []io.Closer
+			waitOnDone bool
 		)
 
 		log.Info(fmt.Sprintf("Found %#v", pullFlags), "version", backend.Version)
-
-		defer log.Info("Stopped.")
 
 		defer func() {
 			if err != nil {
 				log.Error(err, "Error pulling")
 			}
+
+			for _, cs := range closers {
+				cs.Close()
+			}
+
+			log.Info("Stopped.")
 		}()
 
 		if err = os.MkdirAll(pullFlags.repoPath, 0755); err != nil {
@@ -77,8 +85,9 @@ var pullCmd = &cobra.Command{
 
 		for _, pi := range pis {
 			var (
-				log = log.WithValues("dataRefName", pi.dataRefName, "remoteName", pi.remoteName)
-				kvs etcdserverpb.KVServer
+				log         = log.WithValues("dataRefName", pi.dataRefName, "remoteName", pi.remoteName)
+				kvs         etcdserverpb.KVServer
+				pullOptsFns []backend.PullOptionFunc
 			)
 
 			if kvs, err = backend.NewKVServer(
@@ -92,7 +101,7 @@ var pullCmd = &cobra.Command{
 				return
 			}
 
-			if err = backend.NewPull(
+			pullOptsFns = []backend.PullOptionFunc{
 				backend.PullOptions.WithBackend(kvs),
 				backend.PullOptions.WithRemoteName(pi.remoteName),
 				backend.PullOptions.WithRemoteDataRefName(pi.remoteDataRefName),
@@ -103,11 +112,33 @@ var pullCmd = &cobra.Command{
 				backend.PullOptions.WithNoFetch(pi.noFetch),
 				backend.PullOptions.WithPushAfterMerge(pi.pushAfterMerge),
 				backend.PullOptions.WithLogger(log),
-				backend.PullOptions.WithOnce(ctx),
-				backend.PullOptions.WithMergerClose(ctx),
-			); err != nil {
+			}
+
+			if pullFlags.pullTickerDuration > 0 {
+				var ticker = time.NewTicker(pullFlags.pullTickerDuration)
+
+				closers = append(closers, funcCloser(ticker.Stop))
+
+				pullOptsFns = append(
+					pullOptsFns,
+					backend.PullOptions.WithTicker(ticker.C),
+					backend.PullOptions.WithContext(ctx),
+				)
+
+				waitOnDone = true
+			} else {
+				pullOptsFns = append(pullOptsFns, backend.PullOptions.WithOnce(ctx))
+			}
+
+			pullOptsFns = append(pullOptsFns, backend.PullOptions.WithMergerClose(ctx))
+
+			if err = backend.NewPull(pullOptsFns...); err != nil {
 				log.Error(err, "Error pulling")
 			}
+		}
+
+		if waitOnDone {
+			<-ctx.Done()
 		}
 	},
 }
@@ -291,6 +322,7 @@ type commonPullFlags interface {
 	getPushAfterMerges() *map[string]string
 	getDataPushRefSpecs() *map[string]string
 	getMetadataPushRefSpecs() *map[string]string
+	getPullTickerDuration() *time.Duration
 }
 
 const (
@@ -376,6 +408,13 @@ func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
 		nil,
 		"Git refspecs to use while pushing metadata reference to remote. By default, --metadata-reference-names configuration is used as if push.default=simple was configured.",
 	)
+
+	flags.DurationVar(
+		commonFlags.getPullTickerDuration(),
+		"pull-ticker-duration",
+		defaultPullTickerDuration,
+		"Interval duration to pull changes from remote. Set this to non-zero to schedule pull merges.",
+	)
 }
 
 type pullFlagsImpl struct {
@@ -393,6 +432,7 @@ type pullFlagsImpl struct {
 	pushAfterMerges                        map[string]string
 	dataPushRefSpecs                       map[string]string
 	metadataPushRefSpecs                   map[string]string
+	pullTickerDuration                     time.Duration
 }
 
 var (
@@ -426,6 +466,7 @@ func (p *pullFlagsImpl) getNoFetches() *map[string]string            { return &p
 func (p *pullFlagsImpl) getPushAfterMerges() *map[string]string      { return &p.pushAfterMerges }
 func (p *pullFlagsImpl) getDataPushRefSpecs() *map[string]string     { return &p.dataPushRefSpecs }
 func (p *pullFlagsImpl) getMetadataPushRefSpecs() *map[string]string { return &p.metadataPushRefSpecs }
+func (p *pullFlagsImpl) getPullTickerDuration() *time.Duration       { return &p.pullTickerDuration }
 
 func (p *pullFlagsImpl) getMergeConflictResolutions() *map[string]string {
 	return &p.mergeConflictResolutions
