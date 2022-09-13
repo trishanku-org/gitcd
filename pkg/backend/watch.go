@@ -1024,6 +1024,7 @@ func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) {
 	var (
 		w   watch
 		log = ws.mgr.log.WithName("cancel")
+		rh  *etcdserverpb.ResponseHeader
 	)
 
 	log.V(-1).Info("cancelling", "watchId", watchID, "cause", cause)
@@ -1039,10 +1040,14 @@ func (ws *watchServer) cancel(ctx context.Context, watchID int64, cause error) {
 		return
 	}
 
-	ws.mgr.backend.RLock()
-	defer ws.mgr.backend.RUnlock()
+	func() {
+		ws.mgr.backend.RLock()
+		defer ws.mgr.backend.RUnlock()
 
-	w.Cancel(ws.mgr.backend.newResponseHeader(ctx), cause)
+		rh = ws.mgr.backend.newResponseHeader(ctx)
+	}()
+
+	w.Cancel(rh, cause)
 }
 
 type watchImpl struct {
@@ -1066,6 +1071,10 @@ func (w *watchImpl) Context() context.Context {
 
 func (w *watchImpl) Cancel(header *etcdserverpb.ResponseHeader, err error) {
 	const defaultCancelReason = "watch closed"
+
+	if w == nil {
+		return // TODO Log
+	}
 
 	w.Lock()
 	defer w.Unlock()
