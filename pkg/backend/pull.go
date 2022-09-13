@@ -592,15 +592,17 @@ func (p *puller) merge(ctx context.Context) (err error) {
 
 	log.V(-1).Info("Merging")
 	defer func() {
-		if err == nil && p.pushAfterMerge {
-			err = p.push(ctx)
-		}
-
 		log.V(-1).Info("Merged", "error", err, "dataMutated", dataMutated, "metaMutated", metaMutated, "pushAfterMerge", p.pushAfterMerge)
 	}()
 
-	p.backend.RLock()
-	defer p.backend.RUnlock()
+	p.backend.Lock()
+	defer p.backend.Unlock()
+
+	defer func() {
+		if err == nil && p.pushAfterMerge {
+			err = p.push(ctx)
+		}
+	}()
 
 	for _, s := range []struct {
 		ptrC           *git.Commit
