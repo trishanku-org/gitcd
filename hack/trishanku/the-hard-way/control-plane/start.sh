@@ -102,24 +102,17 @@ function start_etcd {
   fi
 }
 
-function start_gitcd {
-  local PORT="$1"
-  local CONTAINER_PREFIX="$2"
-  local REMOTE_REPO="$3"
-  local DATA_BRANCH="$4"
-  local MERGE_CONFLICT_RESOLUTIONS="$5"
-  local NETWORK_ARGS="$6"
-  local CONTAINER="${CONTAINER_PREFIX}${DATA_BRANCH}"
-  local VOLUME="${CONTAINER}"
-  local METADATA_BRANCH="gitcd/metadata/${DATA_BRANCH}"
-  local DATA_REF="refs/heads/${DATA_BRANCH}"
-  local METADATA_REF="refs/heads/${METADATA_BRANCH}"
-  local REMOTE="origin"
-  local REMOTE_DATA_BRANCH="${REMOTE}/${DATA_BRANCH}"
-  local REMOTE_METADATA_BRANCH="${REMOTE}/${METADATA_BRANCH}"
-  local REMOTE_DATA_REF="refs/remotes/${REMOTE_DATA_BRANCH}"
-  local REMOTE_METADATA_REF="refs/remotes/${REMOTE_METADATA_BRANCH}"
-  local ENTRYPOINT_VOLUME="${CONTAINER}-entrypoint"
+function git_clone_and_prepare_branch {
+  local CONTAINER="$1"
+  local REMOTE_REPO="$2"
+  local DATA_BRANCH="$3"
+  local REMOTE_DATA_BRANCH="$4"
+  local DEFAULT_DATA_BRANCH="$5"
+  local REMOTE="$6"
+  local METADATA_BRANCH="$7"
+  local REMOTE_METADATA_BRANCH="$8"
+  local DEFAULT_METADATA_BRANCH="$9"
+  local VOLUME="$CONTAINER"
 
   create_volume_if_not_exists "$VOLUME"
   if container_exists "$CONTAINER"; then
@@ -132,11 +125,13 @@ function start_gitcd {
         -v "${VOLUME}:/backend" \
         -v "${SECRETS_VOLUME_NAME}:/secrets" \
         $GIT_IMG bash
+# set -x
+
 for file in /secrets/.gitconfig /secrets/.git-credentials; do
   ln -s \$file ~/\$(basename \$file)
 done
 
-git clone $REMOTE_REPO /backend
+git clone "$REMOTE_REPO" /backend
 
 cd /backend
 
@@ -152,13 +147,114 @@ function prepare_branch {
     git branch "\$BRANCH" "\$REMOTE_BRANCH" --track
   else
     git branch "\$BRANCH" "\${DEFAULT_BRANCH}" --no-track \
-      && git push -u "\$REMOTE" "\$BRANCH"
+      && git config "branch.\${BRANCH}.remote" "\$REMOTE" \
+      && git config "branch.\${BRANCH}.merge" "\$REMOTE_BRANCH"
   fi
 }
 
-prepare_branch "$DATA_BRANCH" "$REMOTE_DATA_BRANCH" "${REMOTE}/${DATA_BRANCH_BLANK}" "$REMOTE"
-prepare_branch "$METADATA_BRANCH" "$REMOTE_METADATA_BRANCH" "${REMOTE}/${METADATA_BRANCH_BLANK}" "$REMOTE"
+prepare_branch "$DATA_BRANCH" "$REMOTE_DATA_BRANCH" "${REMOTE}/${DEFAULT_DATA_BRANCH}" "$REMOTE"
+prepare_branch "$METADATA_BRANCH" "$REMOTE_METADATA_BRANCH" "${REMOTE}/${DEFAULT_METADATA_BRANCH}" "$REMOTE"
 EOF
+  fi
+}
+
+function start_git_merge_if_required {
+  local CONTAINER_PREFIX="$1"
+  local REMOTE_REPO="$2"
+  local DATA_BRANCH="$3"
+  local REMOTE_DATA_BRANCH_NAME="$4"
+  local MERGE_CONFLICT_RESOLUTIONS="$5"
+  local CONTAINER="${CONTAINER_PREFIX}git-merge-to-${DATA_BRANCH}-from-${REMOTE_DATA_BRANCH_NAME}"
+  local VOLUME="${CONTAINER}"
+  local METADATA_BRANCH="gitcd/metadata/${DATA_BRANCH}"
+  local DATA_REF="refs/heads/${DATA_BRANCH}"
+  local METADATA_REF="refs/heads/${METADATA_BRANCH}"
+  local REMOTE="origin"
+  local REMOTE_DATA_BRANCH="${REMOTE}/${REMOTE_DATA_BRANCH_NAME}"
+  local REMOTE_METADATA_BRANCH="${REMOTE}/gitcd/metadata/${REMOTE_DATA_BRANCH_NAME}"
+  local REMOTE_DATA_REF="refs/remotes/${REMOTE_DATA_BRANCH}"
+  local REMOTE_METADATA_REF="refs/remotes/${REMOTE_METADATA_BRANCH}"
+  local ENTRYPOINT_VOLUME="${CONTAINER}-entrypoint"
+
+  if [ "$DATA_BRANCH" == "$REMOTE_DATA_BRANCH_NAME" ]; then
+    return 0
+  fi
+
+  if container_exists "$CONTAINER"; then
+    docker container restart "$CONTAINER"
+  else
+    git_clone_and_prepare_branch "$CONTAINER" "$REMOTE_REPO" \
+      "$DATA_BRANCH" "$REMOTE_DATA_BRANCH" "$DATA_BRANCH_BLANK" "$REMOTE" \
+      "$METADATA_BRANCH" "$REMOTE_METADATA_BRANCH" "$METADATA_BRANCH_BLANK"
+
+    create_volume_if_not_exists "$ENTRYPOINT_VOLUME"
+    cat <<EOF | \
+      docker run --name "$CONTAINER" \
+        -i --rm \
+        --label "$LABEL" \
+        -v "${ENTRYPOINT_VOLUME}:/entrypoint" \
+        $BUSYBOX_IMG sh
+cat <<INNER_EOF > /entrypoint/entrypoint.sh
+#!/bin/sh
+
+for file in /secrets/.gitconfig /secrets/.git-credentials; do
+  target="\\\${HOME}/\\\$(basename \\\$file)"
+  test -L \\\$target || ln -s \\\$file \\\$target
+done
+
+exec /gitcd pull \
+   --repo=/backend \
+   --data-reference-names=default=${DATA_REF} \
+   --metadata-reference-names=default=${METADATA_REF} \
+   --push-after-merges=default=true \
+   --merge-conflict-resolutions=${MERGE_CONFLICT_RESOLUTIONS} \
+   --remote-names=default=${REMOTE} \
+   --remote-data-reference-names=default=${REMOTE_DATA_REF} \
+   --remote-meta-reference-names=default=${REMOTE_METADATA_REF} \
+   --pull-ticker-duration=11s
+INNER_EOF
+
+chmod +x /entrypoint/entrypoint.sh
+EOF
+
+    docker run --name "$CONTAINER" \
+      -d --restart=unless-stopped \
+      --label "$LABEL" \
+      ${NETWORK_ARGS} \
+      -v "${VOLUME}:/backend" \
+      -v "${SECRETS_VOLUME_NAME}:/secrets" \
+      -v "${ENTRYPOINT_VOLUME}:/entrypoint" \
+      --entrypoint= \
+      $GITCD_IMG /entrypoint/entrypoint.sh
+  fi
+}
+
+function start_gitcd {
+  local PORT="$1"
+  local CONTAINER_PREFIX="$2"
+  local REMOTE_REPO="$3"
+  local DATA_BRANCH="$4"
+  local REMOTE_DATA_BRANCH_NAME="$5"
+  local MERGE_CONFLICT_RESOLUTIONS="$6"
+  local NETWORK_ARGS="$7"
+  local CONTAINER="${CONTAINER_PREFIX}${DATA_BRANCH}"
+  local VOLUME="${CONTAINER}"
+  local METADATA_BRANCH="gitcd/metadata/${DATA_BRANCH}"
+  local DATA_REF="refs/heads/${DATA_BRANCH}"
+  local METADATA_REF="refs/heads/${METADATA_BRANCH}"
+  local REMOTE="origin"
+  local REMOTE_DATA_BRANCH="${REMOTE}/${REMOTE_DATA_BRANCH_NAME}"
+  local REMOTE_METADATA_BRANCH="${REMOTE}/gitcd/metadata/${REMOTE_DATA_BRANCH_NAME}"
+  local REMOTE_DATA_REF="refs/remotes/${REMOTE_DATA_BRANCH}"
+  local REMOTE_METADATA_REF="refs/remotes/${REMOTE_METADATA_BRANCH}"
+  local ENTRYPOINT_VOLUME="${CONTAINER}-entrypoint"
+
+  if container_exists "$CONTAINER"; then
+    docker container restart "$CONTAINER"
+  else
+    git_clone_and_prepare_branch "$CONTAINER" "$REMOTE_REPO" \
+      "$DATA_BRANCH" "$REMOTE_DATA_BRANCH" "$DATA_BRANCH_BLANK" "$REMOTE" \
+      "$METADATA_BRANCH" "$REMOTE_METADATA_BRANCH" "$METADATA_BRANCH_BLANK"
 
     create_volume_if_not_exists "$ENTRYPOINT_VOLUME"
     cat <<EOF | \
@@ -181,7 +277,7 @@ exec /gitcd serve \
   --metadata-reference-names=default=${METADATA_REF} \
   --key-prefixes=default=/registry \
   --pull-ticker-duration=20s \
-  --push-after-merges=default=false \
+  --push-after-merges=default=true \
   --merge-conflict-resolutions=${MERGE_CONFLICT_RESOLUTIONS} \
   --remote-names=default=${REMOTE} \
   --remote-data-reference-names=default=${REMOTE_DATA_REF} \
@@ -203,21 +299,26 @@ EOF
       -v "${ENTRYPOINT_VOLUME}:/entrypoint" \
       --entrypoint= \
       $GITCD_IMG /entrypoint/entrypoint.sh
+  
+    # Separate container to merge to upstream.
+    start_git_merge_if_required "$CONTAINER_PREFIX" "$REMOTE_REPO" \
+      "$REMOTE_DATA_BRANCH_NAME" "$DATA_BRANCH" "$MERGE_CONFLICT_RESOLUTIONS"
   fi
 }
 
 function start_apiserver {
   local CONTAINER_PREFIX="$1"
   local DATA_BRANCH="$2"
-  local MERGE_CONFLICT_RESOLUTIONS="$3"
-  local DOCKER_RUN_ARGS="$4"
+  local REMOTE_DATA_BRANCH_NAME="$3"
+  local MERGE_CONFLICT_RESOLUTIONS="$4"
+  local DOCKER_RUN_ARGS="$5"
   local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${DATA_BRANCH}"
   local GITCD_CONTAINER_PREFIX="$CONTAINER_PREFIX"
   local NETWORK_ARGS="--network=container:${ETCD_EVENTS_CONTAINER}"
   local APISERVER_CONTAINER="${CONTAINER_PREFIX}kube-apiserver-${DATA_BRANCH}"
 
   start_etcd "$ETCD_EVENTS_CONTAINER" "$DATA_BRANCH" "$DOCKER_RUN_ARGS"
-  start_gitcd "2479" "${GITCD_CONTAINER_PREFIX}the-rest-" "$REPO_THE_REST" "main" "default=2" "$NETWORK_ARGS"
+  start_gitcd "2479" "${GITCD_CONTAINER_PREFIX}the-rest-" "$REPO_THE_REST" "$DATA_BRANCH" "$REMOTE_DATA_BRANCH_NAME" "default=2" "$NETWORK_ARGS"
   # start_gitcd "2579" "${GITCD_CONTAINER_PREFIX}nodes-" "$REPO_NODES" "main" "default=2" "$NETWORK_ARGS"
   # start_gitcd "2679" "${GITCD_CONTAINER_PREFIX}leases-" "$REPO_LEASES" "main" "default=2" "$NETWORK_ARGS"
   # start_gitcd "2779" "${GITCD_CONTAINER_PREFIX}priorityclasses-" "$REPO_PRIORITYCLASSES" "main" "default=2" "$NETWORK_ARGS"
@@ -277,7 +378,7 @@ function start_apiserver {
         --v=2 \
         --watch-cache=false
 
-    echo "Waiting 10s for kube-apiserver to start up..." && sleep 10
+    echo -n "Waiting 10s for kube-apiserver to start up..." && sleep 10 && echo
 
     docker run --name kubectl \
       --rm  \
@@ -336,6 +437,18 @@ function start_kube_controller_manager {
   fi
 }
 
+function start_kube_controller_manager_with_gitcd {
+  local CONTAINER_PREFIX="$1"
+  local DATA_BRANCH="$2"
+  local REMOTE_DATA_BRANCH_NAME="$3"
+  local MERGE_CONFLICT_RESOLUTIONS="$4"
+  local DOCKER_RUN_ARGS="$5"
+  local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${DATA_BRANCH}"
+
+  start_apiserver "$CONTAINER_PREFIX" "$DATA_BRANCH" "$REMOTE_DATA_BRANCH_NAME" "$MERGE_CONFLICT_RESOLUTIONS" "$DOCKER_RUN_ARGS"
+  start_kube_controller_manager "$CONTAINER_PREFIX" "$DATA_BRANCH" "--network=container:${ETCD_EVENTS_CONTAINER}"
+}
+
 function start_kube_scheduler {
   local CONTAINER_PREFIX="$1"
   local DATA_BRANCH="$2"
@@ -371,6 +484,18 @@ function start_kube_scheduler {
   fi
 }
 
+function start_kube_scheduler_with_gitcd {
+  local CONTAINER_PREFIX="$1"
+  local DATA_BRANCH="$2"
+  local REMOTE_DATA_BRANCH_NAME="$3"
+  local MERGE_CONFLICT_RESOLUTIONS="$4"
+  local DOCKER_RUN_ARGS="$5"
+  local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${DATA_BRANCH}"
+
+  start_apiserver "$CONTAINER_PREFIX" "$DATA_BRANCH" "$REMOTE_DATA_BRANCH_NAME" "$MERGE_CONFLICT_RESOLUTIONS" "$DOCKER_RUN_ARGS"
+  start_kube_scheduler "$CONTAINER_PREFIX" "$DATA_BRANCH" "--network=container:${ETCD_EVENTS_CONTAINER}"
+}
+
 function apply_kubelet_rbac {
   local DOCKER_RUN_ARGS="$1"
   local SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
@@ -379,6 +504,7 @@ function apply_kubelet_rbac {
   cat "${DIRNAME}/configs/kubelet-rbac.yaml" | \
   docker run --name kubelet \
     -i --rm  \
+    --label "$LABEL" \
     $DOCKER_RUN_ARGS \
     -v "${SECRETS_VOLUME_NAME}:/secrets" \
     -u 0 \
@@ -387,9 +513,12 @@ function apply_kubelet_rbac {
       --kubeconfig=/secrets/admin.kubeconfig
 }
 
+# set -x
+
 # store_repo_credentials
-start_apiserver "trishanku-the-hard-way-" "main" "default=2" "-p 2379-2380 -p 6443:6443"
-# start_apiserver_with_gitcd "trishanku-the-hard-way-test-" "test" "default=2"
-start_kube_controller_manager "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
-start_kube_scheduler "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
-apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-main"
+# start_apiserver "trishanku-the-hard-way-" "main" "upstream" "default=2" "-p 2379-2380 -p 6443:6443"
+# start_kube_controller_manager "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
+start_kube_controller_manager_with_gitcd "trishanku-the-hard-way-" "kcm" "upstream" "default=2" "-p 2379-2380 -p 6443:6443"
+start_kube_scheduler_with_gitcd "trishanku-the-hard-way-" "scheduler" "upstream" "default=2" "-p 2379-2380 -p 6543:6443"
+# start_kube_scheduler "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
+# apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-kcm"
