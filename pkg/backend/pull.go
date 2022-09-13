@@ -246,14 +246,16 @@ func (p *puller) getPushRefSpecs() (refSpecs []git.RefSpec, err error) {
 	return
 }
 
-func (p *puller) push(ctx context.Context) (err error) {
+func (p *puller) pushUnsafe(ctx context.Context, lock bool) (err error) {
 	var (
 		remote   git.Remote
 		refSpecs []git.RefSpec
 	)
 
-	p.backend.RLock()
-	defer p.backend.RUnlock()
+	if lock {
+		p.backend.Lock()
+		defer p.backend.Unlock()
+	}
 
 	if refSpecs, err = p.getPushRefSpecs(); err != nil {
 		return
@@ -600,7 +602,7 @@ func (p *puller) merge(ctx context.Context) (err error) {
 
 	defer func() {
 		if err == nil && p.pushAfterMerge {
-			err = p.push(ctx)
+			err = p.pushUnsafe(ctx, false)
 		}
 	}()
 
