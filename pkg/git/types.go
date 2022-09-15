@@ -401,6 +401,7 @@ type Merger interface {
 
 	MergeTrees(ctx context.Context, ancestor, ours, theirs Tree) (mutate bool, treeID ObjectID, err error)
 	MergeTreesFromCommits(ctx context.Context, ours, theirs Commit) (mutated bool, treeID ObjectID, fastForward bool, err error)
+	MergeBase(ctx context.Context, ours, theirs Commit) (baseCommitID ObjectID, err error)
 }
 
 // RemoteName defines the type for the names of the remotes of a Git repository.

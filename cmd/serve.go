@@ -694,8 +694,6 @@ type serveFlagsImpl struct {
 	noFastForwards                map[string]string
 	noFetches                     map[string]string
 	pushAfterMerges               map[string]string
-	dataPushRefSpecs              map[string]string
-	metadataPushRefSpecs          map[string]string
 	pullTickerDuration            time.Duration
 }
 
@@ -719,15 +717,13 @@ func (s *serveFlagsImpl) getCommitterEmail() *string          { return &s.commit
 func (s *serveFlagsImpl) getMetaRefNames() *map[string]string { return &s.metaRefNames }
 func (s *serveFlagsImpl) getDataRefNames() *map[string]string { return &s.dataRefNames }
 
-func (s *serveFlagsImpl) getRemoteNames() *map[string]string          { return &s.remoteNames }
-func (s *serveFlagsImpl) getRemoteDataRefNames() *map[string]string   { return &s.remoteDataRefNames }
-func (s *serveFlagsImpl) getRemoteMetaRefNames() *map[string]string   { return &s.remoteMetaRefNames }
-func (s *serveFlagsImpl) getNoFastForwards() *map[string]string       { return &s.noFastForwards }
-func (s *serveFlagsImpl) getNoFetches() *map[string]string            { return &s.noFetches }
-func (s *serveFlagsImpl) getPushAfterMerges() *map[string]string      { return &s.pushAfterMerges }
-func (s *serveFlagsImpl) getDataPushRefSpecs() *map[string]string     { return &s.dataPushRefSpecs }
-func (s *serveFlagsImpl) getMetadataPushRefSpecs() *map[string]string { return &s.metadataPushRefSpecs }
-func (s *serveFlagsImpl) getPullTickerDuration() *time.Duration       { return &s.pullTickerDuration }
+func (s *serveFlagsImpl) getRemoteNames() *map[string]string        { return &s.remoteNames }
+func (s *serveFlagsImpl) getRemoteDataRefNames() *map[string]string { return &s.remoteDataRefNames }
+func (s *serveFlagsImpl) getRemoteMetaRefNames() *map[string]string { return &s.remoteMetaRefNames }
+func (s *serveFlagsImpl) getNoFastForwards() *map[string]string     { return &s.noFastForwards }
+func (s *serveFlagsImpl) getNoFetches() *map[string]string          { return &s.noFetches }
+func (s *serveFlagsImpl) getPushAfterMerges() *map[string]string    { return &s.pushAfterMerges }
+func (s *serveFlagsImpl) getPullTickerDuration() *time.Duration     { return &s.pullTickerDuration }
 
 func (s *serveFlagsImpl) getMergeConflictResolutions() *map[string]string {
 	return &s.mergeConflictResolutions

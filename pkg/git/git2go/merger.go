@@ -318,7 +318,7 @@ func (m *mergerImpl) retainFromMergePeelable(
 ) (
 	mutated bool,
 	treeID git.ObjectID,
-	fastForward bool,
+	sameAsMergeTree bool,
 	err error,
 ) {
 	var oursT, mergeT git.Tree
@@ -343,11 +343,27 @@ func (m *mergerImpl) retainFromMergePeelable(
 		return
 	}
 
-	if mutated {
-		fastForward = reflect.DeepEqual(treeID, mergeT.ID())
+	sameAsMergeTree = reflect.DeepEqual(treeID, mergeT.ID())
+	return
+}
+
+func (m *mergerImpl) MergeBase(ctx context.Context, ours, theirs git.Commit) (baseCommitID git.ObjectID, err error) {
+	var (
+		iOurs, iTheirs *commit
+		ok             bool
+	)
+
+	if iOurs, ok = ours.(*commit); !ok {
+		err = NewUnsupportedImplementationError(ours)
+		return
 	}
 
-	return
+	if iTheirs, ok = theirs.(*commit); !ok {
+		err = NewUnsupportedImplementationError(theirs)
+		return
+	}
+
+	return m.mergeBase(ctx, iOurs, iTheirs)
 }
 
 func (m *mergerImpl) mergeBase(ctx context.Context, ours, theirs *commit) (baseCommitID git.ObjectID, err error) {

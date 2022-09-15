@@ -220,45 +220,12 @@ func (p *puller) fetch(ctx context.Context) (err error) {
 	return
 }
 
-func (p *puller) getPushRefSpecs() (refSpecs []git.RefSpec, err error) {
-	for _, s := range []struct {
-		refSpec          git.RefSpec
-		defaultRefNameFn func() (git.ReferenceName, error)
-	}{
-		{refSpec: p.dataPushRefSpec, defaultRefNameFn: p.backend.getDataRefName},
-		{refSpec: p.metadataPushRefSpec, defaultRefNameFn: p.backend.getMetadataRefName},
-	} {
-		var refSpec = s.refSpec
-
-		if len(refSpec) <= 0 {
-			var refName git.ReferenceName
-
-			if refName, err = s.defaultRefNameFn(); err != nil {
-				return
-			}
-
-			refSpec = git.RefSpec(refName)
-		}
-
-		refSpecs = append(refSpecs, refSpec)
-	}
-
-	return
-}
-
 func (p *puller) pushUnsafe(ctx context.Context, lock bool) (err error) {
-	var (
-		remote   git.Remote
-		refSpecs []git.RefSpec
-	)
+	var remote git.Remote
 
 	if lock {
 		p.backend.Lock()
 		defer p.backend.Unlock()
-	}
-
-	if refSpecs, err = p.getPushRefSpecs(); err != nil {
-		return
 	}
 
 	if remote, err = p.getRemote(ctx); err != nil {
@@ -267,9 +234,7 @@ func (p *puller) pushUnsafe(ctx context.Context, lock bool) (err error) {
 
 	defer remote.Close()
 
-	p.log.Info("Pushing", "refSpecs", refSpecs)
-
-	err = remote.Push(ctx, refSpecs)
+	err = remote.Push(ctx, nil)
 
 	return
 }
@@ -324,7 +289,7 @@ func (p *puller) createMergeCommit(ctx context.Context, message string, mergeTre
 // in favour of the modification, because those metadata may not be part of the modification and
 // hence, not conflicting.
 // Ideally, the CREATE revision and LEASE should be retained from the modification.
-// TODO: This issue can be complete avoided by consolidating metatata into a single YAML file per key.
+// TODO: This issue can be completely avoided by consolidating metatata into a single YAML file per key.
 //
 // 3. The overall new revision (as well as data HEAD commit ID, it data was mutated) should be updated.
 type metadataFixerAfterNonFastForwardMerge struct {
@@ -658,8 +623,8 @@ func (p *puller) merge(ctx context.Context) (err error) {
 		}
 	}
 
-	if !dataMutated && !metaMutated {
-		return
+	if !(dataMutated || metaMutated || dataFastForward || metaFastForward) {
+		return // Nothing to do.
 	}
 
 	if oursDataC != nil {

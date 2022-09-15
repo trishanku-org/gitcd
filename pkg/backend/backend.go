@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -537,6 +538,57 @@ func (b *backend) addOrReplaceTreeEntry(ctx context.Context, tb git.TreeBuilder,
 	return
 }
 
+// TODO Test
+func (b *backend) checkFastForward(
+	ctx context.Context,
+	rc git.ReferenceCollection,
+	refName git.ReferenceName,
+	newCommitID git.ObjectID,
+) (err error) {
+	var (
+		ref          git.Reference
+		oc, nc       git.Commit
+		merger       git.Merger
+		baseCommitID git.ObjectID
+	)
+
+	if err = ctx.Err(); err != nil {
+		return
+	}
+
+	if ref, err = rc.Get(ctx, refName); err != nil {
+		err = b.errors.IgnoreNotFound(err)
+		return
+	}
+
+	defer ref.Close()
+
+	if oc, err = b.repo.Peeler().PeelToCommit(ctx, ref); err != nil {
+		return
+	}
+
+	defer oc.Close()
+
+	if nc, err = b.repo.ObjectGetter().GetCommit(ctx, newCommitID); err != nil {
+		return
+	}
+
+	merger = b.repo.Merger(b.errors)
+
+	defer merger.Close()
+
+	if baseCommitID, err = merger.MergeBase(ctx, oc, nc); err != nil {
+		return
+	}
+
+	if reflect.DeepEqual(baseCommitID, oc.ID()) {
+		return // Fast-forward.
+	}
+
+	err = fmt.Errorf("cannot fast-forward %q from %q to %q", refName, oc.ID(), nc.ID())
+	return
+}
+
 func (b *backend) advanceReferences(
 	ctx context.Context,
 	metaMutated bool,
@@ -574,6 +626,10 @@ func (b *backend) advanceReferences(
 		}
 
 		defer rc.Close()
+
+		if err = b.checkFastForward(ctx, rc, e.refName, e.headID); err != nil {
+			return
+		}
 
 		if err = rc.Create(ctx, e.refName, e.headID, true, revisionToString(revision)); err != nil {
 			return
