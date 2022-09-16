@@ -581,12 +581,12 @@ func (b *backend) checkFastForward(
 		return
 	}
 
-	if reflect.DeepEqual(baseCommitID, oc.ID()) {
-		return // Fast-forward.
+	if !reflect.DeepEqual(baseCommitID, oc.ID()) {
+		err = fmt.Errorf("cannot fast-forward %s from %s to %s", refName, oc.ID(), nc.ID())
+		return
 	}
 
-	err = fmt.Errorf("cannot fast-forward %q from %q to %q", refName, oc.ID(), nc.ID())
-	return
+	return // Fast-forward.
 }
 
 func (b *backend) advanceReferences(

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"path"
-	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -515,14 +514,14 @@ func (f *metadataFixerAfterNonFastForwardMerge) fix(
 		}); err != nil {
 			return
 		}
+	}
 
-		if tm, err = mutation.AddMutation(
-			tm,
-			metadataPathData,
-			f.backend.addOrReplaceTreeEntryMutateFn([]byte(f.newDataHeadID.String())),
-		); err != nil {
-			return
-		}
+	if tm, err = mutation.AddMutation(
+		tm,
+		metadataPathData,
+		f.backend.addOrReplaceTreeEntryMutateFn([]byte(f.newDataHeadID.String())),
+	); err != nil {
+		return
 	}
 
 	if tm, err = mutation.AddMutation(
@@ -550,11 +549,13 @@ func (p *puller) merge(ctx context.Context) (err error) {
 			"their-data-reference", p.remoteDataRefName,
 		)
 
-		oursDataC, theirsDataC, oursMetaC, theirsMetaC                 git.Commit
-		revision, oursRevision, theirsRevision                         int64
-		dataMutated, metaMutated, dataFastForward, metaFastForward     bool
-		dataMergeTreeID, metaMergeTreeID, newDataHeadID, newMetaHeadID git.ObjectID
-		message                                                        string
+		oursDataC, theirsDataC, oursMetaC, theirsMetaC git.Commit
+		revision, oursRevision, theirsRevision         int64
+		dataMutated, metaMutated                       bool
+		newDataHeadID, newMetaHeadID                   git.ObjectID
+		message                                        string
+
+		noFastForward = p.noFastForward
 	)
 
 	log.V(-1).Info("Merging")
@@ -610,89 +611,112 @@ func (p *puller) merge(ctx context.Context) (err error) {
 
 	revision = maxInt64(oursRevision, theirsRevision)
 
-	for _, s := range []struct {
-		oursC, theirsC       git.Commit
-		mutated, fastForward *bool
-		mergeTreeID          *git.ObjectID
+	for i, s := range []struct {
+		oursC, theirsC git.Commit
+		mutated        *bool
+		headID         *git.ObjectID
+		createCommitFn git.CreateCommitFunc
 	}{
-		{oursC: oursDataC, theirsC: theirsDataC, mutated: &dataMutated, mergeTreeID: &dataMergeTreeID, fastForward: &dataFastForward},
-		{oursC: oursMetaC, theirsC: theirsMetaC, mutated: &metaMutated, mergeTreeID: &metaMergeTreeID, fastForward: &metaFastForward},
+		{
+			oursC:   oursDataC,
+			theirsC: theirsDataC,
+			mutated: &dataMutated,
+			headID:  &newDataHeadID,
+			createCommitFn: func(ctx context.Context, dataTreeID git.ObjectID, parents ...git.Commit) (commitID git.ObjectID, err error) {
+				revision++
+				message = revisionToString(revision)
+
+				commitID, err = p.createMergeCommit(ctx, message, dataTreeID, parents...)
+				return
+			},
+		},
+		{
+			oursC:   oursMetaC,
+			theirsC: theirsMetaC,
+			mutated: &metaMutated,
+			headID:  &newMetaHeadID,
+			createCommitFn: func(ctx context.Context, metaTreeID git.ObjectID, parents ...git.Commit) (commitID git.ObjectID, err error) {
+				var (
+					newMetaMutated     bool
+					newMetaMergeTreeID git.ObjectID
+					dataC              git.Commit
+				)
+
+				if dataC, err = p.backend.repo.ObjectGetter().GetCommit(ctx, newDataHeadID); err != nil {
+					return
+				}
+
+				defer dataC.Close()
+
+				// revision and message would have already been updated during data merge.
+
+				if newMetaMutated, newMetaMergeTreeID, err = (&metadataFixerAfterNonFastForwardMerge{
+					backend:         p.backend,
+					newRevision:     revision,
+					oursDataC:       oursDataC,
+					theirsDataC:     theirsDataC,
+					oursMetaC:       oursMetaC,
+					theirsMetaC:     theirsMetaC,
+					dataMutated:     dataMutated,
+					dataMergeTreeID: dataC.TreeID(),
+					metaMergeTreeID: metaTreeID,
+					newDataHeadID:   newDataHeadID,
+					message:         message,
+				}).fix(ctx); err != nil {
+					return
+				} else if !newMetaMutated {
+					newMetaMergeTreeID = metaTreeID
+				}
+
+				commitID, err = p.createMergeCommit(ctx, message, newMetaMergeTreeID, parents...)
+				return
+			},
+		},
 	} {
-		if *s.mutated, *s.mergeTreeID, *s.fastForward, err = merger.MergeTreesFromCommits(ctx, s.oursC, s.theirsC); err != nil {
-			return
-		}
-	}
-
-	if !(dataMutated || metaMutated || dataFastForward || metaFastForward) {
-		return // Nothing to do.
-	}
-
-	if oursDataC != nil {
-		newDataHeadID = oursDataC.ID() // Just to be safe.
-	}
-
-	if dataFastForward = dataFastForward && !p.noFastForward; dataFastForward {
-		newDataHeadID = theirsDataC.ID()
-	}
-
-	if metaFastForward = metaFastForward && dataFastForward && !p.noFastForward; metaFastForward {
-		newMetaHeadID = theirsMetaC.ID()
-	} else {
-		revision++ // Merge commit increments revision.
-	}
-
-	message = revisionToString(revision)
-
-	if dataMutated && !dataFastForward {
-		if newDataHeadID, err = p.createMergeCommit(ctx, message, dataMergeTreeID, oursDataC, theirsDataC); err != nil {
-			return
-		}
-	}
-
-	if !metaMutated {
-		if oursMetaC != nil {
-			metaMergeTreeID = oursMetaC.TreeID()
-			metaMutated = true
-		} else if theirsMetaC != nil {
-			// Should not happen.
-			metaMergeTreeID = theirsMetaC.TreeID()
-			metaMutated = true
-		}
-	}
-
-	if !metaFastForward {
-		var (
-			newMetaMutated     bool
-			newMetaMergeTreeID git.ObjectID
-		)
-
-		if reflect.DeepEqual(newDataHeadID, git.ObjectID{}) {
-			err = errors.New("invalid empty data head commit")
+		if *s.mutated, *s.headID, err = merger.MergeCommits(ctx, s.oursC, s.theirsC, noFastForward, s.createCommitFn); err != nil {
 			return
 		}
 
-		if newMetaMutated, newMetaMergeTreeID, err = (&metadataFixerAfterNonFastForwardMerge{
-			backend:         p.backend,
-			newRevision:     revision,
-			oursDataC:       oursDataC,
-			theirsDataC:     theirsDataC,
-			oursMetaC:       oursMetaC,
-			theirsMetaC:     theirsMetaC,
-			dataMutated:     dataMutated,
-			dataMergeTreeID: dataMergeTreeID,
-			metaMergeTreeID: metaMergeTreeID,
-			newDataHeadID:   newDataHeadID,
-			message:         message,
-		}).fix(ctx); err != nil {
-			return
-		} else if !newMetaMutated {
-			newMetaMergeTreeID = metaMergeTreeID
+		if *s.mutated {
+			noFastForward = true // If data mutated, metadata should not be fast-forwarded because at least the data ID needs to change.
+		} else {
+			*s.headID = s.oursC.ID() // To be safe.
 		}
 
-		if newMetaHeadID, err = p.createMergeCommit(ctx, message, newMetaMergeTreeID, oursMetaC, theirsMetaC); err != nil {
-			return
+		{
+			var (
+				spec           = []string{"data", "metadata"}
+				ourID, theirID git.ObjectID
+			)
+
+			if s.oursC != nil {
+				ourID = s.oursC.ID()
+			}
+
+			if s.theirsC != nil {
+				theirID = s.theirsC.ID()
+			}
+
+			log.V(-1).Info(
+				"merge info 1",
+				"spec", spec[i],
+				"ourID", ourID,
+				"theirID", theirID,
+				"mutated", s.mutated,
+				"headID", s.headID,
+				"noFastForward", noFastForward,
+			)
 		}
 	}
+
+	log.V(-1).Info(
+		"merge advanceReferences",
+		"metaMutated", metaMutated,
+		"newMetaHeadID", newMetaHeadID,
+		"dataMutated", dataMutated,
+		"newDataHeadID", newDataHeadID,
+		"revision", revision,
+	)
 
 	return b.advanceReferences(ctx, metaMutated, newMetaHeadID, dataMutated, newDataHeadID, revision)
 }

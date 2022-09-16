@@ -403,7 +403,22 @@ func (b *backend) Txn(ctx context.Context, req *etcdserverpb.TxnRequest) (res *e
 	)
 
 	log.V(-1).Info("txn received", "request", req)
-	defer func() { log.V(-1).Info("txn returned", "response", res, "error", err, "duration", perf().String()) }()
+	defer func() {
+		var oldMetaHeadID git.ObjectID
+
+		if metaHead != nil {
+			oldMetaHeadID = metaHead.ID()
+		}
+
+		log.V(-1).Info(
+			"txn returned",
+			"response", res,
+			"error", err,
+			"oldMetaHead", oldMetaHeadID,
+			"newMetaHead", newMetaHeadID,
+			"duration", perf().String(),
+		)
+	}()
 
 	b.Lock()
 	defer b.Unlock()

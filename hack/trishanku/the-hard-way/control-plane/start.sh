@@ -129,6 +129,7 @@ git clone --bare --branch "${REMOTE_BRANCH_PREFIX}/data" "$REMOTE_REPO" /backend
 
 cd /backend
 
+git config core.logAllRefUpdates always
 git config --unset-all remote.origin.fetch
 git config --unset-all remote.origin.push
 

@@ -382,6 +382,9 @@ func (r *regexpMRP) Retain(ctx context.Context, tePath string) (retain bool, err
 	return
 }
 
+// CreateCommitFunc defines the signature for a callback function to create a commit before it is finally created.
+type CreateCommitFunc func(ctx context.Context, treeID ObjectID, parents ...Commit) (commitID ObjectID, err error)
+
 // Merger defines the interface to merge changes from diffrent commit trees.
 // It only merges the commit trees and automatically resolves conflicts.
 // Creating the new commit based on the merged tree is out of scope of the Merger.
@@ -399,8 +402,16 @@ type Merger interface {
 	SetConflictResolution(conflictResolution MergeConfictResolution)
 	SetRetentionPolicy(retentionPolicy MergeRetentionPolicy)
 
-	MergeTrees(ctx context.Context, ancestor, ours, theirs Tree) (mutate bool, treeID ObjectID, err error)
-	MergeTreesFromCommits(ctx context.Context, ours, theirs Commit) (mutated bool, treeID ObjectID, fastForward bool, err error)
+	MergeCommits(
+		ctx context.Context,
+		ours, theirs Commit,
+		noFastForward bool,
+		createCommitFn CreateCommitFunc,
+	) (
+		mutated bool,
+		headID ObjectID,
+		err error,
+	)
 	MergeBase(ctx context.Context, ours, theirs Commit) (baseCommitID ObjectID, err error)
 }
 

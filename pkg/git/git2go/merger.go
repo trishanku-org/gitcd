@@ -246,72 +246,6 @@ func (m *mergerImpl) retainFromMergeIndex(
 	return
 }
 
-func (m *mergerImpl) MergeTrees(
-	ctx context.Context,
-	ancestor, ours, theirs git.Tree,
-) (
-	mutated bool,
-	treeID git.ObjectID,
-	err error,
-) {
-	var (
-		iAncestor, iOurs, iTheirs *tree
-		ok                        bool
-		opts                      *impl.MergeOptions
-		index                     *impl.Index
-	)
-
-	if err = ctx.Err(); err != nil {
-		return
-	}
-
-	if theirs == nil {
-		// Nothing to merge. Ours remains unmodified.
-		return
-	} else if iTheirs, ok = theirs.(*tree); !ok {
-		err = NewUnsupportedImplementationError(theirs)
-		return
-	}
-
-	if ours == nil {
-		// Simple merge. Theirs is the merge candidate.
-		mutated, treeID, err = m.retainFromMergeTree(ctx, nil, theirs)
-		return
-	} else if iOurs, ok = ours.(*tree); !ok {
-		err = NewUnsupportedImplementationError(ours)
-		return
-	}
-
-	if reflect.DeepEqual(ours.ID(), theirs.ID()) {
-		// Nothing to merge. Ours and theirs are identical.
-		return
-	}
-
-	if ancestor != nil {
-		if iAncestor, ok = ancestor.(*tree); !ok {
-			err = NewUnsupportedImplementationError(ancestor)
-			return
-		}
-	}
-
-	if opts, err = m.mergeOptions(); err != nil {
-		return
-	}
-
-	if index, err = m.repo.impl.MergeTrees(iAncestor.impl(), iOurs.impl(), iTheirs.impl(), opts); err != nil {
-		return
-	}
-
-	defer index.Free()
-
-	if err = m.resolveModifyDeleteConflicts(ctx, index); err != nil {
-		return
-	}
-
-	mutated, treeID, err = m.retainFromMergeIndex(ctx, ours, index)
-	return
-}
-
 func (m *mergerImpl) retainFromMergePeelable(
 	ctx context.Context,
 	ours, merge git.Peelable,
@@ -386,21 +320,22 @@ func (m *mergerImpl) mergeBase(ctx context.Context, ours, theirs *commit) (baseC
 	return
 }
 
-func (m *mergerImpl) MergeTreesFromCommits(
+func (m *mergerImpl) MergeCommits(
 	ctx context.Context,
 	ours, theirs git.Commit,
+	noFastForward bool,
+	createCommitFn git.CreateCommitFunc,
 ) (
 	mutated bool,
-	treeID git.ObjectID,
-	fastForward bool,
+	headID git.ObjectID,
 	err error,
 ) {
 	var (
-		iOurs, iTheirs *commit
-		ok             bool
-		baseCommitID   git.ObjectID
-		opts           *impl.MergeOptions
-		index          *impl.Index
+		iOurs, iTheirs       *commit
+		ok, treeMutated      bool
+		baseCommitID, treeID git.ObjectID
+		opts                 *impl.MergeOptions
+		index                *impl.Index
 	)
 
 	if err = ctx.Err(); err != nil {
@@ -409,6 +344,12 @@ func (m *mergerImpl) MergeTreesFromCommits(
 
 	if theirs == nil {
 		// Nothing to merge. Ours remains unmodified.
+		mutated = false
+
+		if ours != nil {
+			headID = ours.ID()
+		}
+
 		return
 	} else if iTheirs, ok = theirs.(*commit); !ok {
 		err = NewUnsupportedImplementationError(theirs)
@@ -417,7 +358,22 @@ func (m *mergerImpl) MergeTreesFromCommits(
 
 	if ours == nil {
 		// Simple merge. Theirs is the merge candidate.
-		mutated, treeID, fastForward, err = m.retainFromMergePeelable(ctx, nil, theirs)
+		var sameAsTheirTree bool
+
+		if _, treeID, sameAsTheirTree, err = m.retainFromMergePeelable(ctx, nil, theirs); err != nil {
+			return
+		}
+
+		if sameAsTheirTree && !noFastForward {
+			mutated, headID = true, theirs.ID() // Fast-forward
+			return
+		}
+
+		if headID, err = createCommitFn(ctx, treeID, theirs); err != nil {
+			return
+		}
+
+		mutated = true
 		return
 	} else if iOurs, ok = ours.(*commit); !ok {
 		err = NewUnsupportedImplementationError(ours)
@@ -426,23 +382,46 @@ func (m *mergerImpl) MergeTreesFromCommits(
 
 	if reflect.DeepEqual(ours.ID(), theirs.ID()) {
 		// Nothing to do. Both sides are identical.
+		mutated, headID = false, ours.ID()
 		return
 	}
 
-	if baseCommitID, err = m.mergeBase(ctx, iOurs, iTheirs); err != nil {
+	if baseCommitID, err = m.mergeBase(ctx, iOurs, iTheirs); m.errors.IgnoreNotFound(err) != nil {
 		return
+	} else if err == nil { // Merge base found.
+		if reflect.DeepEqual(baseCommitID, theirs.ID()) {
+			// Theirs is already merged to ours. Ours remains unmodified.
+			mutated, headID = false, ours.ID()
+			return
+		}
+
+		if reflect.DeepEqual(baseCommitID, ours.ID()) {
+			// Simple merge. Theirs is the merge candidate because it has already merged ours but has gone ahead.
+			var sameAsTheirTree bool
+
+			if treeMutated, treeID, sameAsTheirTree, err = m.retainFromMergePeelable(ctx, ours, theirs); err != nil {
+				return
+			}
+
+			if sameAsTheirTree && !noFastForward {
+				mutated, headID = true, theirs.ID() // Fast-forward
+				return
+			}
+
+			if !treeMutated {
+				treeID = ours.ID() // To be safe.
+			}
+
+			if headID, err = createCommitFn(ctx, treeID, ours, theirs); err != nil {
+				return
+			}
+
+			mutated = true
+			return
+		}
 	}
 
-	if reflect.DeepEqual(baseCommitID, theirs.ID()) {
-		// Theirs is already merged to ours. Ours remains unmodified.
-		return
-	}
-
-	if reflect.DeepEqual(baseCommitID, ours.ID()) {
-		// Simple merge. Theirs is the merge candidate because it has already merged ours but has gone ahead.
-		mutated, treeID, fastForward, err = m.retainFromMergePeelable(ctx, ours, theirs)
-		return
-	}
+	// Merge base not found or fast-forward not possible. Try merging either way.
 
 	if opts, err = m.mergeOptions(); err != nil {
 		return
@@ -458,6 +437,16 @@ func (m *mergerImpl) MergeTreesFromCommits(
 		return
 	}
 
-	mutated, treeID, err = m.retainFromMergeIndex(ctx, ours, index)
+	treeMutated, treeID, err = m.retainFromMergeIndex(ctx, ours, index)
+
+	if !treeMutated {
+		treeID = ours.ID() // To be safe.
+	}
+
+	if headID, err = createCommitFn(ctx, treeID, ours, theirs); err != nil {
+		return
+	}
+
+	mutated = true
 	return
 }
