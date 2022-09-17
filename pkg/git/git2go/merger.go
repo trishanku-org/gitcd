@@ -409,7 +409,7 @@ func (m *mergerImpl) MergeCommits(
 			}
 
 			if !treeMutated {
-				treeID = ours.ID() // To be safe.
+				treeID = ours.TreeID() // To be safe.
 			}
 
 			if headID, err = createCommitFn(ctx, treeID, ours, theirs); err != nil {
@@ -440,7 +440,7 @@ func (m *mergerImpl) MergeCommits(
 	treeMutated, treeID, err = m.retainFromMergeIndex(ctx, ours, index)
 
 	if !treeMutated {
-		treeID = ours.ID() // To be safe.
+		treeID = ours.TreeID() // To be safe.
 	}
 
 	if headID, err = createCommitFn(ctx, treeID, ours, theirs); err != nil {

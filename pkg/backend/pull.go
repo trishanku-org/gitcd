@@ -558,7 +558,7 @@ func (p *puller) merge(ctx context.Context) (err error) {
 		noFastForward = p.noFastForward
 	)
 
-	log.V(-1).Info("Merging")
+	log.V(-1).Info("Merging", "conflictResolution", merger.GetConfictResolution(), "retentionPolicy", merger.GetRetentionPolicy().String())
 	defer func() {
 		log.V(-1).Info("Merged", "error", err, "dataMutated", dataMutated, "metaMutated", metaMutated, "pushAfterMerge", p.pushAfterMerge)
 	}()
@@ -643,12 +643,15 @@ func (p *puller) merge(ctx context.Context) (err error) {
 				)
 
 				if dataC, err = p.backend.repo.ObjectGetter().GetCommit(ctx, newDataHeadID); err != nil {
+					log.V(-1).Error(err, "GetCommit")
 					return
 				}
 
 				defer dataC.Close()
 
 				// revision and message would have already been updated during data merge.
+
+				p.log.Info("Before metadataFixerAfterNonFastForwardMerge", "dataMergeTreeID", dataC.TreeID(), "metaMergeTreeID", metaTreeID, "newDataHeadID", newDataHeadID)
 
 				if newMetaMutated, newMetaMergeTreeID, err = (&metadataFixerAfterNonFastForwardMerge{
 					backend:         p.backend,
@@ -663,6 +666,7 @@ func (p *puller) merge(ctx context.Context) (err error) {
 					newDataHeadID:   newDataHeadID,
 					message:         message,
 				}).fix(ctx); err != nil {
+					log.V(-1).Error(err, "metadataFixerAfterNonFastForwardMerge")
 					return
 				} else if !newMetaMutated {
 					newMetaMergeTreeID = metaTreeID

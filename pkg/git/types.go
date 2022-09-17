@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -297,6 +298,7 @@ const (
 // MergeRetentionPolicy defines the interface to check if a tree entry must be retained during merge/rebase.
 type MergeRetentionPolicy interface {
 	Retain(ctx context.Context, tePath string) (retain bool, err error)
+	String() string
 }
 
 var DefaultMergeRetentionPolicy = AllMergeRetentionPolicy()
@@ -306,12 +308,14 @@ func AllMergeRetentionPolicy() MergeRetentionPolicy { return allMRP{} }
 type allMRP struct{}
 
 func (allMRP) Retain(_ context.Context, _ string) (retain bool, err error) { retain = true; return }
+func (allMRP) String() string                                              { return "<all>" }
 
 func NoneMergeRetentionPolicy() MergeRetentionPolicy { return noneMRP{} }
 
 type noneMRP struct{}
 
 func (noneMRP) Retain(_ context.Context, _ string) (retain bool, err error) { return }
+func (noneMRP) String() string                                              { return "<none>" }
 
 // OrMergeRetentionPolicy returns a policy which retains if any one of the given policies retains.
 func OrMergeRetentionPolicy(mrps ...MergeRetentionPolicy) MergeRetentionPolicy {
@@ -329,6 +333,16 @@ func (o orMRP) Retain(ctx context.Context, tePath string) (retain bool, err erro
 	}
 
 	return
+}
+
+func (o orMRP) String() string {
+	var strMs []string
+
+	for _, mrp := range o {
+		strMs = append(strMs, mrp.String())
+	}
+
+	return fmt.Sprintf("<OR(%s)>", strings.Join(strMs, ","))
 }
 
 // AndMergeRetentionPolicy returns a policy which retains if all of the given policies retain.
@@ -349,6 +363,16 @@ func (a andMRP) Retain(ctx context.Context, tePath string) (retain bool, err err
 	return
 }
 
+func (a andMRP) String() string {
+	var strMs []string
+
+	for _, mrp := range a {
+		strMs = append(strMs, mrp.String())
+	}
+
+	return fmt.Sprintf("<AND(%s)>", strings.Join(strMs, ","))
+}
+
 // NotMergeRetentionPolicy returns a policy which negates the given policy.
 func NotMergeRetentionPolicy(mrp MergeRetentionPolicy) MergeRetentionPolicy {
 	return notMRP{mrp: mrp}
@@ -363,6 +387,10 @@ func (n notMRP) Retain(ctx context.Context, tePath string) (retain bool, err err
 	retain, err = n.mrp.Retain(ctx, tePath)
 	retain = !retain
 	return
+}
+
+func (n notMRP) String() string {
+	return fmt.Sprintf("<NOT(%s)>", n.mrp)
 }
 
 // RegexpMergeRetentionPolicy returns a policy which retains paths which matches the given regexp pattern.
@@ -380,6 +408,10 @@ func (r *regexpMRP) regexp() *regexp.Regexp {
 func (r *regexpMRP) Retain(ctx context.Context, tePath string) (retain bool, err error) {
 	retain = r.regexp().MatchString(tePath)
 	return
+}
+
+func (r *regexpMRP) String() string {
+	return fmt.Sprintf("<REGEXP(%s)>", r.regexp().String())
 }
 
 // CreateCommitFunc defines the signature for a callback function to create a commit before it is finally created.

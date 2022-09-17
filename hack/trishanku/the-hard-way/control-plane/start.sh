@@ -161,7 +161,8 @@ function start_git_merge_if_required {
   local REMOTE_REPO="$2"
   local BRANCH_PREFIX="$3"
   local REMOTE_BRANCH_PREFIX="$4"
-  local MERGE_CONFLICT_RESOLUTIONS="$5"
+  local MERGE_RETENTION_POLICIES="$5"
+  local MERGE_CONFLICT_RESOLUTIONS="$6"
   local CONTAINER="${CONTAINER_PREFIX}git-merge-to-${BRANCH_PREFIX}-from-${REMOTE_BRANCH_PREFIX}"
   local VOLUME="${CONTAINER}"
   local DATA_BRANCH="${BRANCH_PREFIX}/data"
@@ -205,6 +206,7 @@ exec /gitcd pull \
   --data-reference-names=default=${DATA_REF} \
   --metadata-reference-names=default=${METADATA_REF} \
   --push-after-merges=default=true \
+  ${MERGE_RETENTION_POLICIES} \
   --merge-conflict-resolutions=${MERGE_CONFLICT_RESOLUTIONS} \
   --remote-names=default=${REMOTE} \
   --remote-data-reference-names=default=${REMOTE_DATA_REF} \
@@ -234,8 +236,10 @@ function start_gitcd {
   local REMOTE_REPO="$3"
   local BRANCH_PREFIX="$4"
   local REMOTE_BRANCH_PREFIX="$5"
-  local MERGE_CONFLICT_RESOLUTIONS="$6"
-  local NETWORK_ARGS="$7"
+  local MERGE_RETENTION_POLICIES="$6"
+  local MERGE_CONFLICT_RESOLUTIONS="$7"
+  local MERGE_CONFLICT_RESOLUTIONS_MERGE="$8"
+  local NETWORK_ARGS="$9"
   local CONTAINER="${CONTAINER_PREFIX}${BRANCH_PREFIX}"
   local VOLUME="${CONTAINER}"
   local DATA_BRANCH="${BRANCH_PREFIX}/data"
@@ -277,6 +281,7 @@ exec /gitcd serve \
   --key-prefixes=default=/registry \
   --pull-ticker-duration=20s \
   --push-after-merges=default=true \
+  ${MERGE_RETENTION_POLICIES} \
   --merge-conflict-resolutions=${MERGE_CONFLICT_RESOLUTIONS} \
   --remote-names=default=${REMOTE} \
   --no-fast-forwards=default=false \
@@ -302,7 +307,7 @@ EOF
   
     # Separate container to merge to upstream.
     start_git_merge_if_required "$CONTAINER_PREFIX" "$REMOTE_REPO" \
-      "$REMOTE_BRANCH_PREFIX" "$BRANCH_PREFIX" "$MERGE_CONFLICT_RESOLUTIONS"
+      "$REMOTE_BRANCH_PREFIX" "$BRANCH_PREFIX" "$MERGE_RETENTION_POLICIES" "$MERGE_CONFLICT_RESOLUTIONS_MERGE"
   fi
 }
 
@@ -310,15 +315,18 @@ function start_apiserver {
   local CONTAINER_PREFIX="$1"
   local BRANCH_PREFIX="$2"
   local REMOTE_BRANCH_PREFIX="$3"
-  local MERGE_CONFLICT_RESOLUTIONS="$4"
-  local DOCKER_RUN_ARGS="$5"
+  local MERGE_RETENTION_POLICIES="$4"
+  local MERGE_CONFLICT_RESOLUTIONS="$5"
+  local MERGE_CONFLICT_RESOLUTIONS_MERGE="$6"
+  local DOCKER_RUN_ARGS="$7"
   local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${BRANCH_PREFIX}"
   local GITCD_CONTAINER_PREFIX="$CONTAINER_PREFIX"
   local NETWORK_ARGS="--network=container:${ETCD_EVENTS_CONTAINER}"
   local APISERVER_CONTAINER="${CONTAINER_PREFIX}kube-apiserver-${BRANCH_PREFIX}"
 
   start_etcd "$ETCD_EVENTS_CONTAINER" "$BRANCH_PREFIX" "$DOCKER_RUN_ARGS"
-  start_gitcd "2479" "${GITCD_CONTAINER_PREFIX}the-rest-" "$REPO_THE_REST" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" "default=2" "$NETWORK_ARGS"
+  start_gitcd "2479" "${GITCD_CONTAINER_PREFIX}the-rest-" "$REPO_THE_REST" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" \
+    "$MERGE_RETENTION_POLICIES" "$MERGE_CONFLICT_RESOLUTIONS" "$MERGE_CONFLICT_RESOLUTIONS_MERGE" "$NETWORK_ARGS"
 
   if container_exists "$APISERVER_CONTAINER"; then
     docker container restart "$APISERVER_CONTAINER"
@@ -436,11 +444,14 @@ function start_kube_controller_manager_with_gitcd {
   local CONTAINER_PREFIX="$1"
   local BRANCH_PREFIX="$2"
   local REMOTE_BRANCH_PREFIX="$3"
-  local MERGE_CONFLICT_RESOLUTIONS="$4"
-  local DOCKER_RUN_ARGS="$5"
+  local DOCKER_RUN_ARGS="$4"
   local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${BRANCH_PREFIX}"
 
-  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" "$MERGE_CONFLICT_RESOLUTIONS" "$DOCKER_RUN_ARGS"
+  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" \
+    "--merge-retention-policies-exclude=default=leases/.*,flowschemas/.*,/masterleases/.*" \
+    "default=1" \
+    "default=2" \
+    "$DOCKER_RUN_ARGS"
   start_kube_controller_manager "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "--network=container:${ETCD_EVENTS_CONTAINER}"
 }
 
@@ -487,7 +498,11 @@ function start_kube_scheduler_with_gitcd {
   local DOCKER_RUN_ARGS="$5"
   local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${BRANCH_PREFIX}"
 
-  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" "$MERGE_CONFLICT_RESOLUTIONS" "$DOCKER_RUN_ARGS"
+  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" \
+    "--merge-retention-policies-exclude=default=leases/.*,flowschemas/.*,/masterleases/.*" \
+    "default=1" \
+    "default=2" \
+  "$DOCKER_RUN_ARGS"
   start_kube_scheduler "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "--network=container:${ETCD_EVENTS_CONTAINER}"
 }
 
@@ -508,11 +523,11 @@ function apply_kubelet_rbac {
       --kubeconfig=/secrets/admin.kubeconfig
 }
 
-# set -x
+set -x
 
 # store_repo_credentials
 # start_apiserver "trishanku-the-hard-way-" "main" "upstream" "default=2" "-p 2379-2380 -p 6443:6443"
 # start_kube_controller_manager "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
-start_kube_controller_manager_with_gitcd "trishanku-the-hard-way-" "kcm" "upstream" "default=2" "-p 2379-2380 -p 6443:6443"
-start_kube_scheduler_with_gitcd "trishanku-the-hard-way-" "scheduler" "upstream" "default=2" "-p 2379-2380 -p 6543:6443"
+start_kube_controller_manager_with_gitcd "trishanku-the-hard-way-" "kcm" "upstream" "-p 2379-2380 -p 6443:6443"
+start_kube_scheduler_with_gitcd "trishanku-the-hard-way-" "scheduler" "upstream" "-p 2379-2380 -p 6543:6443"
 # apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-kcm"
