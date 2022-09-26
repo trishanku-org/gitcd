@@ -126,6 +126,22 @@ func (t *tree) ForEachEntry(ctx context.Context, fn git.TreeEntryReceiverFunc) e
 	return nil
 }
 
+func signatureName(s *impl.Signature) string {
+	if s == nil {
+		return ""
+	}
+
+	return s.Name
+}
+
+func signatureEmail(s *impl.Signature) string {
+	if s == nil {
+		return ""
+	}
+
+	return s.Email
+}
+
 // commit implements the Commit interface defined in the parent git package.
 type commit impl.Commit
 
@@ -143,6 +159,8 @@ func (c *commit) Peel(ctx context.Context, r git.ObjectReceiver) error {
 
 func (c *commit) Message() string      { return c.impl().Message() }
 func (c *commit) TreeID() git.ObjectID { return git.ObjectID(*c.impl().TreeId()) }
+func (c *commit) AuthorName() string   { return signatureName(c.impl().Author()) }
+func (c *commit) AuthorEmail() string  { return signatureEmail(c.impl().Author()) }
 
 func (c *commit) ForEachParentID(ctx context.Context, fn git.CommitIDReceiverFunc) (err error) {
 	if err = ctx.Err(); err != nil {

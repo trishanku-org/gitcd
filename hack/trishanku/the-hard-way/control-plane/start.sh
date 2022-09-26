@@ -523,7 +523,7 @@ function apply_kubelet_rbac {
       --kubeconfig=/secrets/admin.kubeconfig
 }
 
-set -x
+# set -x
 
 # store_repo_credentials
 # start_apiserver "trishanku-the-hard-way-" "main" "upstream" "default=2" "-p 2379-2380 -p 6443:6443"

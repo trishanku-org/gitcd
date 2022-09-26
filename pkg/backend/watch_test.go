@@ -208,7 +208,7 @@ var _ = Describe("revisionWatcher", func() {
 
 	BeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
-		rw = &revisionWatcher{}
+		rw = &revisionWatcher{log: getTestLogger()}
 	})
 
 	Describe("next", func() {
@@ -5910,7 +5910,7 @@ var _ = Describe("watchManager", func() {
 					},
 					{
 						spec:       "no metaRefName",
-						queue:      []rwSpec{{rw: &revisionWatcher{}, watches: []watchSpec{{makerFn: newMockWatch}}}},
+						queue:      []rwSpec{{rw: &revisionWatcher{log: getTestLogger()}, watches: []watchSpec{{makerFn: newMockWatch}}}},
 						matchErr:   MatchError(rpctypes.ErrGRPCCorrupt),
 						matchQueue: BeNil(),
 					},
@@ -5929,7 +5929,7 @@ var _ = Describe("watchManager", func() {
 								},
 								nil,
 							),
-							queue:      []rwSpec{{rw: &revisionWatcher{}, watches: []watchSpec{{makerFn: newMockWatch}}}},
+							queue:      []rwSpec{{rw: &revisionWatcher{log: getTestLogger()}, watches: []watchSpec{{makerFn: newMockWatch}}}},
 							matchErr:   ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{"Code": Equal(impl.ErrorCodeNotFound)}))),
 							matchQueue: BeNil(),
 						}

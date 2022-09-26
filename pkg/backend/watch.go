@@ -127,6 +127,7 @@ type revisionWatcher struct {
 	revision    int64
 	changesOnly bool
 	interval    *closedOpenInterval
+	log         logr.Logger
 	watches     []watch
 
 	// These are computed automatically based on the interval and changes.
@@ -139,7 +140,7 @@ func (rw *revisionWatcher) next() (n *revisionWatcher) {
 		return
 	}
 
-	n = &revisionWatcher{backend: rw.backend, revision: rw.revision + 1, changesOnly: true, interval: rw.interval}
+	n = &revisionWatcher{backend: rw.backend, revision: rw.revision + 1, changesOnly: true, interval: rw.interval, log: rw.log}
 	n.watches = getActiveWatches(rw.watches)
 
 	return
@@ -185,6 +186,33 @@ func (rw *revisionWatcher) getRevisionAndPredecessorMetadata(ctx context.Context
 		metaCommit            git.Commit
 		metaPredecessorTreeID git.ObjectID
 		predecessorRevision   int64
+		commitFilterFn        commitFilterFunc
+		log                   = rw.log.WithName("getRevisionAndPredecessorMetadata")
+
+		processParentCommitFn = func(ctx context.Context, c git.Commit) (done bool, err error) {
+			var (
+				t        git.Tree
+				revision int64
+			)
+
+			if t, err = b.repo.Peeler().PeelToTree(ctx, c); err != nil {
+				return
+			}
+
+			defer t.Close()
+
+			if revision, err = b.readRevision(ctx, t, metadataPathRevision); err != nil {
+				return
+			}
+
+			if metaPredecessorRoot == nil || (revision < rw.revision && revision > predecessorRevision) {
+				metaPredecessorTreeID = t.ID()
+				predecessorRevision = revision
+			}
+
+			done = revision == rw.revision-1
+			return
+		}
 	)
 
 	if metaRef, err = b.getMetadataReference(ctx); err != nil {
@@ -215,31 +243,35 @@ func (rw *revisionWatcher) getRevisionAndPredecessorMetadata(ctx context.Context
 		return
 	}
 
+	// First try only own lineage. TODO Test
+	commitFilterFn = sameAuthorAs(metaHead)
+
 	if err = metaCommit.ForEachParent(ctx, func(ctx context.Context, c git.Commit) (done bool, err error) {
-		var (
-			t        git.Tree
-			revision int64
-		)
+		if commitFilterFn != nil {
+			var skip bool
 
-		if t, err = b.repo.Peeler().PeelToTree(ctx, c); err != nil {
-			return
+			if skip, err = commitFilterFn(ctx, c); skip || err != nil {
+				// Skip other lineages.
+				return
+			}
 		}
 
-		defer t.Close()
-
-		if revision, err = b.readRevision(ctx, t, metadataPathRevision); err != nil {
-			return
-		}
-
-		if metaPredecessorRoot == nil || (revision < rw.revision && revision > predecessorRevision) {
-			metaPredecessorTreeID = t.ID()
-			predecessorRevision = revision
-		}
-
-		done = revision == rw.revision-1
+		// Own lineage.
+		done, err = processParentCommitFn(ctx, c)
 		return
 	}); err != nil {
 		return
+	}
+
+	if predecessorRevision <= 0 && commitFilterFn != nil {
+		// No suitable predecessor in own lineage. Try, all lineages.
+		log.V(-1).Info(
+			"No suitable predecessor in own lineage. Trying all lineages.",
+			"metaCommitID", metaCommit.ID(),
+		)
+		if err = metaCommit.ForEachParent(ctx, processParentCommitFn); err != nil {
+			return
+		}
 	}
 
 	if predecessorRevision <= 0 {
@@ -398,11 +430,41 @@ func (rw *revisionWatcher) loadEvents(
 		b      = rw.backend
 		diff   git.Diff
 		events []*mvccpb.Event
+		log    logr.Logger
 	)
 
 	if nmt == nil && omt == nil {
 		return
 	}
+
+	func() {
+		var omtID, nmtID git.ObjectID
+
+		if omt != nil {
+			omtID = omt.ID()
+		}
+
+		if nmt != nil {
+			nmtID = nmt.ID()
+		}
+
+		log = rw.log.WithValues(
+			"func", "loadEvents",
+			"changesOnly", rw.changesOnly,
+			"revision", rw.revision,
+			"interval", rw.interval,
+			"omtID", omtID,
+			"nmtID", nmtID,
+		)
+	}()
+
+	defer func() {
+		for _, ev := range rw.events {
+			if ev != nil && ev.Kv != nil && ev.Type == mvccpb.PUT && ev.Kv.CreateRevision != ev.Kv.ModRevision && ev.PrevKv == nil {
+				log.Info("PrevKV=nil", "ev", ev)
+			}
+		}
+	}()
 
 	if rw.changesOnly {
 		diff, err = b.repo.TreeDiff(ctx, omt, nmt)
@@ -1014,6 +1076,7 @@ func (ws *watchServer) accept(ctx context.Context, req *etcdserverpb.WatchCreate
 		changesOnly: false,
 		interval:    &closedOpenInterval{start: req.GetKey(), end: req.GetRangeEnd()},
 		watches:     []watch{w},
+		log:         ws.mgr.log.WithName("rw"),
 	})
 
 	err = b.tickWatchDispatchTicker(ctx)
@@ -1117,6 +1180,14 @@ func (w *watchImpl) FilterAndSend(header *etcdserverpb.ResponseHeader, allEvents
 		ctx      = w.Context()
 		events   []*mvccpb.Event
 		interval = &closedOpenInterval{start: w.req.Key, end: w.req.RangeEnd}
+		log      = w.watchServer.mgr.log.WithName("FilterAndSend").WithValues(
+			"key", w.req.GetKey(),
+			"rangeEnd", w.req.GetRangeEnd(),
+			"startRevision", w.req.GetStartRevision(),
+			"watchId", w.req.GetWatchId(),
+			"prevKV", w.req.GetPrevKv(),
+			"filters", w.req.GetFilters(),
+		)
 	)
 
 	if err = ctx.Err(); err != nil {
@@ -1131,6 +1202,9 @@ filter:
 		case checkResultOutOfRangeRight:
 			break filter
 		default:
+			if ev.Type == mvccpb.PUT && ev.Kv.CreateRevision != ev.Kv.ModRevision && ev.PrevKv == nil {
+				log.Info("PrevKV=nil", "ev", ev)
+			}
 			events = append(events, ev)
 		}
 	}
@@ -1139,7 +1213,7 @@ filter:
 		return
 	}
 
-	// TODO fragment
+	// TODO fragment, filter
 	err = w.stream.Send(&etcdserverpb.WatchResponse{Header: header, WatchId: w.req.WatchId, Events: events})
 	return
 }

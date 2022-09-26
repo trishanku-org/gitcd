@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -229,9 +230,19 @@ func (b *backend) loadKeyValue(ctx context.Context, t git.Tree, k, v []byte) (kv
 	return
 }
 
-// getPeelablesForRevision returns the metadata Peelable that corresponds to the given revision.
+// commitFilterFunc defines the signature for filtering commits.
+type commitFilterFunc func(context.Context, git.Commit) (skip bool, err error)
+
+// TODO Test
+// getMetadataPeelableForRevisionWithFilter returns the metadata Peelable that corresponds to the given revision.
 // The metadata commits are searched in pre-order starting from the given metaHead.
-func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead git.Commit, revision int64) (metaP git.Peelable, err error) {
+// The commitFilterFn can be used to filter commits while walking the commit history.
+func (b *backend) getMetadataPeelableForRevisionWithFilter(
+	ctx context.Context,
+	metaHead git.Commit,
+	revision int64,
+	commitFilterFn commitFilterFunc,
+) (metaP git.Peelable, err error) {
 	var (
 		cw      = b.repo.CommitWalker()
 		headRev int64
@@ -244,6 +255,12 @@ func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead g
 			t   git.Tree
 			rev int64
 		)
+
+		if commitFilterFn != nil {
+			if skip, err = commitFilterFn(ctx, c); skip || err != nil {
+				return
+			}
+		}
 
 		if t, err = b.repo.Peeler().PeelToTree(ctx, c); err != nil {
 			return
@@ -289,6 +306,37 @@ func (b *backend) getMetadataPeelableForRevision(ctx context.Context, metaHead g
 		}
 	}
 
+	return
+}
+
+func sameAuthorAs(head git.Commit) commitFilterFunc {
+	if head == nil {
+		return nil // No filter.
+	}
+
+	return func(_ context.Context, c git.Commit) (skip bool, err error) {
+		skip = c.AuthorName() != head.AuthorName() || c.AuthorEmail() != head.AuthorEmail()
+		return
+	}
+}
+
+// TODO Test
+// getMetadataPeelableForRevisionWithFilter returns the metadata Peelable that corresponds to the given revision.
+// The metadata commits are searched in pre-order starting from the given metaHead.
+// It tries to find the revision in own lineage first and only if that is unsuccessful then in all lineages.
+func (b *backend) getMetadataPeelableForRevision(
+	ctx context.Context,
+	metaHead git.Commit,
+	revision int64,
+) (metaP git.Peelable, err error) {
+	var commitFilterFn = sameAuthorAs(metaHead)
+
+	metaP, err = b.getMetadataPeelableForRevisionWithFilter(ctx, metaHead, revision, commitFilterFn)
+
+	if (errors.Is(err, rpctypes.ErrGRPCFutureRev) || errors.Is(err, rpctypes.ErrGRPCCompacted)) && commitFilterFn != nil {
+		// Revision not found in own lineage. Try all lineages.
+		metaP, err = b.getMetadataPeelableForRevisionWithFilter(ctx, metaHead, revision, nil)
+	}
 	return
 }
 

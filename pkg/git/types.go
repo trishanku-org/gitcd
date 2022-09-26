@@ -145,6 +145,8 @@ type Commit interface {
 
 	Message() string
 	TreeID() ObjectID
+	AuthorName() string
+	AuthorEmail() string
 
 	// ForEachParentID iterates through each immediate parent commit ID.
 	ForEachParentID(context.Context, CommitIDReceiverFunc) error
