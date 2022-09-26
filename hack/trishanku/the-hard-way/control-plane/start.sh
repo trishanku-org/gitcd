@@ -289,7 +289,7 @@ exec /gitcd serve \
   --remote-meta-reference-names=default=${REMOTE_METADATA_REF} \
   --listen-urls=default=http://0.0.0.0:${PORT}/ \
   --advertise-client-urls=default=http://127.0.0.1:${PORT}/ \
-  --watch-dispatch-channel-size=50
+  --watch-dispatch-channel-size=0
 INNER_EOF
 
 chmod +x /entrypoint/entrypoint.sh

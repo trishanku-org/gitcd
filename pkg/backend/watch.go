@@ -682,7 +682,9 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 			log.V(-1).Info("Running revision watcher")
 			defer func() {
 				log.V(-1).Info("Ran revision watcher", "error", err)
-				ch <- &message{next: next, err: err}
+				if ctx.Err() == nil {
+					ch <- &message{next: next, err: err}
+				}
 			}()
 
 			defer ginkgo.GinkgoRecover()
@@ -714,6 +716,15 @@ func (wm *watchManager) dispatchQueue(parentCtx context.Context, q []*revisionWa
 	return
 }
 
+func while(running *bool, conditionFn func() bool, doFn func()) {
+	*running = true
+	defer func() { *running = false }()
+
+	for conditionFn() {
+		doFn()
+	}
+}
+
 func (wm *watchManager) Run(ctx context.Context) (err error) {
 	func() {
 		wm.Lock()
@@ -741,41 +752,60 @@ func (wm *watchManager) Run(ctx context.Context) (err error) {
 	defer func() { wm.log.V(-1).Info("Stopping", "error", err) }()
 
 	for {
+		var (
+			tick, tock int64
+			running    bool
+		)
+
 		select {
 		case <-ctx.Done():
 			return
-		case _, ok := <-wm.ticker:
+		case t, ok := <-wm.ticker:
 			if !ok {
 				return
 			}
 
-			var q []*revisionWatcher
+			atomic.StoreInt64(&tick, t.UnixMicro())
 
-			func() {
-				wm.Lock()
-				defer wm.Unlock()
-
-				q = wm.queue
-				wm.queue = nil
-			}()
-
-			if len(q) <= 0 {
+			if running {
 				continue
 			}
 
-			if q, err = wm.dispatchQueue(ctx, q); err != nil {
-				wm.log.Error(err, "Error dispatching watch queue")
-			}
+			go while(
+				&running,
+				func() bool { return atomic.LoadInt64(&tick) > atomic.LoadInt64(&tock) },
+				func() {
+					var q []*revisionWatcher
 
-			if len(q) > 0 {
-				wm.enqueue(q...)
+					atomic.StoreInt64(&tock, atomic.LoadInt64(&tick))
 
-				if err == nil {
-					if err = wm.backend.tickWatchDispatchTicker(ctx); err != nil {
-						wm.log.Error(err, "Error ticking watch dispatcher ticker")
+					func() {
+						wm.Lock()
+						defer wm.Unlock()
+
+						q = wm.queue
+						wm.queue = nil
+					}()
+
+					if len(q) <= 0 {
+						return
 					}
-				}
-			}
+
+					if q, err = wm.dispatchQueue(ctx, q); err != nil {
+						wm.log.Error(err, "Error dispatching watch queue")
+					}
+
+					if len(q) > 0 {
+						wm.enqueue(q...)
+
+						if err == nil {
+							if err = wm.backend.tickWatchDispatchTicker(ctx); err != nil {
+								wm.log.Error(err, "Error ticking watch dispatcher ticker")
+							}
+						}
+					}
+				},
+			)
 		}
 	}
 }
