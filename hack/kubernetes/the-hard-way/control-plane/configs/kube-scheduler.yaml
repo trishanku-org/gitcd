@@ -3,5 +3,5 @@ kind: KubeSchedulerConfiguration
 clientConnection:
   kubeconfig: "/secrets/kube-scheduler.kubeconfig"
 leaderElection:
-  leaderElect: true
+  leaderElect: false
 parallelism: 1

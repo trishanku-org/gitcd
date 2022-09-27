@@ -289,7 +289,7 @@ exec /gitcd serve \
   --remote-meta-reference-names=default=${REMOTE_METADATA_REF} \
   --listen-urls=default=http://0.0.0.0:${PORT}/ \
   --advertise-client-urls=default=http://127.0.0.1:${PORT}/ \
-  --watch-dispatch-channel-size=0
+  --watch-dispatch-channel-size=1
 INNER_EOF
 
 chmod +x /entrypoint/entrypoint.sh
@@ -486,7 +486,7 @@ function start_kube_scheduler {
       $KUBE_SCHEDULER_IMG \
       kube-scheduler \
         --config=/configs/kube-scheduler.yaml \
-        --v=2
+        --v=4
   fi
 }
 

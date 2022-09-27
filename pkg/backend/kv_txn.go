@@ -423,12 +423,20 @@ func (b *backend) Txn(ctx context.Context, req *etcdserverpb.TxnRequest) (res *e
 	b.Lock()
 	defer b.Unlock()
 
-	if metaRef, err = b.getMetadataReference(ctx); err == nil {
-		defer metaRef.Close()
+	if metaRef, err = b.getMetadataReference(ctx); err != nil && err == ctx.Err() {
+		return
 	}
 
-	if metaHead, err = b.repo.Peeler().PeelToCommit(ctx, metaRef); err == nil {
-		defer metaHead.Close()
+	if metaRef != nil {
+		defer metaRef.Close()
+
+		if metaHead, err = b.repo.Peeler().PeelToCommit(ctx, metaRef); err != nil && err == ctx.Err() {
+			return
+		}
+
+		if metaHead != nil {
+			defer metaHead.Close()
+		}
 	}
 
 	res = &etcdserverpb.TxnResponse{

@@ -267,6 +267,7 @@ func (rw *revisionWatcher) getRevisionAndPredecessorMetadata(ctx context.Context
 		// No suitable predecessor in own lineage. Try, all lineages.
 		log.V(-1).Info(
 			"No suitable predecessor in own lineage. Trying all lineages.",
+			"revision", rw.revision,
 			"metaCommitID", metaCommit.ID(),
 		)
 		if err = metaCommit.ForEachParent(ctx, processParentCommitFn); err != nil {
