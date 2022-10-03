@@ -60,14 +60,20 @@ stop-kubernetes-docker-control-plane:
 cleanup-kubernetes-docker-control-plane:
 	./hack/kubernetes/the-hard-way/control-plane/cleanup.sh
 
+add-trishanku-docker-repo-credentials:
+	./hack/trishanku/the-hard-way/start.sh repo-credentials
+
 start-trishanku-docker-control-plane:
-	./hack/trishanku/the-hard-way/control-plane/start.sh
+	./hack/trishanku/the-hard-way/start.sh control-plane
 
-stop-trishanku-docker-control-plane:
-	./hack/trishanku/the-hard-way/control-plane/stop.sh
+start-trishanku-docker-kubelet-apiserver:
+	./hack/trishanku/the-hard-way/start.sh kubelet-apiserver
 
-cleanup-trishanku-docker-control-plane:
-	./hack/trishanku/the-hard-way/control-plane/cleanup.sh
+stop-trishanku-docker:
+	./hack/trishanku/the-hard-way/stop.sh
+
+cleanup-trishanku-docker:
+	./hack/trishanku/the-hard-way/cleanup.sh
 
 temp-cert: ensure-bin-dir
 	openssl req -newkey rsa:4096 -x509 -sha256 -days 1 -nodes -extensions v3_req \

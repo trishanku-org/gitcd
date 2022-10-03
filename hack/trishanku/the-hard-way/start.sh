@@ -506,6 +506,22 @@ function start_kube_scheduler_with_gitcd {
   start_kube_scheduler "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "--network=container:${ETCD_EVENTS_CONTAINER}"
 }
 
+function start_kube_scheduler_with_gitcd {
+  local CONTAINER_PREFIX="$1"
+  local BRANCH_PREFIX="$2"
+  local REMOTE_BRANCH_PREFIX="$3"
+  local MERGE_CONFLICT_RESOLUTIONS="$4"
+  local DOCKER_RUN_ARGS="$5"
+  local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${BRANCH_PREFIX}"
+
+  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" \
+    "--merge-retention-policies-exclude=default=leases/.*,flowschemas/.*,/masterleases/.*" \
+    "default=1" \
+    "default=2" \
+  "$DOCKER_RUN_ARGS"
+  start_kube_scheduler "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "--network=container:${ETCD_EVENTS_CONTAINER}"
+}
+
 function apply_kubelet_rbac {
   local DOCKER_RUN_ARGS="$1"
   local SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
@@ -523,11 +539,38 @@ function apply_kubelet_rbac {
       --kubeconfig=/secrets/admin.kubeconfig
 }
 
+function start_kubelet_apiserver_with_gitcd {
+  local CONTAINER_PREFIX="$1"
+  local BRANCH_PREFIX="$2"
+  local REMOTE_BRANCH_PREFIX="$3"
+  local MERGE_CONFLICT_RESOLUTIONS="$4"
+  local DOCKER_RUN_ARGS="$5"
+  local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${BRANCH_PREFIX}"
+
+  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" \
+    "--merge-retention-policies-exclude=default=leases/.*,flowschemas/.*,/masterleases/.*" \
+    "default=1" \
+    "default=2" \
+  "$DOCKER_RUN_ARGS"
+}
+
 # set -x
 
-# store_repo_credentials
-# start_apiserver "trishanku-the-hard-way-" "main" "upstream" "default=2" "-p 2379-2380 -p 6443:6443"
-# start_kube_controller_manager "trishanku-the-hard-way-" "main" "--network=container:trishanku-the-hard-way-etcd-events-main"
-start_kube_controller_manager_with_gitcd "trishanku-the-hard-way-" "kcm" "upstream" "-p 2379-2380 -p 6443:6443"
-start_kube_scheduler_with_gitcd "trishanku-the-hard-way-" "scheduler" "upstream" "-p 2379-2380 -p 6543:6443"
-# apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-kcm"
+OPTION="$1"
+
+case "$OPTION" in
+repo-credentials)
+  store_repo_credentials
+  ;;
+
+control-plane)
+  start_kube_controller_manager_with_gitcd "trishanku-the-hard-way-" "kcm" "upstream" "-p 2379-2380 -p 6443:6443"
+  start_kube_scheduler_with_gitcd "trishanku-the-hard-way-" "scheduler" "upstream" "-p 2379-2380 -p 6543:6443"
+  apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-kcm"
+  ;;
+
+kubelet-apiserver)
+  start_kubelet_apiserver_with_gitcd "trishanku-the-hard-way-" "kubelet" "upstream" "-p 2379-2380 -p 6643:6443"
+  ;;
+
+esac
