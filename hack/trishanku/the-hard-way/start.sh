@@ -564,7 +564,7 @@ repo-credentials)
   ;;
 
 control-plane)
-  start_kube_controller_manager_with_gitcd "trishanku-the-hard-way-" "kcm" "upstream" "-p 2379-2380"
+  start_kube_controller_manager_with_gitcd "trishanku-the-hard-way-" "kcm" "upstream" "-p 2379-2380 -p 6443:6443"
   start_kube_scheduler_with_gitcd "trishanku-the-hard-way-" "scheduler" "upstream" "-p 2379-2380"
   apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-kcm"
   ;;
