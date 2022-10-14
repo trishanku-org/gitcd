@@ -554,6 +554,21 @@ function start_kubelet_apiserver_with_gitcd {
   "$DOCKER_RUN_ARGS"
 }
 
+function start_kube_proxy_apiserver_with_gitcd {
+  local CONTAINER_PREFIX="$1"
+  local BRANCH_PREFIX="$2"
+  local REMOTE_BRANCH_PREFIX="$3"
+  local MERGE_CONFLICT_RESOLUTIONS="$4"
+  local DOCKER_RUN_ARGS="$5"
+  local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${BRANCH_PREFIX}"
+
+  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" \
+    "--merge-retention-policies-exclude=default=leases/.*,flowschemas/.*,/masterleases/.*" \
+    "default=1" \
+    "default=2" \
+  "$DOCKER_RUN_ARGS"
+}
+
 # set -x
 
 OPTION="$1"
@@ -569,8 +584,9 @@ control-plane)
   apply_kubelet_rbac "--network=container:trishanku-the-hard-way-etcd-events-kcm"
   ;;
 
-kubelet-apiserver)
+worker)
   start_kubelet_apiserver_with_gitcd "trishanku-the-hard-way-" "kubelet" "upstream" "-p 2379-2380 -p 6443:6443"
+  start_kube_proxy_apiserver_with_gitcd "trishanku-the-hard-way-" "proxy" "upstream" "-p 2379-2380 -p 6543:6443"
   ;;
 
 esac

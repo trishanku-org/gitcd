@@ -143,10 +143,30 @@ if [ "$EXTERNAL_SERVER_URL" == "" ]; then
   EXTERNAL_SERVER_URL="https://$(ifconfig | awk '/inet / {split($2,var,"/*"); print var[1]}' | grep -v 127.0.0.1 | head -n 1):6443"
 fi
 
+if [ "$KCM_SERVER_URL" == "" ]; then
+  KCM_SERVER_URL="$INTERNAL_SERVER_URL"
+fi
+
+if [ "$SCHEDULER_SERVER_URL" == "" ]; then
+  SCHEDULER_SERVER_URL="$INTERNAL_SERVER_URL"
+fi
+
+if [ "$ADMIN_SERVER_URL" == "" ]; then
+  ADMIN_SERVER_URL="$INTERNAL_SERVER_URL"
+fi
+
+if [ "$KUBELET_SERVER_URL" == "" ]; then
+  KUBELET_SERVER_URL="$EXTERNAL_SERVER_URL"
+fi
+
+if [ "$PROXY_SERVER_URL" == "" ]; then
+  PROXY_SERVER_URL="$EXTERNAL_SERVER_URL"
+fi
+
 echo "Using INTERNAL_SERVER_URL=${INTERNAL_SERVER_URL} and EXTERNAL_SERVER_URL=${EXTERNAL_SERVER_URL}"
 
-generate_kubeconfig kube-controller-manager system:kube-controller-manager "$INTERNAL_SERVER_URL"
-generate_kubeconfig kube-scheduler system:kube-scheduler "$INTERNAL_SERVER_URL"
-generate_kubeconfig admin admin "$INTERNAL_SERVER_URL"
-generate_kubeconfig kube-proxy system:kube-proxy "$EXTERNAL_SERVER_URL"
-generate_kubeconfig worker-0 system:node:worker-0 "$EXTERNAL_SERVER_URL"
+generate_kubeconfig kube-controller-manager system:kube-controller-manager "$KCM_SERVER_URL"
+generate_kubeconfig kube-scheduler system:kube-scheduler "$SCHEDULER_SERVER_URL"
+generate_kubeconfig admin admin "$ADMIN_SERVER_URL"
+generate_kubeconfig kube-proxy system:kube-proxy "$KUBELET_SERVER_URL"
+generate_kubeconfig worker-0 system:node:worker-0 "$PROXY_SERVER_URL"

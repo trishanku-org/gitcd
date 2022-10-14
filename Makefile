@@ -66,8 +66,8 @@ add-trishanku-docker-repo-credentials:
 start-trishanku-docker-control-plane:
 	./hack/trishanku/the-hard-way/start.sh control-plane
 
-start-trishanku-docker-kubelet-apiserver:
-	./hack/trishanku/the-hard-way/start.sh kubelet-apiserver
+start-trishanku-docker-worker:
+	./hack/trishanku/the-hard-way/start.sh worker
 
 stop-trishanku-docker:
 	./hack/trishanku/the-hard-way/stop.sh
