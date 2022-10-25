@@ -168,5 +168,5 @@ echo "Using ADMIN_SERVER_URL=${ADMIN_SERVER_URL}, KCM_SERVER_URL=${KCM_SERVER_UR
 generate_kubeconfig kube-controller-manager system:kube-controller-manager "$KCM_SERVER_URL"
 generate_kubeconfig kube-scheduler system:kube-scheduler "$SCHEDULER_SERVER_URL"
 generate_kubeconfig admin admin "$ADMIN_SERVER_URL"
-generate_kubeconfig kube-proxy system:kube-proxy "$KUBELET_SERVER_URL"
-generate_kubeconfig worker-0 system:node:worker-0 "$PROXY_SERVER_URL"
+generate_kubeconfig kube-proxy system:kube-proxy "$PROXY_SERVER_URL"
+generate_kubeconfig worker-0 system:node:worker-0 "$KUBELET_SERVER_URL"
