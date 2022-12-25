@@ -1,4 +1,4 @@
-IMAGE_TAG ?= trishanku/gitcd:latest
+IMAGE_TAG ?= asia-south1-docker.pkg.dev/trishanku/trishanku/gitcd:latest
 BACKEND_VERSION = `cat VERSION`
 DOCKER_RUN_OPTS ?= -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd
 
