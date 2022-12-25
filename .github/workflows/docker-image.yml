@@ -16,6 +16,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v4
       with:
+        flavor: latest=true
         images: asia-south1-docker.pkg.dev/trishanku/trishanku/gitcd
         tags: type=sha
 
