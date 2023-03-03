@@ -506,22 +506,6 @@ function start_kube_scheduler_with_gitcd {
   start_kube_scheduler "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "--network=container:${ETCD_EVENTS_CONTAINER}"
 }
 
-function start_kube_scheduler_with_gitcd {
-  local CONTAINER_PREFIX="$1"
-  local BRANCH_PREFIX="$2"
-  local REMOTE_BRANCH_PREFIX="$3"
-  local MERGE_CONFLICT_RESOLUTIONS="$4"
-  local DOCKER_RUN_ARGS="$5"
-  local ETCD_EVENTS_CONTAINER="${CONTAINER_PREFIX}etcd-events-${BRANCH_PREFIX}"
-
-  start_apiserver "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "$REMOTE_BRANCH_PREFIX" \
-    "--merge-retention-policies-exclude=default=leases/.*,flowschemas/.*,/masterleases/.*" \
-    "default=1" \
-    "default=2" \
-  "$DOCKER_RUN_ARGS"
-  start_kube_scheduler "$CONTAINER_PREFIX" "$BRANCH_PREFIX" "--network=container:${ETCD_EVENTS_CONTAINER}"
-}
-
 function apply_kubelet_rbac {
   local DOCKER_RUN_ARGS="$1"
   local SOURCE_PATH=$(readlink -f "${BASH_SOURCE:-$0}")
