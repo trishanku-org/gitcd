@@ -36,7 +36,7 @@ Gitcd - Git as a distributed key-value store.
 
 ```sh
 # Clone the Git repo somewhere locally.
-$ git clone https://github.com/amshuman-kr/gitcd <somewhere>
+$ git clone https://github.com/trishanku-org/gitcd <somewhere>
 
 # Move to the checked out repo.
 $ cd <somewhere>

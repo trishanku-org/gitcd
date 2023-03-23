@@ -1,12 +1,12 @@
 #!/bin/bash
 
 SECRETS_VOLUME_NAME="kubernetes-the-hard-way-secrets"
-REPO_THE_REST="https://github.com/amshuman-kr/trishanku-the-hard-way-the-rest"
-REPO_NODES="https://github.com/amshuman-kr/trishanku-the-hard-way-nodes"
-REPO_LEASES="https://github.com/amshuman-kr/trishanku-the-hard-way-leases"
-REPO_PRIORITYCLASSES="https://github.com/amshuman-kr/trishanku-the-hard-way-priorityclasses"
-REPO_PODS="https://github.com/amshuman-kr/trishanku-the-hard-way-pods"
-REPO_CONFIGMAPS="https://github.com/amshuman-kr/trishanku-the-hard-way-configmaps"
+REPO_THE_REST="https://github.com/trishanku-org/trishanku-the-hard-way-the-rest"
+REPO_NODES="https://github.com/trishanku-org/trishanku-the-hard-way-nodes"
+REPO_LEASES="https://github.com/trishanku-org/trishanku-the-hard-way-leases"
+REPO_PRIORITYCLASSES="https://github.com/trishanku-org/trishanku-the-hard-way-priorityclasses"
+REPO_PODS="https://github.com/trishanku-org/trishanku-the-hard-way-pods"
+REPO_CONFIGMAPS="https://github.com/trishanku-org/trishanku-the-hard-way-configmaps"
 
 LABEL="trishanku=the-hard-way"
 GIT_IMG=bitnami/git:2
