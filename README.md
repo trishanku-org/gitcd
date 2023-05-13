@@ -1,4 +1,5 @@
 # Gitcd
+
 Gitcd - Git as a distributed key-value store.
 
 ## Content
@@ -27,7 +28,7 @@ Gitcd - Git as a distributed key-value store.
 ### Prerequisites
 
 1. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-1. [Docker](https://docs.docker.com/engine/install/) 
+1. [Docker](https://docs.docker.com/engine/install/)
 1. [Kind](https://kind.sigs.k8s.io), a tool for running local Kubernetes clusters using Docker container "nodes"
 1. [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/#install-with-homebrew-on-macos), the Kubernetes command-line tool
 1. [Caffeinate](https://ss64.com/osx/caffeinate.html) to keep the laptop from going to sleep during some long running steps below
@@ -80,6 +81,7 @@ Gitcd: v0.0.1-dev
 ```
 
 ### Serve as ETCD with the backend repo in TMPFS
+
 ```sh
 $ RUN_ARGS=serve make docker-run
 docker run -d --rm --tmpfs /tmp/trishanku/gitcd:rw,noexec,nosuid,size=65536k --name gitcd "trishanku/gitcd:latest" serve
