@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -85,7 +85,7 @@ var pullCmd = &cobra.Command{
 
 		for _, pi := range pis {
 			var (
-				log         = log.WithValues("dataRefName", pi.dataRefName, "remoteName", pi.remoteName)
+				log         = log.WithValues("dataRefName", pi.dataRefName, "remoteNames", pi.remoteNames)
 				kvs         etcdserverpb.KVServer
 				pullOptsFns []backend.PullOptionFunc
 			)
@@ -103,11 +103,11 @@ var pullCmd = &cobra.Command{
 
 			pullOptsFns = []backend.PullOptionFunc{
 				backend.PullOptions.WithBackend(kvs),
-				backend.PullOptions.WithRemoteName(pi.remoteName),
-				backend.PullOptions.WithRemoteDataRefName(pi.remoteDataRefName),
-				backend.PullOptions.WithRemoteMetaRefName(pi.remoteMetaRefName),
-				backend.PullOptions.WithMergeConfictResolution(pi.mergeConflictResolution),
-				backend.PullOptions.WithMergeRetentionPolicy(pi.mergeRetentionPolicy),
+				backend.PullOptions.WithRemoteNames(pi.remoteNames),
+				backend.PullOptions.WithRemoteDataRefNames(pi.remoteDataRefNames),
+				backend.PullOptions.WithRemoteMetadataRefNames(pi.remoteMetadataRefNames),
+				backend.PullOptions.WithMergeConfictResolutions(pi.mergeConflictResolutions),
+				backend.PullOptions.WithMergeRetentionPolicies(pi.mergeRetentionPolicies),
 				backend.PullOptions.WithNoFastForward(pi.noFastForward),
 				backend.PullOptions.WithNoFetch(pi.noFetch),
 				backend.PullOptions.WithPushAfterMerge(pi.pushAfterMerge),
@@ -130,8 +130,6 @@ var pullCmd = &cobra.Command{
 				pullOptsFns = append(pullOptsFns, backend.PullOptions.WithOnce(ctx))
 			}
 
-			pullOptsFns = append(pullOptsFns, backend.PullOptions.WithMergerClose(ctx))
-
 			if err = backend.NewPull(pullOptsFns...); err != nil {
 				log.Error(err, "Error pulling")
 			}
@@ -146,11 +144,11 @@ var pullCmd = &cobra.Command{
 type commonPullerInfo interface {
 	DataRefName() *git.ReferenceName
 	MetaRefName() *git.ReferenceName
-	RemoteName() *git.RemoteName
-	RemoteDataRefName() *git.ReferenceName
-	RemoteMetaRefName() *git.ReferenceName
-	MergeConflictResolution() *git.MergeConfictResolution
-	MergeRetentionPolicy() *git.MergeRetentionPolicy
+	RemoteNames() *[]git.RemoteName
+	RemoteDataRefNames() *[]git.ReferenceName
+	RemoteMetadataRefNames() *[]git.ReferenceName
+	MergeConflictResolutions() *[]git.MergeConfictResolution
+	MergeRetentionPolicies() *[]git.MergeRetentionPolicy
 	NoFastForward() *bool
 	NoFetch() *bool
 	PushAfterMerge() *bool
@@ -159,30 +157,34 @@ type commonPullerInfo interface {
 }
 
 type pullerInfo struct {
-	dataRefName, metaRefName, remoteDataRefName, remoteMetaRefName git.ReferenceName
-	remoteName                                                     git.RemoteName
-	mergeConflictResolution                                        git.MergeConfictResolution
-	mergeRetentionPolicy                                           git.MergeRetentionPolicy
-	noFastForward, noFetch, pushAfterMerge                         bool
-	dataPushRefSpec, metadataPushRefSpec                           git.RefSpec
+	dataRefName, metaRefName                   git.ReferenceName
+	remoteDataRefNames, remoteMetadataRefNames []git.ReferenceName
+	remoteNames                                []git.RemoteName
+	mergeConflictResolutions                   []git.MergeConfictResolution
+	mergeRetentionPolicies                     []git.MergeRetentionPolicy
+	dataPushRefSpec, metadataPushRefSpec       git.RefSpec
+	noFastForward, noFetch, pushAfterMerge     bool
 }
 
 var _ commonPullerInfo = (*pullerInfo)(nil)
 
-func (p *pullerInfo) DataRefName() *git.ReferenceName                 { return &p.dataRefName }
-func (p *pullerInfo) MetaRefName() *git.ReferenceName                 { return &p.metaRefName }
-func (p *pullerInfo) RemoteName() *git.RemoteName                     { return &p.remoteName }
-func (p *pullerInfo) RemoteDataRefName() *git.ReferenceName           { return &p.remoteDataRefName }
-func (p *pullerInfo) RemoteMetaRefName() *git.ReferenceName           { return &p.remoteMetaRefName }
-func (p *pullerInfo) MergeRetentionPolicy() *git.MergeRetentionPolicy { return &p.mergeRetentionPolicy }
-func (p *pullerInfo) NoFastForward() *bool                            { return &p.noFastForward }
-func (p *pullerInfo) NoFetch() *bool                                  { return &p.noFetch }
-func (p *pullerInfo) PushAfterMerge() *bool                           { return &p.pushAfterMerge }
-func (p *pullerInfo) DataPushRefSpec() *git.RefSpec                   { return &p.dataPushRefSpec }
-func (p *pullerInfo) MetadataPushRefSpec() *git.RefSpec               { return &p.metadataPushRefSpec }
+func (p *pullerInfo) DataRefName() *git.ReferenceName              { return &p.dataRefName }
+func (p *pullerInfo) MetaRefName() *git.ReferenceName              { return &p.metaRefName }
+func (p *pullerInfo) RemoteNames() *[]git.RemoteName               { return &p.remoteNames }
+func (p *pullerInfo) RemoteDataRefNames() *[]git.ReferenceName     { return &p.remoteDataRefNames }
+func (p *pullerInfo) RemoteMetadataRefNames() *[]git.ReferenceName { return &p.remoteMetadataRefNames }
+func (p *pullerInfo) NoFastForward() *bool                         { return &p.noFastForward }
+func (p *pullerInfo) NoFetch() *bool                               { return &p.noFetch }
+func (p *pullerInfo) PushAfterMerge() *bool                        { return &p.pushAfterMerge }
+func (p *pullerInfo) DataPushRefSpec() *git.RefSpec                { return &p.dataPushRefSpec }
+func (p *pullerInfo) MetadataPushRefSpec() *git.RefSpec            { return &p.metadataPushRefSpec }
 
-func (p *pullerInfo) MergeConflictResolution() *git.MergeConfictResolution {
-	return &p.mergeConflictResolution
+func (p *pullerInfo) MergeConflictResolutions() *[]git.MergeConfictResolution {
+	return &p.mergeConflictResolutions
+}
+
+func (p *pullerInfo) MergeRetentionPolicies() *[]git.MergeRetentionPolicy {
+	return &p.mergeRetentionPolicies
 }
 
 func parseMergeRetentionPolicies(regexes string) (mrp git.MergeRetentionPolicy, err error) {
@@ -212,12 +214,102 @@ func parseMergeRetentionPolicies(regexes string) (mrp git.MergeRetentionPolicy, 
 	return
 }
 
+func toRemoteNames(ss []string) (r []git.RemoteName) {
+	r = make([]git.RemoteName, len(ss))
+
+	for i, s := range ss {
+		r[i] = git.RemoteName(s)
+	}
+
+	return
+}
+
+func splitByColon(s string) []string {
+	return strings.Split(s, ":")
+}
+
+func toReferenceNames(ss []string) (r []git.ReferenceName) {
+	r = make([]git.ReferenceName, len(ss))
+
+	for i, s := range ss {
+		r[i] = git.ReferenceName(s)
+	}
+
+	return
+}
+
+func toMergeConflictResolutions(ss []string) (r []git.MergeConfictResolution, err error) {
+	r = make([]git.MergeConfictResolution, len(ss))
+
+	for i, s := range ss {
+		var v int
+
+		if len(s) <= 0 {
+			r[i] = git.DefaultConflictResolution
+			continue
+		}
+
+		if v, err = strconv.Atoi(s); err != nil {
+			return
+		}
+
+		r[i] = git.MergeConfictResolution(v)
+	}
+
+	return
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+func toMergeRetentionPolicies(includes, excludes []string) (r []git.MergeRetentionPolicy, err error) {
+	type retentionPolicies struct {
+		includes, excludes git.MergeRetentionPolicy
+	}
+	var (
+		defaultRetentionPoliciesInclude = git.AllMergeRetentionPolicy()
+		defaultRetentionPoliciesExclude = git.NoneMergeRetentionPolicy()
+		mrps                            = make([]retentionPolicies, max(len(includes), len(excludes)))
+	)
+
+	for _, spec := range []struct {
+		ss   []string
+		rpFn func(*retentionPolicies) *git.MergeRetentionPolicy
+	}{
+		{ss: includes, rpFn: func(rp *retentionPolicies) *git.MergeRetentionPolicy { return &rp.includes }},
+		{ss: excludes, rpFn: func(rp *retentionPolicies) *git.MergeRetentionPolicy { return &rp.excludes }},
+	} {
+		for i, s := range spec.ss {
+			if *spec.rpFn(&mrps[i]), err = parseMergeRetentionPolicies(s); err != nil {
+				return
+			}
+		}
+	}
+
+	r = make([]git.MergeRetentionPolicy, len(mrps))
+	for i, mrp := range mrps {
+		if mrp.includes == nil {
+			mrp.includes = defaultRetentionPoliciesInclude
+		}
+
+		if mrp.excludes == nil {
+			mrp.excludes = defaultRetentionPoliciesExclude
+		}
+		r[i] = git.AndMergeRetentionPolicy(mrp.includes, git.NotMergeRetentionPolicy(mrp.excludes))
+	}
+
+	return
+}
+
 func loadPullerInfoFor(pi commonPullerInfo, backendFlags commonBackendFlags, pullFlags commonPullFlags, key string) (err error) {
 	var (
-		s                      string
-		ok                     bool
-		i                      int
-		mrpInclude, mrpExclude git.MergeRetentionPolicy
+		s  string
+		ok bool
 	)
 
 	if *pi.MetaRefName(), err = getReferenceNameFor(*backendFlags.getMetaRefNames(), key); err != nil {
@@ -225,25 +317,21 @@ func loadPullerInfoFor(pi commonPullerInfo, backendFlags commonBackendFlags, pul
 	}
 
 	if s, ok = (*pullFlags.getRemoteNames())[key]; ok {
-		*pi.RemoteName() = git.RemoteName(s)
+		*pi.RemoteNames() = toRemoteNames(splitByColon(s))
 	}
 
 	if s, ok = (*pullFlags.getRemoteDataRefNames())[key]; ok {
-		*pi.RemoteDataRefName() = git.ReferenceName(s)
+		*pi.RemoteDataRefNames() = toReferenceNames(splitByColon(s))
 	}
 
 	if s, ok = (*pullFlags.getRemoteMetaRefNames())[key]; ok {
-		*pi.RemoteMetaRefName() = git.ReferenceName(s)
+		*pi.RemoteMetadataRefNames() = toReferenceNames(splitByColon(s))
 	}
 
 	if s, ok = (*pullFlags.getMergeConflictResolutions())[key]; ok {
-		if i, err = strconv.Atoi(s); err != nil {
+		if *pi.MergeConflictResolutions(), err = toMergeConflictResolutions(splitByColon(s)); err != nil {
 			return
 		}
-
-		*pi.MergeConflictResolution() = git.MergeConfictResolution(i)
-	} else {
-		*pi.MergeConflictResolution() = defaultMergeConflictResolution
 	}
 
 	if s, ok = (*pullFlags.getNoFastForwards())[key]; ok {
@@ -264,24 +352,12 @@ func loadPullerInfoFor(pi commonPullerInfo, backendFlags commonBackendFlags, pul
 		}
 	}
 
-	for _, spec := range []struct {
-		m          map[string]string
-		defaultMRP string
-		mrp        *git.MergeRetentionPolicy
-	}{
-		{m: *pullFlags.getMergeRetentionPoliciesInclude(), defaultMRP: defaultMergeRetentionPoliciesInclude, mrp: &mrpInclude},
-		{m: *pullFlags.getMergeRetentionPoliciesExclude(), defaultMRP: defaultMergeRetentionPoliciesExclude, mrp: &mrpExclude},
-	} {
-		if s, ok = spec.m[key]; !ok {
-			s = spec.defaultMRP
-		}
-
-		if *spec.mrp, err = parseMergeRetentionPolicies(s); err != nil {
-			return
-		}
+	if *pi.MergeRetentionPolicies(), err = toMergeRetentionPolicies(
+		splitByColon((*pullFlags.getMergeRetentionPoliciesInclude())[key]),
+		splitByColon((*pullFlags.getMergeRetentionPoliciesExclude())[key]),
+	); err != nil {
+		return
 	}
-
-	*pi.MergeRetentionPolicy() = git.AndMergeRetentionPolicy(mrpInclude, git.NotMergeRetentionPolicy(mrpExclude))
 
 	return
 }
@@ -324,10 +400,6 @@ type commonPullFlags interface {
 }
 
 const (
-	defaultRemoteName                    = "origin"
-	defaultRemoteDataRefName             = "refs/remotes/origin/main"
-	defaultRemoteMetaRefName             = "refs/remotes/origin/gitcd/metadata/refs/heads/main"
-	defaultMergeConflictResolution       = git.MergeConfictResolutionFavorTheirs
 	defaultMergeRetentionPoliciesInclude = ".*" // Everything is retained
 	defaultMergeRetentionPoliciesExclude = "^$" // Nothing is excluded
 	defaultNoFastForward                 = false
@@ -339,40 +411,40 @@ func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
 	flags.StringToStringVar(
 		commonFlags.getRemoteNames(),
 		"remote-names",
-		map[string]string{"default": defaultRemoteName},
-		"Git remote names to be used as the remotes for the backend data and metadata.",
+		map[string]string{"default": backend.DefaultRemoteName},
+		"Git remote names to be used as the remotes for the backend data and metadata. Multiple values separated by `:` are supported.",
 	)
 	flags.StringToStringVar(
 		commonFlags.getRemoteDataRefNames(),
 		"remote-data-reference-names",
-		map[string]string{"default": defaultRemoteDataRefName},
-		"Git remote reference names to be used as remotes for the data backend data.",
+		map[string]string{"default": backend.DefaultRemoteDataRefName},
+		"Git remote reference names to be used as remotes for the backend data. Multiple values separated by `:` are supported.",
 	)
 	flags.StringToStringVar(
 		commonFlags.getRemoteMetaRefNames(),
 		"remote-meta-reference-names",
-		map[string]string{"default": defaultRemoteMetaRefName},
-		"Git remote reference names to be used as remotes for the data backend metadata.",
+		map[string]string{"default": backend.DefaultRemoteMetadataRefName},
+		"Git remote reference names to be used as remotes for the backend metadata. Multiple values separated by `:` are supported",
 	)
 
 	flags.StringToStringVar(
 		commonFlags.getMergeConflictResolutions(),
 		"merge-conflict-resolutions",
-		map[string]string{"default": strconv.Itoa(int(defaultMergeConflictResolution))},
-		"Conflict resolution policy (favor ours or theirs) in case of merge conflicts.",
+		map[string]string{"default": strconv.Itoa(int(git.DefaultConflictResolution))},
+		"Conflict resolution policy (favor ours or theirs) in case of merge conflicts. Multiple values separated by `:` are supported",
 	)
 
 	flags.StringToStringVar(
 		commonFlags.getMergeRetentionPoliciesInclude(),
 		"merge-retention-policies-include",
 		map[string]string{"default": defaultMergeRetentionPoliciesInclude},
-		"Comma separated list of regular expressions which match the paths to be retained in the merge changes. The individual regular expressions will be ORed",
+		"Comma separated list of regular expressions which match the paths to be retained in the merge changes. The individual regular expressions will be ORed. Multiple values separated by `:` are supported",
 	)
 	flags.StringToStringVar(
 		commonFlags.getMergeRetentionPoliciesExclude(),
 		"merge-retention-policies-exclude",
 		map[string]string{"default": defaultMergeRetentionPoliciesExclude},
-		"Comma separated list of regular expressions which match the paths to be excluded in the merge changes. The individual regular expressions will be ORed",
+		"Comma separated list of regular expressions which match the paths to be excluded in the merge changes. The individual regular expressions will be ORed. Multiple values separated by `:` are supported",
 	)
 
 	flags.StringToStringVar(

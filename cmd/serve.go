@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -121,31 +121,34 @@ type serverInfo struct {
 	clientURLs               []*url.URL
 	clusterId, memberId      uint64
 
-	remoteName                             git.RemoteName
-	remoteDataRefName, remoteMetaRefName   git.ReferenceName
-	mergeConflictResolution                git.MergeConfictResolution
-	mergeRetentionPolicy                   git.MergeRetentionPolicy
-	noFastForward, noFetch, pushAfterMerge bool
-	dataPushRefSpec, metadataPushRefSpec   git.RefSpec
+	remoteNames                                []git.RemoteName
+	remoteDataRefNames, remoteMetadataRefNames []git.ReferenceName
+	mergeConflictResolutions                   []git.MergeConfictResolution
+	mergeRetentionPolicies                     []git.MergeRetentionPolicy
+	noFastForward, noFetch, pushAfterMerge     bool
+	dataPushRefSpec, metadataPushRefSpec       git.RefSpec
 }
 
 var _ commonPullerInfo = (*serverInfo)(nil)
 
-func (s *serverInfo) DataRefName() *git.ReferenceName                 { return &s.dataRefName }
-func (s *serverInfo) MetaRefName() *git.ReferenceName                 { return &s.metaRefName }
-func (s *serverInfo) RemoteName() *git.RemoteName                     { return &s.remoteName }
-func (s *serverInfo) RemoteDataRefName() *git.ReferenceName           { return &s.remoteDataRefName }
-func (s *serverInfo) RemoteMetaRefName() *git.ReferenceName           { return &s.remoteMetaRefName }
-func (s *serverInfo) MergeRetentionPolicy() *git.MergeRetentionPolicy { return &s.mergeRetentionPolicy }
-func (s *serverInfo) NoFastForward() *bool                            { return &s.noFastForward }
-func (s *serverInfo) NoFetch() *bool                                  { return &s.noFetch }
-func (s *serverInfo) PushAfterMerge() *bool                           { return &s.pushAfterMerge }
-func (s *serverInfo) DataPushRefSpec() *git.RefSpec                   { return &s.dataPushRefSpec }
-func (s *serverInfo) MetadataPushRefSpec() *git.RefSpec               { return &s.metadataPushRefSpec }
-
-func (s *serverInfo) MergeConflictResolution() *git.MergeConfictResolution {
-	return &s.mergeConflictResolution
+func (s *serverInfo) DataRefName() *git.ReferenceName              { return &s.dataRefName }
+func (s *serverInfo) MetaRefName() *git.ReferenceName              { return &s.metaRefName }
+func (s *serverInfo) RemoteNames() *[]git.RemoteName               { return &s.remoteNames }
+func (s *serverInfo) RemoteDataRefNames() *[]git.ReferenceName     { return &s.remoteDataRefNames }
+func (s *serverInfo) RemoteMetadataRefNames() *[]git.ReferenceName { return &s.remoteMetadataRefNames }
+func (s *serverInfo) MergeConflictResolutions() *[]git.MergeConfictResolution {
+	return &s.mergeConflictResolutions
 }
+
+func (s *serverInfo) MergeRetentionPolicies() *[]git.MergeRetentionPolicy {
+	return &s.mergeRetentionPolicies
+}
+
+func (s *serverInfo) NoFastForward() *bool              { return &s.noFastForward }
+func (s *serverInfo) NoFetch() *bool                    { return &s.noFetch }
+func (s *serverInfo) PushAfterMerge() *bool             { return &s.pushAfterMerge }
+func (s *serverInfo) DataPushRefSpec() *git.RefSpec     { return &s.dataPushRefSpec }
+func (s *serverInfo) MetadataPushRefSpec() *git.RefSpec { return &s.metadataPushRefSpec }
 
 func organizeServerInfo() (sis []*serverInfo, err error) {
 	var m = make(map[string]*serverInfo, len(serveFlags.dataRefNames))
@@ -327,7 +330,7 @@ func registerGRPCServers(
 			var ticker = time.NewTicker(serveFlags.pullTickerDuration)
 
 			closers = append(closers, funcCloser(ticker.Stop))
-			if err = schedulePull(ctx, si, kvs, ticker.C, log.WithValues("remoteName", si.remoteName)); err != nil {
+			if err = schedulePull(ctx, si, kvs, ticker.C, log.WithValues("remoteNames", si.remoteNames)); err != nil {
 				return
 			}
 		}
@@ -595,18 +598,17 @@ func schedulePull(
 ) (err error) {
 	if err = backend.NewPull(
 		backend.PullOptions.WithBackend(kvs),
-		backend.PullOptions.WithRemoteName(*pi.RemoteName()),
-		backend.PullOptions.WithRemoteDataRefName(*pi.RemoteDataRefName()),
-		backend.PullOptions.WithRemoteMetaRefName(*pi.RemoteMetaRefName()),
-		backend.PullOptions.WithMergeConfictResolution(*pi.MergeConflictResolution()),
-		backend.PullOptions.WithMergeRetentionPolicy(*pi.MergeRetentionPolicy()),
+		backend.PullOptions.WithRemoteNames(*pi.RemoteNames()),
+		backend.PullOptions.WithRemoteDataRefNames(*pi.RemoteDataRefNames()),
+		backend.PullOptions.WithRemoteMetadataRefNames(*pi.RemoteMetadataRefNames()),
+		backend.PullOptions.WithMergeConfictResolutions(*pi.MergeConflictResolutions()),
+		backend.PullOptions.WithMergeRetentionPolicies(*pi.MergeRetentionPolicies()),
 		backend.PullOptions.WithNoFastForward(*pi.NoFastForward()),
 		backend.PullOptions.WithNoFetch(*pi.NoFetch()),
 		backend.PullOptions.WithPushAfterMerge(*pi.PushAfterMerge()),
 		backend.PullOptions.WithTicker(ticker),
 		backend.PullOptions.WithLogger(log),
 		backend.PullOptions.WithContext(ctx),
-		backend.PullOptions.WithMergerClose(ctx),
 	); err != nil {
 		log.Error(err, "Error pulling")
 	}

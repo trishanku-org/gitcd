@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"errors"
 	"path"
 	"time"
 
@@ -41,54 +40,62 @@ func (pullOpts) WithBackend(kvs etcdserverpb.KVServer) PullOptionFunc {
 		}
 
 		p.backend = b
-		p.merger = b.repo.Merger(b.errors)
 		return
 	}
 }
 
-type mergerOptionFunc func(git.Merger) error
-
-func (pullOpts) withMergerOption(mFn mergerOptionFunc) PullOptionFunc {
+func (opts pullOpts) WithMergeConfictResolutions(conflictResolutions []git.MergeConfictResolution) PullOptionFunc {
 	return func(p *puller) error {
-		if p.merger == nil {
-			return errors.New("error configuring merger before it has been initialized")
+		p.ensureRemoteSpecs(len(conflictResolutions))
+		for i, conflictResolution := range conflictResolutions {
+			p.remoteSpecs[i].conflictResolution = conflictResolution
+		}
+		return nil
+	}
+}
+
+func (opts pullOpts) WithMergeRetentionPolicies(retentionPolicies []git.MergeRetentionPolicy) PullOptionFunc {
+	return func(p *puller) error {
+		p.ensureRemoteSpecs(len(retentionPolicies))
+		for i, retentionPolicy := range retentionPolicies {
+			p.remoteSpecs[i].retentionPolicy = retentionPolicy
+		}
+		return nil
+	}
+}
+
+func (pullOpts) WithRemoteNames(remoteNames []git.RemoteName) PullOptionFunc {
+	return func(p *puller) error {
+		p.ensureRemoteSpecs(len(remoteNames))
+
+		for i, remoteName := range remoteNames {
+			p.remoteSpecs[i].name = remoteName
 		}
 
-		return mFn(p.merger)
-	}
-}
-
-func (opts pullOpts) WithMergeConfictResolution(conflictResolution git.MergeConfictResolution) PullOptionFunc {
-	return opts.withMergerOption(func(merger git.Merger) error {
-		merger.SetConflictResolution(conflictResolution)
-		return nil
-	})
-}
-
-func (opts pullOpts) WithMergeRetentionPolicy(retentionPolicy git.MergeRetentionPolicy) PullOptionFunc {
-	return opts.withMergerOption(func(merger git.Merger) error {
-		merger.SetRetentionPolicy(retentionPolicy)
-		return nil
-	})
-}
-
-func (pullOpts) WithRemoteName(remoteName git.RemoteName) PullOptionFunc {
-	return func(p *puller) error {
-		p.remoteName = remoteName
 		return nil
 	}
 }
 
-func (pullOpts) WithRemoteDataRefName(remoteDataRefName git.ReferenceName) PullOptionFunc {
+func (pullOpts) WithRemoteDataRefNames(dataRefNames []git.ReferenceName) PullOptionFunc {
 	return func(p *puller) error {
-		p.remoteDataRefName = remoteDataRefName
+		p.ensureRemoteSpecs(len(dataRefNames))
+
+		for i, dataRefName := range dataRefNames {
+			p.remoteSpecs[i].dataRefName = dataRefName
+		}
+
 		return nil
 	}
 }
 
-func (pullOpts) WithRemoteMetaRefName(remoteMetaRefName git.ReferenceName) PullOptionFunc {
+func (pullOpts) WithRemoteMetadataRefNames(metadataRefNames []git.ReferenceName) PullOptionFunc {
 	return func(p *puller) error {
-		p.remoteMetaRefName = remoteMetaRefName
+		p.ensureRemoteSpecs(len(metadataRefNames))
+
+		for i, metadataRefName := range metadataRefNames {
+			p.remoteSpecs[i].metadataRefName = metadataRefName
+		}
+
 		return nil
 	}
 }
@@ -154,27 +161,76 @@ func (pullOpts) WithContext(ctx context.Context) PullOptionFunc {
 }
 
 func (pullOpts) WithOnce(ctx context.Context) PullOptionFunc {
-	return func(p *puller) error { return p.pull(ctx) }
-}
-
-func (pullOpts) WithMergerClose(ctx context.Context) PullOptionFunc {
-	return func(p *puller) error {
-		if p.merger != nil {
-			return p.merger.Close()
+	return func(p *puller) (err error) {
+		for _, rs := range p.remoteSpecs {
+			if err = p.pullRemote(ctx, rs); err != nil {
+				return
+			}
 		}
 
-		return nil
+		return
 	}
+}
+
+const (
+	DefaultRemoteName            = "origin"
+	DefaultRemoteDataRefName     = "refs/remotes/origin/main"
+	DefaultRemoteMetadataRefName = "refs/remotes/origin/gitcd/metadata/refs/heads/main"
+)
+
+type remoteSpec struct {
+	name               git.RemoteName
+	dataRefName        git.ReferenceName
+	metadataRefName    git.ReferenceName
+	conflictResolution git.MergeConfictResolution
+	retentionPolicy    git.MergeRetentionPolicy
+}
+
+func (rs *remoteSpec) getName() git.RemoteName {
+	if len(rs.name) <= 0 {
+		rs.name = DefaultRemoteName
+	}
+
+	return rs.name
+}
+
+func (rs *remoteSpec) getDataRefName() git.ReferenceName {
+	if len(rs.dataRefName) <= 0 {
+		rs.dataRefName = DefaultRemoteDataRefName
+	}
+
+	return rs.dataRefName
+}
+
+func (rs *remoteSpec) getMetadataRefName() git.ReferenceName {
+	if len(rs.metadataRefName) <= 0 {
+		rs.metadataRefName = DefaultRemoteMetadataRefName
+	}
+
+	return rs.metadataRefName
+}
+
+func (rs *remoteSpec) getConflictResolution() git.MergeConfictResolution {
+	if rs.conflictResolution <= 0 {
+		rs.conflictResolution = git.DefaultConflictResolution
+	}
+
+	return rs.conflictResolution
+}
+
+func (rs *remoteSpec) getRetentionPolicy() git.MergeRetentionPolicy {
+	if rs.retentionPolicy == nil {
+		rs.retentionPolicy = git.DefaultMergeRetentionPolicy
+	}
+
+	return rs.retentionPolicy
 }
 
 // puller helps pull changes from a configured remote Git repository into the backend.
 type puller struct {
 	backend *backend
-	merger  git.Merger
 
-	remoteName        git.RemoteName
-	remoteDataRefName git.ReferenceName
-	remoteMetaRefName git.ReferenceName
+	remoteSpecs []*remoteSpec
 
 	noFastForward  bool
 	noFetch        bool
@@ -187,7 +243,19 @@ type puller struct {
 	log    logr.Logger
 }
 
-func (p *puller) getRemote(ctx context.Context) (r git.Remote, err error) {
+func (p *puller) ensureRemoteSpecs(n int) {
+	if n > len(p.remoteSpecs) {
+		p.remoteSpecs = append(p.remoteSpecs, make([]*remoteSpec, n-len(p.remoteSpecs))...)
+
+		for i := range p.remoteSpecs {
+			if p.remoteSpecs[i] == nil {
+				p.remoteSpecs[i] = &remoteSpec{}
+			}
+		}
+	}
+}
+
+func (p *puller) getRemote(ctx context.Context, rs *remoteSpec) (r git.Remote, err error) {
 	var (
 		b  = p.backend
 		rc git.RemoteCollection
@@ -199,17 +267,17 @@ func (p *puller) getRemote(ctx context.Context) (r git.Remote, err error) {
 
 	defer rc.Close()
 
-	r, err = rc.Get(ctx, p.remoteName)
+	r, err = rc.Get(ctx, rs.getName())
 	return
 }
 
-func (p *puller) fetch(ctx context.Context) (err error) {
+func (p *puller) fetchRemote(ctx context.Context, rs *remoteSpec) (err error) {
 	var remote git.Remote
 
 	p.backend.RLock()
 	defer p.backend.RUnlock()
 
-	if remote, err = p.getRemote(ctx); err != nil {
+	if remote, err = p.getRemote(ctx, rs); err != nil {
 		return
 	}
 
@@ -219,7 +287,7 @@ func (p *puller) fetch(ctx context.Context) (err error) {
 	return
 }
 
-func (p *puller) pushUnsafe(ctx context.Context, lock bool) (err error) {
+func (p *puller) pushUnsafe(ctx context.Context, rs *remoteSpec, lock bool) (err error) {
 	var remote git.Remote
 
 	if lock {
@@ -227,7 +295,7 @@ func (p *puller) pushUnsafe(ctx context.Context, lock bool) (err error) {
 		defer p.backend.Unlock()
 	}
 
-	if remote, err = p.getRemote(ctx); err != nil {
+	if remote, err = p.getRemote(ctx, rs); err != nil {
 		return
 	}
 
@@ -238,12 +306,12 @@ func (p *puller) pushUnsafe(ctx context.Context, lock bool) (err error) {
 	return
 }
 
-func (p *puller) getRemoteDataHead(ctx context.Context) (c git.Commit, err error) {
-	return p.backend.getHead(ctx, p.remoteDataRefName)
+func (p *puller) getRemoteDataHead(ctx context.Context, rs *remoteSpec) (c git.Commit, err error) {
+	return p.backend.getHead(ctx, rs.getDataRefName())
 }
 
-func (p *puller) getRemoteMetadataHead(ctx context.Context) (c git.Commit, err error) {
-	return p.backend.getHead(ctx, p.remoteMetaRefName)
+func (p *puller) getRemoteMetadataHead(ctx context.Context, rs *remoteSpec) (c git.Commit, err error) {
+	return p.backend.getHead(ctx, rs.getMetadataRefName())
 }
 
 func maxInt64(a, b int64) int64 {
@@ -540,13 +608,21 @@ func (f *metadataFixerAfterNonFastForwardMerge) fix(
 	return
 }
 
-func (p *puller) merge(ctx context.Context) (err error) {
+func (p *puller) newMerger(_ context.Context, rs *remoteSpec) (merger git.Merger) {
+	merger = p.backend.repo.Merger(p.backend.errors)
+	merger.SetConflictResolution(rs.getConflictResolution())
+	merger.SetRetentionPolicy(rs.getRetentionPolicy())
+
+	return
+}
+
+func (p *puller) mergeRemote(ctx context.Context, rs *remoteSpec) (err error) {
 	var (
 		b      = p.backend
-		merger = p.merger
+		merger = p.newMerger(ctx, rs)
 		log    = p.log.WithValues(
 			"our-data-reference", b.refName,
-			"their-data-reference", p.remoteDataRefName,
+			"their-data-reference", rs.getDataRefName(),
 		)
 
 		oursDataC, theirsDataC, oursMetaC, theirsMetaC git.Commit
@@ -556,7 +632,15 @@ func (p *puller) merge(ctx context.Context) (err error) {
 		message                                        string
 
 		noFastForward = p.noFastForward
+
+		dataHeadFn = func(headFn func(context.Context) (git.Commit, error)) func(ctx context.Context, _ *remoteSpec) (git.Commit, error) {
+			return func(ctx context.Context, _ *remoteSpec) (git.Commit, error) {
+				return headFn(ctx)
+			}
+		}
 	)
+
+	defer merger.Close()
 
 	log.V(-1).Info("Merging", "conflictResolution", merger.GetConfictResolution(), "retentionPolicy", merger.GetRetentionPolicy().String())
 	defer func() {
@@ -568,21 +652,21 @@ func (p *puller) merge(ctx context.Context) (err error) {
 
 	defer func() {
 		if err == nil && p.pushAfterMerge {
-			err = p.pushUnsafe(ctx, false)
+			err = p.pushUnsafe(ctx, rs, false)
 		}
 	}()
 
 	for _, s := range []struct {
 		ptrC           *git.Commit
-		headFn         func(context.Context) (git.Commit, error)
+		headFn         func(context.Context, *remoteSpec) (git.Commit, error)
 		ignoreNotFound bool
 	}{
 		{ptrC: &theirsDataC, headFn: p.getRemoteDataHead, ignoreNotFound: false},
 		{ptrC: &theirsMetaC, headFn: p.getRemoteMetadataHead, ignoreNotFound: false},
-		{ptrC: &oursDataC, headFn: b.getDataHead, ignoreNotFound: true},
-		{ptrC: &oursMetaC, headFn: b.getMetadataHead, ignoreNotFound: true},
+		{ptrC: &oursDataC, headFn: dataHeadFn(b.getDataHead), ignoreNotFound: true},
+		{ptrC: &oursMetaC, headFn: dataHeadFn(b.getMetadataHead), ignoreNotFound: true},
 	} {
-		if *s.ptrC, err = s.headFn(ctx); err != nil {
+		if *s.ptrC, err = s.headFn(ctx, rs); err != nil {
 			if !b.errors.IsNotFound(err) {
 				return
 			} else if !s.ignoreNotFound {
@@ -725,17 +809,17 @@ func (p *puller) merge(ctx context.Context) (err error) {
 	return b.advanceReferences(ctx, metaMutated, newMetaHeadID, dataMutated, newDataHeadID, revision)
 }
 
-func (p *puller) pull(ctx context.Context) (err error) {
-	var fns []func(context.Context) error
+func (p *puller) pullRemote(ctx context.Context, rs *remoteSpec) (err error) {
+	var fns []func(context.Context, *remoteSpec) error
 
 	if !p.noFetch {
-		fns = append(fns, p.fetch)
+		fns = append(fns, p.fetchRemote)
 	}
 
-	fns = append(fns, p.merge)
+	fns = append(fns, p.mergeRemote)
 
 	for _, fn := range fns {
-		if err = fn(ctx); err != nil {
+		if err = fn(ctx, rs); err != nil {
 			return
 		}
 	}
@@ -756,8 +840,10 @@ func (p *puller) Run(ctx context.Context) (err error) {
 				return
 			}
 
-			if err = p.pull(ctx); err != nil {
-				p.log.Error(err, "Error pulling watch queue", "remoteName", p.remoteName)
+			for _, rs := range p.remoteSpecs {
+				if err = p.pullRemote(ctx, rs); err != nil {
+					p.log.Error(err, "Error pulling watch queue", "remoteName", rs.getName())
+				}
 			}
 		}
 	}
