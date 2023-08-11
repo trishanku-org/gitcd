@@ -10,6 +10,7 @@ import (
 	"github.com/trishanku/gitcd/pkg/git/tree/mutation"
 	"github.com/trishanku/gitcd/pkg/util"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
 // TODO Test
@@ -117,6 +118,13 @@ func (pullOpts) WithNoFetch(noFetch bool) PullOptionFunc {
 func (pullOpts) WithPushAfterMerge(pushAfterMerge bool) PullOptionFunc {
 	return func(p *puller) error {
 		p.pushAfterMerge = pushAfterMerge
+		return nil
+	}
+}
+
+func (pullOpts) WithPushOnPullFailure(pushOnPullFailure bool) PullOptionFunc {
+	return func(p *puller) error {
+		p.pushOnPullFailure = pushOnPullFailure
 		return nil
 	}
 }
@@ -232,9 +240,10 @@ type puller struct {
 
 	remoteSpecs []*remoteSpec
 
-	noFastForward  bool
-	noFetch        bool
-	pushAfterMerge bool
+	noFastForward     bool
+	noFetch           bool
+	pushAfterMerge    bool
+	pushOnPullFailure bool
 
 	dataPushRefSpec     git.RefSpec
 	metadataPushRefSpec git.RefSpec
@@ -644,15 +653,15 @@ func (p *puller) mergeRemote(ctx context.Context, rs *remoteSpec) (err error) {
 
 	log.V(-1).Info("Merging", "conflictResolution", merger.GetConfictResolution(), "retentionPolicy", merger.GetRetentionPolicy().String())
 	defer func() {
-		log.V(-1).Info("Merged", "error", err, "dataMutated", dataMutated, "metaMutated", metaMutated, "pushAfterMerge", p.pushAfterMerge)
+		log.V(-1).Info("Merged", "error", err, "dataMutated", dataMutated, "metaMutated", metaMutated, "pushAfterMerge", p.pushAfterMerge, "pushOnPullFailure", p.pushOnPullFailure)
 	}()
 
 	p.backend.Lock()
 	defer p.backend.Unlock()
 
 	defer func() {
-		if err == nil && p.pushAfterMerge {
-			err = p.pushUnsafe(ctx, rs, false)
+		if p.pushAfterMerge && (err == nil || p.pushOnPullFailure) {
+			err = utilerrors.NewAggregate([]error{err, p.pushUnsafe(ctx, rs, false)})
 		}
 	}()
 

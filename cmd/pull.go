@@ -111,6 +111,7 @@ var pullCmd = &cobra.Command{
 				backend.PullOptions.WithNoFastForward(pi.noFastForward),
 				backend.PullOptions.WithNoFetch(pi.noFetch),
 				backend.PullOptions.WithPushAfterMerge(pi.pushAfterMerge),
+				backend.PullOptions.WithPushOnPullFailure(pi.pushOnPullFailure),
 				backend.PullOptions.WithLogger(log),
 			}
 
@@ -152,18 +153,19 @@ type commonPullerInfo interface {
 	NoFastForward() *bool
 	NoFetch() *bool
 	PushAfterMerge() *bool
+	PushOnPullFailure() *bool
 	DataPushRefSpec() *git.RefSpec
 	MetadataPushRefSpec() *git.RefSpec
 }
 
 type pullerInfo struct {
-	dataRefName, metaRefName                   git.ReferenceName
-	remoteDataRefNames, remoteMetadataRefNames []git.ReferenceName
-	remoteNames                                []git.RemoteName
-	mergeConflictResolutions                   []git.MergeConfictResolution
-	mergeRetentionPolicies                     []git.MergeRetentionPolicy
-	dataPushRefSpec, metadataPushRefSpec       git.RefSpec
-	noFastForward, noFetch, pushAfterMerge     bool
+	dataRefName, metaRefName                                  git.ReferenceName
+	remoteDataRefNames, remoteMetadataRefNames                []git.ReferenceName
+	remoteNames                                               []git.RemoteName
+	mergeConflictResolutions                                  []git.MergeConfictResolution
+	mergeRetentionPolicies                                    []git.MergeRetentionPolicy
+	dataPushRefSpec, metadataPushRefSpec                      git.RefSpec
+	noFastForward, noFetch, pushAfterMerge, pushOnPullFailure bool
 }
 
 var _ commonPullerInfo = (*pullerInfo)(nil)
@@ -176,6 +178,7 @@ func (p *pullerInfo) RemoteMetadataRefNames() *[]git.ReferenceName { return &p.r
 func (p *pullerInfo) NoFastForward() *bool                         { return &p.noFastForward }
 func (p *pullerInfo) NoFetch() *bool                               { return &p.noFetch }
 func (p *pullerInfo) PushAfterMerge() *bool                        { return &p.pushAfterMerge }
+func (p *pullerInfo) PushOnPullFailure() *bool                     { return &p.pushOnPullFailure }
 func (p *pullerInfo) DataPushRefSpec() *git.RefSpec                { return &p.dataPushRefSpec }
 func (p *pullerInfo) MetadataPushRefSpec() *git.RefSpec            { return &p.metadataPushRefSpec }
 
@@ -352,6 +355,14 @@ func loadPullerInfoFor(pi commonPullerInfo, backendFlags commonBackendFlags, pul
 		}
 	}
 
+	if s, ok = (*pullFlags.getPushOnPullFailures())[key]; ok {
+		if *pi.PushOnPullFailure(), err = strconv.ParseBool(s); err != nil {
+			return
+		}
+	} else {
+		*pi.PushOnPullFailure() = defaultPushOnPullFailures
+	}
+
 	if *pi.MergeRetentionPolicies(), err = toMergeRetentionPolicies(
 		splitByColon((*pullFlags.getMergeRetentionPoliciesInclude())[key]),
 		splitByColon((*pullFlags.getMergeRetentionPoliciesExclude())[key]),
@@ -396,6 +407,7 @@ type commonPullFlags interface {
 	getNoFastForwards() *map[string]string
 	getNoFetches() *map[string]string
 	getPushAfterMerges() *map[string]string
+	getPushOnPullFailures() *map[string]string
 	getPullTickerDuration() *time.Duration
 }
 
@@ -405,6 +417,7 @@ const (
 	defaultNoFastForward                 = false
 	defaultNoFetch                       = false
 	defaultPushAfterMerges               = false
+	defaultPushOnPullFailures            = true
 )
 
 func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
@@ -465,6 +478,12 @@ func addCommonPullFlags(flags *pflag.FlagSet, commonFlags commonPullFlags) {
 		map[string]string{"default": strconv.FormatBool(defaultPushAfterMerges)},
 		"Enable this if backend data and metadata should be pushed to remotes after merging merging from remotes.",
 	)
+	flags.StringToStringVar(
+		commonFlags.getPushOnPullFailures(),
+		"push-on-pull-failures",
+		map[string]string{"default": strconv.FormatBool(defaultPushOnPullFailures)},
+		"Disable this if backend data and metadata should not be pushed to remotes if pulling from remotes fail.",
+	)
 
 	flags.DurationVar(
 		commonFlags.getPullTickerDuration(),
@@ -487,6 +506,7 @@ type pullFlagsImpl struct {
 	noFastForwards                         map[string]string
 	noFetch                                map[string]string
 	pushAfterMerges                        map[string]string
+	pushOnPullFailures                     map[string]string
 	pullTickerDuration                     time.Duration
 }
 
@@ -519,6 +539,7 @@ func (p *pullFlagsImpl) getRemoteMetaRefNames() *map[string]string { return &p.r
 func (p *pullFlagsImpl) getNoFastForwards() *map[string]string     { return &p.noFastForwards }
 func (p *pullFlagsImpl) getNoFetches() *map[string]string          { return &p.noFetch }
 func (p *pullFlagsImpl) getPushAfterMerges() *map[string]string    { return &p.pushAfterMerges }
+func (p *pullFlagsImpl) getPushOnPullFailures() *map[string]string { return &p.pushOnPullFailures }
 func (p *pullFlagsImpl) getPullTickerDuration() *time.Duration     { return &p.pullTickerDuration }
 
 func (p *pullFlagsImpl) getMergeConflictResolutions() *map[string]string {
