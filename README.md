@@ -19,9 +19,6 @@ Gitcd - Git as a distributed key-value store.
   - [Serve ETCD from an existing Git repo](#serve-etcd-from-an-existing-git-repo)
     - [Consume](#consume-2)
     - [Cleanup](#cleanup-2)
-  - [Run a local Kubernetes cluster with Gitcd as the backend](#run-a-local-kubernetes-cluster-with-gitcd-as-the-backend)
-    - [Note](#note)
-    - [Cleanup](#cleanup-3)
 
 ## Take it for a spin
 
