@@ -41,7 +41,7 @@ function start_gitcd_container {
     echo "Starting container ${container_name} ${listen_urls}."
 
     docker run --rm -v "${container_name}:/backend" \
-        trishanku/gitcd:latest \
+        asia-south1-docker.pkg.dev/trishanku/trishanku/gitcd:latest \
         init \
         --repo=/backend \
         "--data-reference-names=${data_refs}" \
@@ -50,7 +50,7 @@ function start_gitcd_container {
     echo docker run --name "$container_name" \
         -d -v "${container_name}:/backend" \
         "${ports}" \
-        trishanku/gitcd:latest \
+        asia-south1-docker.pkg.dev/trishanku/trishanku/gitcd:latest \
         serve \
             --repo=/backend \
             "--data-reference-names=${data_refs}" \
