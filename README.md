@@ -569,3 +569,211 @@ gitcd
 $ docker volume rm gitcd-backend
 gitcd-backend
 ```
+
+### Run kube-apiserver with Gitcd as the backend
+```sh
+# Start kube-apiserver and Gitcd containers.
+$ make start-docker-gitcd-kube-apiserver
+hack/kube/start.sh
++ start_gitcd
++ docker volume create gitcd-backend
+gitcd-backend
++ echo 'git init -b main && git config user.email "trishanku@heaven.com" && git config user.name trishanku'
++ docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
+Initialized empty Git repository in /backend/.git/
++ echo 'touch init && git add init && git commit -m init'
++ docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
+[main (root-commit) d2c5b2e] init
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 init
++ docker run --rm -v gitcd-backend:/backend asia-south1-docker.pkg.dev/trishanku/trishanku/gitcd:latest init --repo=/backend
+{"level":"info","ts":1692002025.9472187,"logger":"init.refs/heads/main","caller":"cmd/init.go:84","msg":"Initializing","repoPath":"/backend","options":{"Repo":{},"Errors":{},"DataRefName":"refs/heads/main","MetadataRefName":"refs/gitcd/metadata/main","StartRevision":1,"Version":"v0.0.1-dev","Force":false,"CommitterName":"trishanku","CommitterEmail":"trishanku@heaven.com"}}
+{"level":"info","ts":1692002025.9550986,"logger":"init.refs/heads/main","caller":"cmd/init.go:91","msg":"Initialized successfully"}
++ docker run --name gitcd -d -v gitcd-backend:/backend asia-south1-docker.pkg.dev/trishanku/trishanku/gitcd:latest serve --repo=/backend --debug
+a92ec60a5de48f628d0a89bc09272f7d4a636b62fd3254e4b9f6570ef590e8d1
++ docker run --rm --network=container:gitcd --entrypoint etcdctl bitnami/etcd:3 --insecure-transport endpoint status
+127.0.0.1:2379, 0, v0.0.1-dev, 152 kB, true, false, 1, 1, 1,
++ prepare_certs
++ docker volume create kube-certs
+kube-certs
++ docker run -i --rm -v kube-certs:/tls -w /tls busybox:1 dd of=tls.conf
+0+1 records in
+0+1 records out
+482 bytes (482B) copied, 0.003055 seconds, 154.1KB/s
++ docker run --rm -v kube-certs:/tls -w /tls --entrypoint openssl nginx:1 req -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -extensions v3_req -config tls.conf -out tls.crt -keyout tls.key
+Generating a RSA private key
+.....................................++++
+........................................++++
+writing new private key to 'tls.key'
+-----
++ docker run --rm -v kube-certs:/tls -w /tls busybox:1 ln -s tls.crt ca.crt
++ start_kube_apiserver
++ docker run --name kube-apiserver -d -v kube-certs:/tls --network=container:gitcd --entrypoint kube-apiserver k8s.gcr.io/kube-apiserver:v1.24.4 --client-ca-file=/tls/ca.crt --etcd-compaction-interval=0 --etcd-servers=http://localhost:2379 --secure-port=6443 --service-account-issuer=https://kube-apiserver/ --service-account-key-file=/tls/tls.key --service-account-signing-key-file=/tls/tls.key --storage-media-type=application/yaml --tls-cert-file=/tls/tls.crt --tls-private-key-file=/tls/tls.key --watch-cache=false
+Unable to find image 'k8s.gcr.io/kube-apiserver:v1.24.4' locally
+v1.24.4: Pulling from kube-apiserver
+Digest: sha256:74496d788bad4b343b2a2ead2b4ac8f4d0d99c45c451b51c076f22e52b84f1e5
+Status: Downloaded newer image for k8s.gcr.io/kube-apiserver:v1.24.4
+e6d158dfb184a5b803753c860d307d6c8e29b6639a5a1218f92486363931663e
+
+# Check that kube-apiserver and Gitcd containers are running.
+$ docker ps -n 2
+CONTAINER ID   IMAGE                                                         COMMAND                  CREATED         STATUS                  PORTS     NAMES
+e6d158dfb184   k8s.gcr.io/kube-apiserver:v1.24.4                             "kube-apiserver --cl…"   1 second ago    Up Less than a second             kube-apiserver
+a92ec60a5de4   asia-south1-docker.pkg.dev/trishanku/trishanku/gitcd:latest   "/gitcd serve --repo…"   5 seconds ago   Up 4 seconds                      gitcd
+
+# Wait for kube-apiserver to initialize.
+$ sleep 10
+
+# Inspect the Kubernetes content in the backend Git repo.
+$ echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
+    docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
+HEAD is now at 9aadc87 80
+error: pathspec 'refs/gitcd/metadata/refs/heads/main' did not match any file(s) known to git
+
+$ echo "apk update && apk add tree && tree /backend" | docker run -i --rm -v gitcd-backend:/backend alpine:3 sh
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.15/main/x86_64/APKINDEX.tar.gz
+fetch https://dl-cdn.alpinelinux.org/alpine/v3.15/community/x86_64/APKINDEX.tar.gz
+v3.15.10-11-g237beaf9c41 [https://dl-cdn.alpinelinux.org/alpine/v3.15/main]
+v3.15.10-11-g237beaf9c41 [https://dl-cdn.alpinelinux.org/alpine/v3.15/community]
+OK: 15866 distinct packages available
+(1/1) Installing tree (1.8.0-r0)
+Executing busybox-1.34.1-r3.trigger
+OK: 6 MiB in 15 packages
+/backend
+├── init
+└── registry
+    ├── apiregistration.k8s.io
+    │   └── apiservices
+    │       ├── v1.
+    │       ├── v1.admissionregistration.k8s.io
+    │       ├── v1.apiextensions.k8s.io
+    │       ├── v1.apps
+    │       ├── v1.authentication.k8s.io
+    │       ├── v1.authorization.k8s.io
+    │       ├── v1.autoscaling
+    │       ├── v1.batch
+    │       ├── v1.certificates.k8s.io
+    │       ├── v1.coordination.k8s.io
+    │       ├── v1.discovery.k8s.io
+    │       ├── v1.events.k8s.io
+    │       ├── v1.networking.k8s.io
+    │       ├── v1.node.k8s.io
+    │       ├── v1.policy
+    │       ├── v1.rbac.authorization.k8s.io
+    │       ├── v1.scheduling.k8s.io
+    │       ├── v1.storage.k8s.io
+    │       ├── v1beta1.batch
+    │       ├── v1beta1.discovery.k8s.io
+    │       ├── v1beta1.events.k8s.io
+    │       ├── v1beta1.flowcontrol.apiserver.k8s.io
+    │       ├── v1beta1.node.k8s.io
+    │       ├── v1beta1.policy
+    │       ├── v1beta1.storage.k8s.io
+    │       ├── v1beta2.flowcontrol.apiserver.k8s.io
+    │       ├── v2.autoscaling
+    │       ├── v2beta1.autoscaling
+    │       └── v2beta2.autoscaling
+    ├── configmaps
+    │   └── kube-system
+    │       └── extension-apiserver-authentication
+    ├── endpointslices
+    │   └── default
+    │       └── kubernetes
+    ├── flowschemas
+    │   ├── catch-all
+    │   ├── endpoint-controller
+    │   ├── exempt
+    │   ├── global-default
+    │   ├── kube-controller-manager
+    │   ├── kube-scheduler
+    │   ├── kube-system-service-accounts
+    │   ├── probes
+    │   ├── service-accounts
+    │   ├── system-leader-election
+    │   ├── system-node-high
+    │   ├── system-nodes
+    │   └── workload-leader-election
+    ├── masterleases
+    │   └── 172.17.0.2
+    ├── namespaces
+    │   ├── default
+    │   ├── kube-node-lease
+    │   ├── kube-public
+    │   └── kube-system
+    ├── priorityclasses
+    │   ├── system-cluster-critical
+    │   └── system-node-critical
+    ├── prioritylevelconfigurations
+    │   ├── catch-all
+    │   ├── exempt
+    │   ├── global-default
+    │   ├── leader-election
+    │   ├── node-high
+    │   ├── system
+    │   ├── workload-high
+    │   └── workload-low
+    ├── ranges
+    │   ├── serviceips
+    │   └── servicenodeports
+    └── services
+        ├── endpoints
+        │   └── default
+        │       └── kubernetes
+        └── specs
+            └── default
+                └── kubernetes
+
+18 directories, 64 files
+
+$ docker run --rm -v gitcd-backend:/backend busybox:1 cat /backend/registry/namespaces/kube-system
+apiVersion: v1
+kind: Namespace
+metadata:
+  creationTimestamp: "2023-08-14T08:33:54Z"
+  labels:
+    kubernetes.io/metadata.name: kube-system
+  managedFields:
+  - apiVersion: v1
+    fieldsType: FieldsV1
+    fieldsV1:
+      f:metadata:
+        f:labels:
+          .: {}
+          f:kubernetes.io/metadata.name: {}
+    manager: kube-apiserver
+    operation: Update
+    time: "2023-08-14T08:33:54Z"
+  name: kube-system
+  uid: f0311d5f-eafb-4dad-b3ca-afbc0832d780
+spec:
+  finalizers:
+  - kubernetes
+status:
+  phase: Active
+```
+
+#### Cleanup
+
+```sh
+# Stop kube-apiserver and Gitcd containers.
+$ make stop-docker-gitcd-kube-apiserver
+hack/kube/stop.sh
++ docker stop gitcd kube-apiserver
+gitcd
+kube-apiserver
+
+# Clean up kube-apiserver and Gitcd container and volumes.
+$ make cleanup-docker-gitcd-kube-apiserver
+hack/kube/cleanup.sh
++ docker stop kube-apiserver
+kube-apiserver
++ docker rm kube-apiserver
+kube-apiserver
++ docker stop gitcd
+gitcd
++ docker rm gitcd
+gitcd
++ docker volume rm kube-certs gitcd-backend
+kube-certs
+gitcd-backend
+```

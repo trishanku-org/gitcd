@@ -45,6 +45,15 @@ run: check
 		-ldflags "-X github.com/trishanku/gitcd/pkg/backend.Version=${BACKEND_VERSION}" \
 		main.go ${RUN_ARGS}
 
+start-docker-gitcd-kube-apiserver:
+	hack/kube/start.sh
+
+stop-docker-gitcd-kube-apiserver:
+	hack/kube/stop.sh
+
+cleanup-docker-gitcd-kube-apiserver:
+	hack/kube/cleanup.sh
+
 build-kubernetes-secrets-volume: 
 	./hack/kubernetes/the-hard-way/secrets/generate.sh
 

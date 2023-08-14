@@ -241,79 +241,41 @@ echo '$ docker volume rm gitcd-backend'
 docker volume rm gitcd-backend
 echo '```'
 echo
-echo '### Run a local Kubernetes cluster with Gitcd as the backend'
-echo
-echo '#### Note'
-echo
-echo 'The following steps will start a local Kubernetes cluster using [Kind](https://kind.sigs.k8s.io).'
-echo 'Please make sure that there are no other local Kubernetes clusters running (e.g. docker-desktop).'
-echo 'These steps also start containers that listen on ports like `2379`, `2479`, `2579`, `2679`, `2779`, `2879`, `2979` and `6443`.'
-echo 'Please ensure that these ports are available before running these steps.'
-echo
+echo '### Run kube-apiserver with Gitcd as the backend'
 echo '```sh'
-echo '# Start a local Kind Kubernetes cluster with Gitcd as the backend.'
-echo '$ make start-docker-gitcd-kind'
-make start-docker-gitcd-kind
+echo '# Start kube-apiserver and Gitcd containers.'
+echo '$ make start-docker-gitcd-kube-apiserver'
+make start-docker-gitcd-kube-apiserver
 echo
-echo '# Check that Kind and Gitcd containers are running.'
-echo '$ docker ps -n 8'
-docker ps -n 8
+echo '# Check that kube-apiserver and Gitcd containers are running.'
+echo '$ docker ps -n 2'
+docker ps -n 2
 echo
-echo '# Check that the kubeconfig is pointint to the newly setup cluster.'
-echo '$ kubectl config current-context'
-kubectl config current-context
-echo
-echo '# Check the Kubernetes cluster information.'
-echo '$ kubectl cluster-info'
-kubectl cluster-info
-echo
-echo '# List the namespaces in the cluster.'
-echo '$ kubectl get namespaces'
-kubectl get namespaces
-echo
-echo '# List the nodes in the cluster.'
-echo '$ kubectl get nodes'
-kubectl get nodes
-echo
-echo '# Wait for the node to be Ready.'
-echo '$ caffeinate -disu sleep 6m'
-caffeinate -disu sleep 6m
-echo
-echo '# Check if the node is Ready.'
-echo '$ kubectl get nodes'
-kubectl get nodes
-echo
-echo '# List all the pods in the cluster across all namespaces.'
-echo '$ kubectl get pods --all-namespaces'
-kubectl get pods --all-namespaces
-echo
-echo '# Run a pod to say hello.'
-echo '$ kubectl run -i -t hello --image=busybox:1 --restart=Never --rm --pod-running-timeout=3m echo ' "'Hello, World!'"
-kubectl run -i -t hello --image=busybox:1 --restart=Never --rm --pod-running-timeout=3m echo 'Hello, World!'
+echo '# Wait for kube-apiserver to initialize.'
+echo '$ sleep 10'
+sleep 10
 echo
 echo '# Inspect the Kubernetes content in the backend Git repo.'
-echo '$ echo "git reset --hard && git checkout refs/gitcd/metadata/nodes && git checkout nodes" | \
-    docker run -i --rm -v gitcd-nodes:/backend -w /backend bitnami/git:2 sh'
-echo "git reset --hard && git checkout refs/gitcd/metadata/nodes && git checkout nodes" | \
-    docker run -i --rm -v gitcd-nodes:/backend -w /backend bitnami/git:2 sh
+echo '$ echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
+    docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh'
+echo "git reset --hard && git checkout refs/gitcd/metadata/refs/heads/main && git checkout main" | \
+    docker run -i --rm -v gitcd-backend:/backend -w /backend bitnami/git:2 sh
 echo
-echo '$ docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane'
-docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane
+echo '$ echo "apk update && apk add tree && tree /backend" | docker run -i --rm -v gitcd-backend:/backend alpine:3 sh'
+echo "apk update && apk add tree && tree /backend" | docker run -i --rm -v gitcd-backend:/backend alpine:3 sh
 echo
-echo '# Check the difference between the content in the backend git repo and the output from kubectl (there might have been more updates in the meantime).'
-echo '$ diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane --show-managed-fields=true -oyaml )'
-diff -u <( docker run --rm -v gitcd-nodes:/backend busybox:1 cat /backend/registry/minions/trishanku-control-plane ) <( kubectl get node trishanku-control-plane --show-managed-fields=true -oyaml )
-echo 
+echo '$ docker run --rm -v gitcd-backend:/backend busybox:1 cat /backend/registry/namespaces/kube-system'
+docker run --rm -v gitcd-backend:/backend busybox:1 cat /backend/registry/namespaces/kube-system
 echo '```'
 echo
 echo '#### Cleanup'
 echo
 echo '```sh'
 echo '# Stop kube-apiserver and Gitcd containers.'
-echo '$ make stop-docker-gitcd-kind'
-make stop-docker-gitcd-kind
+echo '$ make stop-docker-gitcd-kube-apiserver'
+make stop-docker-gitcd-kube-apiserver
 echo
 echo '# Clean up kube-apiserver and Gitcd container and volumes.'
-echo '$ make cleanup-docker-gitcd-kind'
-make cleanup-docker-gitcd-kind
+echo '$ make cleanup-docker-gitcd-kube-apiserver'
+make cleanup-docker-gitcd-kube-apiserver
 echo '```'
